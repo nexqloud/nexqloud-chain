@@ -90,13 +90,13 @@ if [[ $1 == "init" ]]; then
 	sed -i 's/127.0.0.1/0.0.0.0/g' "$APP_TOML"
 
     # set seed node info
-	SEED_NODE_ID="`wget -qO- http://18.119.89.105/node-id`"
+	SEED_NODE_ID="`wget -qO- http://3.20.175.230/node-id`"
 	echo "SEED_NODE_ID=$SEED_NODE_ID"
-	SEEDS="$SEED_NODE_ID@18.119.89.105:26656"
+	SEEDS="$SEED_NODE_ID@3.20.175.230:26656"
 	#sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
 	sed -i "s/persistent_peers =.*/persistent_peers = \"$SEEDS\"/g" "$CONFIG"
 
-	wget -qO- "http://18.119.89.105/genesis.json" > "$GENESIS"
+	wget -qO- "http://3.20.175.230/genesis.json" > "$GENESIS"
 
 	# set custom pruning settings
 	sed -i.bak 's/pruning = "default"/pruning = "custom"/g' "$APP_TOML"

@@ -150,24 +150,16 @@ if [[ $1 == "init" ]]; then
 		nxqd add-genesis-account "$KEY" 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home "$HOMEDIR" # 21M
 	done
 
-	# STAKE HOLDERS
-	nxqd add-genesis-account nxq10cv6092ch7gma4mjjstavnqqnt0jglp3r0h5cj 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq18hh25dz832a6epr9wycffrvmry96l44kh96v8j 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1grcjsasskjy4h4s07x5fln5t0ufcdxkzp08meh 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1mc0hlh5ffhqeggzpu0n2za4cd5t359tnx798w7 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1zn3yyfy0p3p0wcaxp33puhxua4dj72a4y2vdgu 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1yr6yv88fy58ad8kcwumn87p3j2ly6pmtl78jg5 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1ju35sdz8np9cxs44jrp2shz738x4a2a6wclwc0 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 	#VAULTS
-	nxqd add-genesis-account nxq1mg9nzc09dxmpm3e58rt4taef8fz9cy6ek5gvzd 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1nrvz9zqyr7lf776lwg6sh0v4cl5x5dxdk84c6e 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1f4n5l9aggyjuydd24amxpw6v8cej7d59n7usfg 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1l8hexeltx5v36svsdxl8u6zp8fdegq5mczuzdq 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq17crcer5e5gdy7nnkjp4shs8ach8lj7s8x38s90 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1xfm8n072h6antu94tac0skh42u6vj6hrquqznt 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1ptds9mnfns4ufesjga0d0c5a392uw85dpe2hd6 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1cmys66z7m5pv3ygcpm9y5hsyr8m65at6rqnhtk 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1cylpqf2ssa8ajtaledychymmsmc5v8zw3kex26 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1dmnc5utac6yz8tcd6r0hjzke3fgsf6t87yljme 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 	#MAINTANANCE
-	nxqd add-genesis-account nxq1edgqqqgajcvs0wxhqda9wzaa5x2l902fu5yxaw 10492000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1mm3avcg58d0ht78syf3uyv30yljmyymy3fugyp 10499000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 
 	# for VAULT in "${VAULTS[@]}"; do
@@ -200,6 +192,8 @@ if [[ $1 == "init" ]]; then
 
 	cp $GENESIS /var/www/html/
 	nxqd tendermint show-node-id  --home "$HOMEDIR" > /var/www/html/node-id
+
+	
 else	
 	# Start the node (remove the --pruning=nothing flag if historical queries are not needed)
 	nxqd start --metrics "$TRACE" --log_level $LOGLEVEL --minimum-gas-prices=0.0001$TOKEN --json-rpc.enable  --grpc.enable  --json-rpc.api eth,txpool,personal,net,debug,web3 --api.enable --home "$HOMEDIR" --keyring-backend $KEYRING 
