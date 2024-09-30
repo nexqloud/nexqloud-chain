@@ -160,7 +160,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
-	github.com/nexqloud/nxqconfig v1.0.1 // indirect
+	github.com/nexqloud/nxqconfig v1.0.2 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect
@@ -221,7 +221,7 @@ require (
 replace (
 	// use cosmos fork of keyring
 	github.com/99designs/keyring => github.com/cosmos/keyring v1.2.0
-	github.com/cosmos/cosmos-sdk => github.com/nexqloud/cosmos-sdk v1.0.1
+	github.com/cosmos/cosmos-sdk => github.com/nexqloud/cosmos-sdk v1.0.2
 
 	// use Evmos geth for
 	github.com/ethereum/go-ethereum => github.com/evmos/go-ethereum v1.10.26-evmos-rc2
