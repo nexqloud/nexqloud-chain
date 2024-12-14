@@ -5,7 +5,7 @@ MONIKER="NexQCloud"
 # Remember to change to other types of keyring like 'file' in-case exposing to outside world,
 # otherwise your balance will be wiped quickly
 # The keyring test does not require private key to steal tokens from you
-KEYRING="test"
+KEYRING="backend"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
 # Set dedicated home directory for the nxqd instance
@@ -152,14 +152,14 @@ if [[ $1 == "init" ]]; then
 
 
 	#VAULTS
-	nxqd add-genesis-account nxq1xfm8n072h6antu94tac0skh42u6vj6hrquqznt 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1ptds9mnfns4ufesjga0d0c5a392uw85dpe2hd6 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1cmys66z7m5pv3ygcpm9y5hsyr8m65at6rqnhtk 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1cylpqf2ssa8ajtaledychymmsmc5v8zw3kex26 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1dmnc5utac6yz8tcd6r0hjzke3fgsf6t87yljme 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1s3hdtzl7tjfc44qzty49c0epmc9w64ag6d3j00 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq13dyr58zvw6lwqrdujave59tnttapx8s9gh248u 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq10lwe84nvcj25nwyhrzfhdzzgczwv5766fqcpsu 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1s9utpjs7gs6q0ldzvlug425ve2pjwfhw0ysz3c 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1kupj8jf35engv4dunspxgfy0ecw43chuu6ly9t 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 	#MAINTANANCE
-	nxqd add-genesis-account nxq1mm3avcg58d0ht78syf3uyv30yljmyymy3fugyp 10499000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1j62r2da6tx3wen8pfrw74zu5ekq4u7xc3935cr 10499000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 
 	# for VAULT in "${VAULTS[@]}"; do
