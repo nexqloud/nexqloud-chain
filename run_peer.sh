@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CHAINID="nxq_7002-1"
+CHAINID="nxq_7002-2"
 MONIKER="NexQloudPeer"
 # Remember to change to other types of keyring like 'file' in-case exposing to outside world,
 # otherwise your balance will be wiped quickly
