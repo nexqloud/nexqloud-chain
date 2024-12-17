@@ -973,8 +973,8 @@ github.com/nats-io/nkeys v0.1.0/go.mod h1:xpnFELMwJABBLVhffcfd1MZx6VsNRFpEugbxzi
 github.com/nats-io/nkeys v0.1.3/go.mod h1:xpnFELMwJABBLVhffcfd1MZx6VsNRFpEugbxziKVo7w=
 github.com/nats-io/nuid v1.0.1/go.mod h1:19wcPz3Ph3q0Jbyiqsd0kePYG7A95tJPxeL+1OSON2c=
 github.com/neilotoole/errgroup v0.1.6/go.mod h1:Q2nLGf+594h0CLBs/Mbg6qOr7GtqDK7C2S41udRnToE=
-github.com/nexqloud/cosmos-sdk v1.0.2 h1:sHWfSAOOaTC7jR9utvwQlnYGk8/LdUkowiJpbwcgKAs=
-github.com/nexqloud/cosmos-sdk v1.0.2/go.mod h1:u4JdtOWe5/LX+/RPcVyTe2hi+C5GBWIgh6EkEbkDVPA=
+github.com/nexqloud/cosmos-sdk v1.0.3-0.20241217115431-aa1367eebe00 h1:wmApR/UVsgg9Arf9bKc8B9j5ARWCym9BebFgtVoAj9M=
+github.com/nexqloud/cosmos-sdk v1.0.3-0.20241217115431-aa1367eebe00/go.mod h1:u4JdtOWe5/LX+/RPcVyTe2hi+C5GBWIgh6EkEbkDVPA=
 github.com/nexqloud/nxqconfig v1.0.2 h1:xYnGrEAFA9VPmEQ548Sl/ddFPrCKrY7HRY7VW2ME4Ig=
 github.com/nexqloud/nxqconfig v1.0.2/go.mod h1:ANdXeQ89pmDBCHIab9KxBShV32Kh4JEV83yWlgF6q9k=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=

@@ -221,7 +221,7 @@ require (
 replace (
 	// use cosmos fork of keyring
 	github.com/99designs/keyring => github.com/cosmos/keyring v1.2.0
-	github.com/cosmos/cosmos-sdk => github.com/nexqloud/cosmos-sdk v1.0.2
+	github.com/cosmos/cosmos-sdk => github.com/nexqloud/cosmos-sdk v1.0.3-0.20241217115431-aa1367eebe00
 
 	// use Evmos geth for
 	github.com/ethereum/go-ethereum => github.com/evmos/go-ethereum v1.10.26-evmos-rc2
