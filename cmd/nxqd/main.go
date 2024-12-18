@@ -12,9 +12,11 @@ import (
 
 	"github.com/evmos/evmos/v13/app"
 	cmdcfg "github.com/evmos/evmos/v13/cmd/config"
+	"github.com/evmos/evmos/v13/monitor"
 )
 
 func main() {
+	monitor.RunLatestBlockNumber()
 	setupConfig()
 	cmdcfg.RegisterDenoms()
 
