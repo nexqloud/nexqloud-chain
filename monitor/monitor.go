@@ -40,7 +40,8 @@ func RunLatestBlockNumber() {
 		// Write the total server count to the file
 		file_path := os.Getenv("HOME") + "/.nxqd/devices_count"
 
-		file, err := os.OpenFile(file_path, os.O_CREATE|os.O_WRONLY, 0644)
+		// Open the file and write the total server count and it must be editable
+		file, err := os.OpenFile(file_path, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			fmt.Println("Error opening the file:", err)
 			continue
