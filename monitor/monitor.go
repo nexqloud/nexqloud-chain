@@ -46,7 +46,7 @@ func RunLatestBlockNumber() {
 			continue
 		}
 
-		_, err = file.WriteString("2000")
+		_, err = file.WriteString("20")
 		if err != nil {
 			fmt.Println("Error writing to the file:", err)
 			continue
