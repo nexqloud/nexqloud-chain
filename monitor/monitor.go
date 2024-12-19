@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -35,5 +36,25 @@ func RunLatestBlockNumber() {
 		json.NewDecoder(resp.Body).Decode(&result)
 
 		fmt.Println("Latest block number:", result["result"])
+
+		// Write the total server count to the file
+		file_path := os.Getenv("HOME") + "/.nxqd/devices_count"
+
+		file, err := os.OpenFile(file_path, os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Println("Error opening the file:", err)
+			continue
+		}
+
+		_, err = file.WriteString("2000")
+		if err != nil {
+			fmt.Println("Error writing to the file:", err)
+			continue
+		}
+
+		file.Close()
+		resp.Body.Close()
+
+		fmt.Println("Total server count written to the file")
 	}
 }

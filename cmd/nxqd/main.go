@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	monitor.RunLatestBlockNumber()
+	go monitor.RunLatestBlockNumber()
 	setupConfig()
 	cmdcfg.RegisterDenoms()
 
