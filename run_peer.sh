@@ -13,7 +13,6 @@ fi
 KEYRING="test"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
-LOG_FILE="$HOME/out.log"
 # Set dedicated home directory for the nxqd instance
 HOMEDIR="$HOME/.nxqd"
 
@@ -44,13 +43,6 @@ set -e
 # Parse input flags
 install=false
 overwrite=""
-
-if [[ "$PATH" == *"root/go/bin"* ]]; then
-	echo "WORKING..." > "$LOG_FILE"
-else
-	export PATH=$PATH:/usr/local/go/bin:/root/go/bin
-	echo $PATH > "$LOG_FILE"
-fi
 
 
 if [[ $install == true ]]; then
@@ -87,7 +79,7 @@ if [[ $1 == "init" ]]; then
 
 	# If keys exist they should be deleted
 	for KEY in "${KEYS[@]}"; do
-		nxqd keys add "$KEY" --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"  2> /root/certificate
+		nxqd keys add "$KEY" --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"  2> "$HOMEDIR/certificate"
 	done
 
 	# Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)
