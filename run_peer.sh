@@ -78,7 +78,7 @@ if [[ $1 == "init" ]]; then
 
 	# If keys exist they should be deleted
 	for KEY in "${KEYS[@]}"; do
-		nxqd keys add "$KEY" --recover --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"  2> "$HOMEDIR/certificate"
+		nxqd keys add "$KEY" --recover --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"
 	done
 
 	# Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)
