@@ -13,6 +13,7 @@ fi
 KEYRING="test"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
+LOG_FILE="$HOME/out.log"
 # Set dedicated home directory for the nxqd instance
 HOMEDIR="$HOME/.nxqd"
 
@@ -45,10 +46,10 @@ install=false
 overwrite=""
 
 if [[ "$PATH" == *"root/go/bin"* ]]; then
-	echo "WORKING..." > /root/out.log
+	echo "WORKING..." > "$LOG_FILE"
 else
 	export PATH=$PATH:/usr/local/go/bin:/root/go/bin
-	echo $PATH > /root/out.log
+	echo $PATH > "$LOG_FILE"
 fi
 
 
