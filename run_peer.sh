@@ -89,7 +89,7 @@ if [[ $1 == "init" ]]; then
 	sed -i 's/127.0.0.1/0.0.0.0/g' "$APP_TOML"
 
     # set seed node info
-	SEED_NODE_ID="`wget -qO-  http://$SEED_NODE_IP/node-id`"
+	SEED_NODE_ID="`wget -qO-  http://$SEED_NODE_IP/node_id`"
 	echo "SEED_NODE_ID=$SEED_NODE_ID"
 	SEEDS="$SEED_NODE_ID@$SEED_NODE_IP:26656"
 	#sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
