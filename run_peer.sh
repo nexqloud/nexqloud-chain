@@ -1,7 +1,12 @@
 #!/bin/bash
 
 CHAINID="nxq_7002-2"
-MONIKER="NexQloudPeer"
+
+# Set moniker if environment variable is not set
+if [ -z "$MONIKER" ]; then
+	MONIKER="NexQloudPeer"
+fi
+
 # Remember to change to other types of keyring like 'file' in-case exposing to outside world,
 # otherwise your balance will be wiped quickly
 # The keyring test does not require private key to steal tokens from you
@@ -10,6 +15,8 @@ KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
 # Set dedicated home directory for the nxqd instance
 HOMEDIR="$HOME/.nxqd"
+
+SEED_NODE_IP="3.7.66.87"
 
 KEYS[0]="mykey"
 # to trace evm
@@ -90,13 +97,13 @@ if [[ $1 == "init" ]]; then
 	sed -i 's/127.0.0.1/0.0.0.0/g' "$APP_TOML"
 
     # set seed node info
-	SEED_NODE_ID="`wget -qO- http://3.20.175.230/node-id`"
+	SEED_NODE_ID="`wget -qO-  http://$SEED_NODE_IP/node-id`"
 	echo "SEED_NODE_ID=$SEED_NODE_ID"
-	SEEDS="$SEED_NODE_ID@3.20.175.230:26656"
+	SEEDS="$SEED_NODE_ID@$SEED_NODE_IP:26656"
 	#sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
 	sed -i "s/persistent_peers =.*/persistent_peers = \"$SEEDS\"/g" "$CONFIG"
 
-	wget -qO- "http://3.20.175.230/genesis.json" > "$GENESIS"
+	wget -qO- "http://$SEED_NODE_IP/genesis.json" > "$GENESIS"
 
 	# set custom pruning settings
 	sed -i.bak 's/pruning = "default"/pruning = "custom"/g' "$APP_TOML"
