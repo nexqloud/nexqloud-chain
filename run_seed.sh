@@ -11,7 +11,7 @@ LOGLEVEL="info"
 # Set dedicated home directory for the nxqd instance
 HOMEDIR="$HOME/.nxqd"
 LOG_FILE="$HOME/out.log"
-NXQD_BIN="$HOME/nexqloud-chain/build/nxqd"
+NXQD_BIN="nxqd"
 
 KEYS[0]="mykey"
 
