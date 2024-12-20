@@ -192,10 +192,8 @@ if [[ $1 == "init" ]]; then
 	# Run this to ensure everything worked and that the genesis file is setup correctly
 	$NXQD_BIN validate-genesis --home "$HOMEDIR"
 
-	sudo cp $GENESIS /var/www/html/
-	sudo $NXQD_BIN tendermint show-node-id  --home "$HOMEDIR" > /var/www/html/node-id
-
-	
+	sudo cp $GENESIS /usr/share/nginx/html/
+	sudo $NXQD_BIN tendermint show-node-id  --home "$HOMEDIR" > /usr/share/nginx/html/node_id
 else	
 	# Start the node (remove the --pruning=nothing flag if historical queries are not needed)
 	$NXQD_BIN start --metrics "$TRACE" --log_level $LOGLEVEL --minimum-gas-prices=0.0001$TOKEN --json-rpc.enable  --grpc.enable  --json-rpc.api eth,txpool,personal,net,debug,web3 --api.enable --home "$HOMEDIR" --keyring-backend $KEYRING 
