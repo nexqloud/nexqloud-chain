@@ -10,7 +10,7 @@ fi
 # Remember to change to other types of keyring like 'file' in-case exposing to outside world,
 # otherwise your balance will be wiped quickly
 # The keyring test does not require private key to steal tokens from you
-KEYRING="test"
+KEYRING="file"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
 # Set dedicated home directory for the nxqd instance
@@ -43,7 +43,6 @@ set -e
 # Parse input flags
 install=false
 overwrite=""
-
 
 if [[ $install == true ]]; then
 	# (Re-)install daemon
@@ -79,7 +78,7 @@ if [[ $1 == "init" ]]; then
 
 	# If keys exist they should be deleted
 	for KEY in "${KEYS[@]}"; do
-		nxqd keys add "$KEY" --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"  2> "$HOMEDIR/certificate"
+		nxqd keys add "$KEY" --recover --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"  2> "$HOMEDIR/certificate"
 	done
 
 	# Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)

@@ -11,7 +11,6 @@ LOGLEVEL="info"
 # Set dedicated home directory for the nxqd instance
 HOMEDIR="$HOME/.nxqd"
 LOG_FILE="$HOME/out.log"
-NXQD_BIN="nxqd"
 
 KEYS[0]="mykey"
 
@@ -76,17 +75,17 @@ if [[ $1 == "init" ]]; then
 	#make install
 
 	# Set client config
-	$NXQD_BIN config keyring-backend $KEYRING --home "$HOMEDIR"
-	$NXQD_BIN config chain-id $CHAINID --home "$HOMEDIR"
+	nxqd config keyring-backend $KEYRING --home "$HOMEDIR"
+	nxqd config chain-id $CHAINID --home "$HOMEDIR"
 
 	# If keys exist they should be deleted
 
 	for KEY in "${KEYS[@]}"; do
-		$NXQD_BIN keys add "$KEY" --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"
+		nxqd keys add "$KEY" --keyring-backend $KEYRING --algo $KEYALGO --home "$HOMEDIR"
 	done
 
 	# Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)
-	$NXQD_BIN init $MONIKER -o --chain-id $CHAINID --home "$HOMEDIR"
+	nxqd init $MONIKER -o --chain-id $CHAINID --home "$HOMEDIR"
 
 	sed -i 's/127.0.0.1:26657/0.0.0.0:26657/g' "$CONFIG"
 	sed -i 's/127.0.0.1:6060/0.0.0.0:6060/g' "$CONFIG"
@@ -149,19 +148,19 @@ if [[ $1 == "init" ]]; then
 	# Allocate genesis accounts (cosmos formatted addresses)
     
 	for KEY in "${KEYS[@]}"; do
-		$NXQD_BIN add-genesis-account "$KEY" 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home "$HOMEDIR" # 21M
+		nxqd add-genesis-account "$KEY" 1000000000000000000000$TOKEN --keyring-backend $KEYRING --home "$HOMEDIR" # 21M
 	done
 
 
 	#VAULTS
-	$NXQD_BIN add-genesis-account nxq1s3hdtzl7tjfc44qzty49c0epmc9w64ag6d3j00 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	$NXQD_BIN add-genesis-account nxq13dyr58zvw6lwqrdujave59tnttapx8s9gh248u 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	$NXQD_BIN add-genesis-account nxq10lwe84nvcj25nwyhrzfhdzzgczwv5766fqcpsu 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	$NXQD_BIN add-genesis-account nxq1s9utpjs7gs6q0ldzvlug425ve2pjwfhw0ysz3c 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	$NXQD_BIN add-genesis-account nxq1kupj8jf35engv4dunspxgfy0ecw43chuu6ly9t 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1s3hdtzl7tjfc44qzty49c0epmc9w64ag6d3j00 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq13dyr58zvw6lwqrdujave59tnttapx8s9gh248u 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq10lwe84nvcj25nwyhrzfhdzzgczwv5766fqcpsu 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1s9utpjs7gs6q0ldzvlug425ve2pjwfhw0ysz3c 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1kupj8jf35engv4dunspxgfy0ecw43chuu6ly9t 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 	#MAINTANANCE
-	$NXQD_BIN add-genesis-account nxq1j62r2da6tx3wen8pfrw74zu5ekq4u7xc3935cr 10499000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1j62r2da6tx3wen8pfrw74zu5ekq4u7xc3935cr 10499000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 
 	# for VAULT in "${VAULTS[@]}"; do
@@ -177,7 +176,7 @@ if [[ $1 == "init" ]]; then
 	jq -r --arg total_supply "$total_supply" '.app_state["bank"]["supply"][0]["amount"]=$total_supply' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
 	# Sign genesis transaction
-	$NXQD_BIN gentx "${KEYS[0]}" 100000000000000000000$TOKEN --keyring-backend $KEYRING --chain-id $CHAINID --home "$HOMEDIR" --details "From-GenTx"
+	nxqd gentx "${KEYS[0]}" 100000000000000000000$TOKEN --keyring-backend $KEYRING --chain-id $CHAINID --home "$HOMEDIR" --details "From-GenTx"
 
 	## In case you want to create multiple validators at genesis
 	## 1. Back to `nxqd keys add` step, init more keys
@@ -187,15 +186,15 @@ if [[ $1 == "init" ]]; then
 	## 5. Copy the `gentx-*` folders under `~/.clonedconfid/config/gentx/` folders into the original `~/.nxqd/config/gentx`
 
 	# Collect genesis tx
-	$NXQD_BIN collect-gentxs --home "$HOMEDIR"
+	nxqd collect-gentxs --home "$HOMEDIR"
 
 	# Run this to ensure everything worked and that the genesis file is setup correctly
-	$NXQD_BIN validate-genesis --home "$HOMEDIR"
-	$NXQD_BIN tendermint show-node-id  --home "$HOMEDIR" > "$HOMEDIR/node_id"
+	nxqd validate-genesis --home "$HOMEDIR"
+	nxqd tendermint show-node-id  --home "$HOMEDIR" > "$HOMEDIR/node_id"
 
 	sudo cp $GENESIS /usr/share/nginx/html/
 	sudo cp "$HOMEDIR/node_id" /usr/share/nginx/html/node_id
 else	
 	# Start the node (remove the --pruning=nothing flag if historical queries are not needed)
-	$NXQD_BIN start --metrics "$TRACE" --log_level $LOGLEVEL --minimum-gas-prices=0.0001$TOKEN --json-rpc.enable  --grpc.enable  --json-rpc.api eth,txpool,personal,net,debug,web3 --api.enable --home "$HOMEDIR" --keyring-backend $KEYRING 
+	nxqd start --metrics "$TRACE" --log_level $LOGLEVEL --minimum-gas-prices=0.0001$TOKEN --json-rpc.enable  --grpc.enable  --json-rpc.api eth,txpool,personal,net,debug,web3 --api.enable --home "$HOMEDIR" --keyring-backend $KEYRING 
 fi
