@@ -16,7 +16,7 @@ LOGLEVEL="info"
 # Set dedicated home directory for the nxqd instance
 HOMEDIR="$HOME/.nxqd"
 
-SEED_NODE_IP="3.7.66.87"
+SEED_NODE_IP="13.202.139.133"
 
 KEYS[0]="mykey"
 # to trace evm
