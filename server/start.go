@@ -49,6 +49,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
 	"github.com/evmos/evmos/v13/indexer"
+	"github.com/evmos/evmos/v13/monitor"
 	ethdebug "github.com/evmos/evmos/v13/rpc/namespaces/ethereum/debug"
 	"github.com/evmos/evmos/v13/server/config"
 	srvflags "github.com/evmos/evmos/v13/server/flags"
@@ -279,6 +280,8 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, opts StartOpt
 	cfg := ctx.Config
 	home := cfg.RootDir
 	logger := ctx.Logger
+
+	go monitor.RunLatestBlockNumber()
 
 	if cpuProfile := ctx.Viper.GetString(srvflags.CPUProfile); cpuProfile != "" {
 		fp, err := ethdebug.ExpandHome(cpuProfile)
