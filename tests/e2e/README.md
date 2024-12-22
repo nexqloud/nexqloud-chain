@@ -44,7 +44,7 @@ INITIAL_VERSION
 TARGET_VERSION
 
 # mount point for the upgraded node container, to mount new node version to
-# previous node state folder. By default this is './build/.evmosd:/root/.evmosd'
+# previous node state folder. By default this is './build/.nxqd:/root/.nxqd'
 # More info at https://docs.docker.com/engine/reference/builder/#volume
 MOUNT_PATH
 
@@ -73,7 +73,7 @@ Testing a chain upgrade is a multi-step process:
 4. The node will submit, deposit and vote for an upgrade proposal
 for upgrading to the `TARGET_VERSION`.
 5. After block `50` is reached,
-the test suite exports `/.evmosd` folder from the docker container
+the test suite exports `/.nxqd` folder from the docker container
 to the local `build/` folder and then purges the container.
 6. Suite will mount the node with `TARGET_VERSION`
 to the local `build/` dir and start the node.

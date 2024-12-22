@@ -169,21 +169,21 @@ build-docker-goleveldb:
 	$(DOCKER) tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
 	# docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:${COMMIT_HASH}
 	# move the binaries to the ./build directory
-	mkdir -p ./build/.evmosd
+	mkdir -p ./build/.nxqd
 	echo '#!/usr/bin/env bash' > ./build/evmosd
 	echo "IMAGE_NAME=${DOCKER_IMAGE}:${COMMIT_HASH}" >> ./build/evmosd
 	echo 'SCRIPT_PATH=$$(cd $$(dirname $$0) && pwd -P)' >> ./build/evmosd
-	echo 'docker run -it --rm -v $${SCRIPT_PATH}/.evmosd:/home/evmos/.evmosd $$IMAGE_NAME evmosd "$$@"' >> ./build/evmosd
+	echo 'docker run -it --rm -v $${SCRIPT_PATH}/.nxqd:/home/evmos/.nxqd $$IMAGE_NAME evmosd "$$@"' >> ./build/evmosd
 	chmod +x ./build/evmosd
 
 build-docker-pebbledb:
 	DOCKER_BUILDKIT=1 $(DOCKER) build --build-arg DB_BACKEND=pebbledb -t ${DOCKER_IMAGE}:${DOCKER_TAG}-pebble ${DOCKER_ARGS} .
 	$(DOCKER) tag ${DOCKER_IMAGE}:${DOCKER_TAG}-pebble ${DOCKER_IMAGE}:latest-pebble
-	mkdir -p ./build/.evmosd
+	mkdir -p ./build/.nxqd
 	echo '#!/usr/bin/env bash' > ./build/evmosd
 	echo "IMAGE_NAME=${DOCKER_IMAGE}:${COMMIT_HASH}" >> ./build/evmosd
 	echo 'SCRIPT_PATH=$$(cd $$(dirname $$0) && pwd -P)' >> ./build/evmosd
-	echo 'docker run -it --rm -v $${SCRIPT_PATH}/.evmosd:/home/evmos/.evmosd $$IMAGE_NAME evmosd "$$@"' >> ./build/evmosd
+	echo 'docker run -it --rm -v $${SCRIPT_PATH}/.nxqd:/home/evmos/.nxqd $$IMAGE_NAME evmosd "$$@"' >> ./build/evmosd
 	chmod +x ./build/evmosd
 
 build-rocksdb:
@@ -353,7 +353,7 @@ test-e2e:
 		make build-docker-pebbledb; \
 	fi
 	@mkdir -p ./build
-	@rm -rf build/.evmosd
+	@rm -rf build/.nxqd
 	@INITIAL_VERSION=$(INITIAL_VERSION) TARGET_VERSION=$(TARGET_VERSION) \
 	E2E_SKIP_CLEANUP=$(E2E_SKIP_CLEANUP) MOUNT_PATH=$(MOUNT_PATH) CHAIN_ID=$(CHAIN_ID) \
 	go test -v ./tests/e2e -run ^TestIntegrationTestSuite$

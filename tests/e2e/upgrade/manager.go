@@ -307,7 +307,7 @@ func (m *Manager) GetUpgradeHeight(ctx context.Context, chainID string) (uint, e
 
 // getTimeoutCommit returns the timeout commit duration for the current node
 func (m *Manager) getTimeoutCommit(ctx context.Context) (*big.Int, error) {
-	exec, err := m.CreateExec([]string{"grep", `\s*timeout_commit =`, "/root/.evmosd/config/config.toml"}, m.ContainerID())
+	exec, err := m.CreateExec([]string{"grep", `\s*timeout_commit =`, "/root/.nxqd/config/config.toml"}, m.ContainerID())
 	if err != nil {
 		return common.Big0, fmt.Errorf("create exec error: %w", err)
 	}

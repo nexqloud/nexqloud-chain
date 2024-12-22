@@ -17,7 +17,7 @@ set LOGLEVEL="info"
 # to trace evm
 #TRACE="--trace"
 set TRACE=""
-set HOME=%USERPROFILE%\.evmosd
+set HOME=%USERPROFILE%\.nxqd
 echo %HOME%
 set ETHCONFIG=%HOME%\config\config.toml
 set GENESIS=%HOME%\config\genesis.json

@@ -21,9 +21,9 @@ evmosd init test --chain-id evmos_9000-2
 
 # Get Genesis
 wget https://archive.evmos.org/mainnet/genesis.json
-mv genesis.json ~/.evmosd/config/
+mv genesis.json ~/.nxqd/config/
 
-wget -O ~/.evmosd/config/adrbook.json https://snapshot.notional.ventures/evmos/addrbook.json
+wget -O ~/.nxqd/config/adrbook.json https://snapshot.notional.ventures/evmos/addrbook.json
 
 # Get "trust_hash" and "trust_height".
 INTERVAL=1000

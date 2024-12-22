@@ -210,7 +210,7 @@ func (s *IntegrationTestSuite) upgrade(targetRepo, targetVersion string) {
 	s.checkProposalPassed(ctx)
 
 	s.T().Log("exporting state to local...")
-	// export node .evmosd to local build/
+	// export node .nxqd to local build/
 	err = s.upgradeManager.ExportState(buildDir)
 	s.Require().NoError(err, "can't export node container state to local")
 
@@ -222,7 +222,7 @@ func (s *IntegrationTestSuite) upgrade(targetRepo, targetVersion string) {
 
 	node := upgrade.NewNode(targetRepo, targetVersion)
 	node.Mount(s.upgradeParams.MountPath)
-	node.SetCmd([]string{"evmosd", "start", fmt.Sprintf("--chain-id=%s", s.upgradeParams.ChainID), fmt.Sprintf("--home=%s.evmosd", rootDir)})
+	node.SetCmd([]string{"evmosd", "start", fmt.Sprintf("--chain-id=%s", s.upgradeParams.ChainID), fmt.Sprintf("--home=%s.nxqd", rootDir)})
 	err = s.upgradeManager.RunNode(node)
 	s.Require().NoError(err, "can't mount and run upgraded node container")
 
