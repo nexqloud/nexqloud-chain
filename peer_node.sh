@@ -44,7 +44,7 @@ if [[ $1 == "init" ]]; then
     nxqd config chain-id "$CHAINID" --home "$HOMEDIR"
 
     VAL_KEY="mykey"
-    VAL_MNEMONIC="maple cruel weasel fitness cruel answer able buffalo glad divorce shed mesh image tornado used mixed elder task release monkey express vivid half surprise"
+    VAL_MNEMONIC="copper push brief egg scan entry inform record adjust fossil boss egg comic alien upon aspect dry avoid interest fury window hint race symptom"
 
     # Import keys from mnemonics
     echo "$VAL_MNEMONIC" | nxqd keys add "$VAL_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"

@@ -46,8 +46,8 @@ if [[ $1 == "init" ]]; then
 	VAL_MNEMONIC="gesture inject test cycle original hollow east ridge hen combine junk child bacon zero hope comfort vacuum milk pitch cage oppose unhappy lunar seat"
 
 	# dev0 address 0xc6fe5d33615a1c52c08018c47e8bc53646a0e101 | evmos1cml96vmptgw99syqrrz8az79xer2pcgp84pdun
-	USER1_KEY="dev0"
-	USER1_MNEMONIC="copper push brief egg scan entry inform record adjust fossil boss egg comic alien upon aspect dry avoid interest fury window hint race symptom"
+	VAL2_KEY="dev0"
+	VAL2_MNEMONIC="copper push brief egg scan entry inform record adjust fossil boss egg comic alien upon aspect dry avoid interest fury window hint race symptom"
 
 	# dev1 address 0x963ebdf2e1f8db8707d05fc75bfeffba1b5bac17 | evmos1jcltmuhplrdcwp7stlr4hlhlhgd4htqh3a79sq
 	USER2_KEY="dev1"
@@ -63,7 +63,7 @@ if [[ $1 == "init" ]]; then
 
 	# Import keys from mnemonics
 	echo "$VAL_MNEMONIC" | nxqd keys add "$VAL_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
-	echo "$USER1_MNEMONIC" | nxqd keys add "$USER1_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+	echo "$VAL2_MNEMONIC" | nxqd keys add "$VAL2_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
 	echo "$USER2_MNEMONIC" | nxqd keys add "$USER2_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
 	echo "$USER3_MNEMONIC" | nxqd keys add "$USER3_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
 	echo "$USER4_MNEMONIC" | nxqd keys add "$USER4_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
@@ -135,13 +135,14 @@ if [[ $1 == "init" ]]; then
 
 	# Allocate genesis accounts (cosmos formatted addresses)
 	nxqd add-genesis-account "$(nxqd keys show "$VAL_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 100000000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
-	nxqd add-genesis-account "$(nxqd keys show "$USER1_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 1000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
+	nxqd add-genesis-account "$(nxqd keys show "$VAL2_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 100000000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
 	nxqd add-genesis-account "$(nxqd keys show "$USER2_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 1000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
 	nxqd add-genesis-account "$(nxqd keys show "$USER3_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 1000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
 	nxqd add-genesis-account "$(nxqd keys show "$USER4_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 1000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
 
 	# Sign genesis transaction
 	nxqd gentx "$VAL_KEY" 1000000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+	nxqd gentx "$VAL2_KEY" 1000000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
 	## In case you want to create multiple validators at genesis
 	## 1. Back to `nxqd keys add` step, init more keys
 	## 2. Back to `nxqd add-genesis-account` step, add balance for those
