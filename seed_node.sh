@@ -162,8 +162,7 @@ if [[ $1 == "init" ]]; then
 	nxqd tendermint show-node-id  --home "$HOMEDIR" > "$HOMEDIR/node-id"
 	sudo cp $GENESIS /usr/share/nginx/html/
 	sudo cp "$HOMEDIR/node-id" /usr/share/nginx/html/node-id
-fi
-
+	
 else
 	# Start the node
 	nxqd start \

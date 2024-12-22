@@ -106,8 +106,6 @@ if [[ $1 == "init" ]]; then
 
     nxqd validate-genesis --home "$HOMEDIR"
 
-fi
-
 else
     # Start the node
     nxqd start \
