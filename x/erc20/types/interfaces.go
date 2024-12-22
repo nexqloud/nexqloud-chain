@@ -4,42 +4,25 @@
 package types
 
 import (
-	context "context"
-
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
+	"context"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
 
-	claimstypes "github.com/evmos/evmos/v13/x/claims/types"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 // AccountKeeper defines the expected interface needed to retrieve account info.
 type AccountKeeper interface {
-	GetModuleAddress(moduleName string) sdk.AccAddress
 	GetSequence(sdk.Context, sdk.AccAddress) (uint64, error)
 	GetAccount(sdk.Context, sdk.AccAddress) authtypes.AccountI
-}
-
-// BankKeeper defines the expected interface needed to retrieve account balances.
-type BankKeeper interface {
-	SendCoinsFromModuleToAccount(ctx sdk.Context, senderModule string, recipientAddr sdk.AccAddress, amt sdk.Coins) error
-	SendCoinsFromAccountToModule(ctx sdk.Context, senderAddr sdk.AccAddress, recipientModule string, amt sdk.Coins) error
-	MintCoins(ctx sdk.Context, moduleName string, amt sdk.Coins) error
-	BurnCoins(ctx sdk.Context, moduleName string, amt sdk.Coins) error
-	IsSendEnabledCoin(ctx sdk.Context, coin sdk.Coin) bool
-	BlockedAddr(addr sdk.AccAddress) bool
-	GetDenomMetaData(ctx sdk.Context, denom string) (banktypes.Metadata, bool)
-	SetDenomMetaData(ctx sdk.Context, denomMetaData banktypes.Metadata)
-	HasSupply(ctx sdk.Context, denom string) bool
-	GetBalance(ctx sdk.Context, addr sdk.AccAddress, denom string) sdk.Coin
 }
 
 // StakingKeeper defines the expected interface needed to retrieve the staking denom.
@@ -51,13 +34,16 @@ type StakingKeeper interface {
 type EVMKeeper interface {
 	GetParams(ctx sdk.Context) evmtypes.Params
 	GetAccountWithoutBalance(ctx sdk.Context, addr common.Address) *statedb.Account
-	EstimateGas(c context.Context, req *evmtypes.EthCallRequest) (*evmtypes.EstimateGasResponse, error)
+	EstimateGasInternal(c context.Context, req *evmtypes.EthCallRequest, fromType evmtypes.CallType) (*evmtypes.EstimateGasResponse, error)
 	ApplyMessage(ctx sdk.Context, msg core.Message, tracer vm.EVMLogger, commit bool) (*evmtypes.MsgEthereumTxResponse, error)
-}
-
-// StakingKeeper defines the expected interface needed to retrieve the staking denom.
-type ClaimsKeeper interface {
-	GetParams(ctx sdk.Context) claimstypes.Params
+	DeleteAccount(ctx sdk.Context, addr common.Address) error
+	IsAvailableStaticPrecompile(params *evmtypes.Params, address common.Address) bool
+	CallEVM(ctx sdk.Context, abi abi.ABI, from, contract common.Address, commit bool, method string, args ...interface{}) (*evmtypes.MsgEthereumTxResponse, error)
+	CallEVMWithData(ctx sdk.Context, from common.Address, contract *common.Address, data []byte, commit bool) (*evmtypes.MsgEthereumTxResponse, error)
+	GetCode(ctx sdk.Context, hash common.Hash) []byte
+	SetCode(ctx sdk.Context, hash []byte, bytecode []byte)
+	SetAccount(ctx sdk.Context, address common.Address, account statedb.Account) error
+	GetAccount(ctx sdk.Context, address common.Address) *statedb.Account
 }
 
 type (

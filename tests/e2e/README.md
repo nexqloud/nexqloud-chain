@@ -44,7 +44,7 @@ INITIAL_VERSION
 TARGET_VERSION
 
 # mount point for the upgraded node container, to mount new node version to
-# previous node state folder. By default this is './build/.nxqd:/root/.nxqd'
+# previous node state folder. By default this is './build/.evmosd:/root/.evmosd'
 # More info at https://docs.docker.com/engine/reference/builder/#volume
 MOUNT_PATH
 
@@ -73,7 +73,7 @@ Testing a chain upgrade is a multi-step process:
 4. The node will submit, deposit and vote for an upgrade proposal
 for upgrading to the `TARGET_VERSION`.
 5. After block `50` is reached,
-the test suite exports `/.nxqd` folder from the docker container
+the test suite exports `/.evmosd` folder from the docker container
 to the local `build/` folder and then purges the container.
 6. Suite will mount the node with `TARGET_VERSION`
 to the local `build/` dir and start the node.
@@ -165,7 +165,7 @@ Error:  Received unexpected error:
         github.com/cosmos/cosmos-sdk/baseapp.SetMinGasPrices({0xc0013563e7?, ...
             github.com/cosmos/cosmos-sdk@v0.46.5/baseapp/options.go:29 +0xd9
         main.appCreator.newApp({{{0x3399b40, 0xc000ec1db8}, {0x33ac0f8, 0xc00...
-            github.com/evmos/evmos/v10/cmd/nxqd/root.go:243 +0x2ca
+            github.com/evmos/evmos/v10/cmd/evmosd/root.go:243 +0x2ca
         github.com/evmos/ethermint/server.startInProcess(_, {{0x0, 0x0, 0x0},...
             github.com/evmos/ethermint@v0.20.0-rc2/server/start.go:304 +0x9c5
         github.com/evmos/ethermint/server.StartCmd.func2(0xc001620600?, {0xc0...
@@ -181,7 +181,7 @@ Error:  Received unexpected error:
         github.com/cosmos/cosmos-sdk/server/cmd.Execute(0x2170d50?, {0x26d961...
             github.com/cosmos/cosmos-sdk@v0.46.5/server/cmd/execute.go:36 +0x...
         main.main()
-            github.com/evmos/evmos/v10/cmd/nxqd/main.go:20 +0x45
+            github.com/evmos/evmos/v10/cmd/evmosd/main.go:20 +0x45
 
 
         [output stream]:

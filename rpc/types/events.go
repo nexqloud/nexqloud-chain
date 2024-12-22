@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strconv"
 
+	abci "github.com/cometbft/cometbft/abci/types"
+	tmrpctypes "github.com/cometbft/cometbft/rpc/core/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/evmos/evmos/v13/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	abci "github.com/tendermint/tendermint/abci/types"
-	tmrpctypes "github.com/tendermint/tendermint/rpc/core/types"
+	"github.com/evmos/evmos/v19/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 // EventFormat is the format version of the events.
@@ -25,9 +25,9 @@ const (
 
 	// Event Format 1 (the format used before PR #1062):
 	// ```
-	// ethereum_tx(amount, ethereumTxHash, [txIndex, txGasUsed], txHash, [receipient], ethereumTxFailed)
+	// ethereum_tx(amount, ethereumTxHash, [txIndex, txGasUsed], txHash, [recipient], ethereumTxFailed)
 	// tx_log(txLog, txLog, ...)
-	// ethereum_tx(amount, ethereumTxHash, [txIndex, txGasUsed], txHash, [receipient], ethereumTxFailed)
+	// ethereum_tx(amount, ethereumTxHash, [txIndex, txGasUsed], txHash, [recipient], ethereumTxFailed)
 	// tx_log(txLog, txLog, ...)
 	// ...
 	// ```
@@ -38,9 +38,9 @@ const (
 	// ethereum_tx(ethereumTxHash, txIndex)
 	// ethereum_tx(ethereumTxHash, txIndex)
 	// ...
-	// ethereum_tx(amount, ethereumTxHash, txIndex, txGasUsed, txHash, [receipient], ethereumTxFailed)
+	// ethereum_tx(amount, ethereumTxHash, txIndex, txGasUsed, txHash, [recipient], ethereumTxFailed)
 	// tx_log(txLog, txLog, ...)
-	// ethereum_tx(amount, ethereumTxHash, txIndex, txGasUsed, txHash, [receipient], ethereumTxFailed)
+	// ethereum_tx(amount, ethereumTxHash, txIndex, txGasUsed, txHash, [recipient], ethereumTxFailed)
 	// tx_log(txLog, txLog, ...)
 	// ...
 	// ```
@@ -230,18 +230,18 @@ func (p *ParsedTxs) AccumulativeGasUsed(msgIndex int) (result uint64) {
 
 // fillTxAttribute parse attributes by name, less efficient than hardcode the index, but more stable against event
 // format changes.
-func fillTxAttribute(tx *ParsedTx, key []byte, value []byte) error {
-	switch string(key) {
+func fillTxAttribute(tx *ParsedTx, key string, value string) error {
+	switch key {
 	case evmtypes.AttributeKeyEthereumTxHash:
-		tx.Hash = common.HexToHash(string(value))
+		tx.Hash = common.HexToHash(value)
 	case evmtypes.AttributeKeyTxIndex:
-		txIndex, err := strconv.ParseUint(string(value), 10, 31) // #nosec G701
+		txIndex, err := strconv.ParseUint(value, 10, 31) // #nosec G701
 		if err != nil {
 			return err
 		}
 		tx.EthTxIndex = int32(txIndex) // #nosec G701
 	case evmtypes.AttributeKeyTxGasUsed:
-		gasUsed, err := strconv.ParseUint(string(value), 10, 64)
+		gasUsed, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return err
 		}

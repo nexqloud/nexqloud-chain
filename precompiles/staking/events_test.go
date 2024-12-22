@@ -3,13 +3,16 @@ package staking_test
 import (
 	"math/big"
 
+	"cosmossdk.io/math"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
-	"github.com/evmos/evmos/v13/precompiles/staking"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/precompiles/staking"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
 )
 
 func (s *PrecompileTestSuite) TestApprovalEvent() {
@@ -45,11 +48,11 @@ func (s *PrecompileTestSuite) TestApprovalEvent() {
 				s.Require().Equal(crypto.Keccak256Hash([]byte(event.Sig)), common.HexToHash(log.Topics[0].Hex()))
 				s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
 
-				var approvalEvent staking.EventApproval
+				var approvalEvent authorization.EventApproval
 				err := cmn.UnpackLog(s.precompile.ABI, &approvalEvent, authorization.EventTypeApproval, *log)
 				s.Require().NoError(err)
-				s.Require().Equal(s.address, approvalEvent.Spender)
-				s.Require().Equal(s.address, approvalEvent.Owner)
+				s.Require().Equal(s.address, approvalEvent.Grantee)
+				s.Require().Equal(s.address, approvalEvent.Granter)
 				s.Require().Equal(abi.MaxUint256, approvalEvent.Value)
 				s.Require().Equal(4, len(approvalEvent.Methods))
 				s.Require().Equal(staking.DelegateMsg, approvalEvent.Methods[0])
@@ -223,6 +226,149 @@ func (s *PrecompileTestSuite) TestDecreaseAllowanceEvent() {
 	}
 }
 
+func (s *PrecompileTestSuite) TestCreateValidatorEvent() {
+	var (
+		delegationValue = big.NewInt(1205000000000000000)
+		method          = s.precompile.Methods[staking.CreateValidatorMethod]
+		pubkey          = "nfJ0axJC9dhta1MAE1EBFaVdxxkYzxYrBaHuJVjG//M="
+	)
+
+	testCases := []struct {
+		name        string
+		malleate    func() []interface{}
+		expErr      bool
+		errContains string
+		postCheck   func()
+	}{
+		{
+			name: "success - the correct event is emitted",
+			malleate: func() []interface{} {
+				return []interface{}{
+					staking.Description{
+						Moniker:         "node0",
+						Identity:        "",
+						Website:         "",
+						SecurityContact: "",
+						Details:         "",
+					},
+					staking.Commission{
+						Rate:          math.LegacyOneDec().BigInt(),
+						MaxRate:       math.LegacyOneDec().BigInt(),
+						MaxChangeRate: math.LegacyOneDec().BigInt(),
+					},
+					big.NewInt(1),
+					s.address,
+					pubkey,
+					delegationValue,
+				}
+			},
+			postCheck: func() {
+				log := s.stateDB.Logs()[0]
+				s.Require().Equal(log.Address, s.precompile.Address())
+
+				// Check event signature matches the one emitted
+				event := s.precompile.ABI.Events[staking.EventTypeCreateValidator]
+				s.Require().Equal(crypto.Keccak256Hash([]byte(event.Sig)), common.HexToHash(log.Topics[0].Hex()))
+				s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
+
+				// Check the fully unpacked event matches the one emitted
+				var createValidatorEvent staking.EventCreateValidator
+				err := cmn.UnpackLog(s.precompile.ABI, &createValidatorEvent, staking.EventTypeCreateValidator, *log)
+				s.Require().NoError(err)
+				s.Require().Equal(s.address, createValidatorEvent.ValidatorAddress)
+				s.Require().Equal(delegationValue, createValidatorEvent.Value)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			s.SetupTest() // reset
+
+			contract := vm.NewContract(vm.AccountRef(s.address), s.precompile, big.NewInt(0), 200000)
+			_, err := s.precompile.CreateValidator(s.ctx, s.address, contract, s.stateDB, &method, tc.malleate())
+
+			if tc.expErr {
+				s.Require().Error(err)
+				s.Require().Contains(err.Error(), tc.errContains)
+			} else {
+				s.Require().NoError(err)
+				tc.postCheck()
+			}
+		})
+	}
+}
+
+func (s *PrecompileTestSuite) TestEditValidatorEvent() {
+	var (
+		valOperAddr common.Address
+		method      = s.precompile.Methods[staking.EditValidatorMethod]
+		minSelfDel  = big.NewInt(11)
+		commRate    = math.LegacyNewDecWithPrec(5, 2).BigInt()
+	)
+	testCases := []struct {
+		name        string
+		malleate    func() []interface{}
+		expErr      bool
+		errContains string
+		postCheck   func()
+	}{
+		{
+			name: "success - the correct event is emitted",
+			malleate: func() []interface{} {
+				return []interface{}{
+					staking.Description{
+						Moniker:         "node0-edited",
+						Identity:        "",
+						Website:         "",
+						SecurityContact: "",
+						Details:         "",
+					},
+					valOperAddr,
+					commRate,
+					minSelfDel,
+				}
+			},
+			postCheck: func() {
+				s.Require().Equal(len(s.stateDB.Logs()), 1)
+				log := s.stateDB.Logs()[0]
+				s.Require().Equal(log.Address, s.precompile.Address())
+
+				// Check event signature matches the one emitted
+				event := s.precompile.ABI.Events[staking.EventTypeEditValidator]
+				s.Require().Equal(crypto.Keccak256Hash([]byte(event.Sig)), common.HexToHash(log.Topics[0].Hex()))
+				s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
+
+				// Check the fully unpacked event matches the one emitted
+				var editValidatorEvent staking.EventEditValidator
+				err := cmn.UnpackLog(s.precompile.ABI, &editValidatorEvent, staking.EventTypeEditValidator, *log)
+				s.Require().NoError(err)
+				s.Require().Equal(valOperAddr, editValidatorEvent.ValidatorAddress)
+				s.Require().Equal(minSelfDel, editValidatorEvent.MinSelfDelegation)
+				s.Require().Equal(commRate, editValidatorEvent.CommissionRate)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		s.Run(tc.name, func() {
+			s.SetupTest() // reset
+			valOperAddr = common.BytesToAddress(s.validators[0].GetOperator().Bytes())
+
+			contract := vm.NewContract(vm.AccountRef(valOperAddr), s.precompile, big.NewInt(0), 200000)
+			_, err := s.precompile.EditValidator(s.ctx, valOperAddr, contract, s.stateDB, &method, tc.malleate())
+
+			if tc.expErr {
+				s.Require().Error(err)
+				s.Require().Contains(err.Error(), tc.errContains)
+			} else {
+				s.Require().NoError(err)
+				tc.postCheck()
+			}
+		})
+	}
+}
+
 func (s *PrecompileTestSuite) TestDelegateEvent() {
 	var (
 		delegationAmt = big.NewInt(1500000000000000000)
@@ -256,12 +402,16 @@ func (s *PrecompileTestSuite) TestDelegateEvent() {
 				s.Require().Equal(crypto.Keccak256Hash([]byte(event.Sig)), common.HexToHash(log.Topics[0].Hex()))
 				s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
 
+				optAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
+				s.Require().NoError(err)
+				optHexAddr := common.BytesToAddress(optAddr)
+
 				// Check the fully unpacked event matches the one emitted
 				var delegationEvent staking.EventDelegate
-				err := cmn.UnpackLog(s.precompile.ABI, &delegationEvent, staking.EventTypeDelegate, *log)
+				err = cmn.UnpackLog(s.precompile.ABI, &delegationEvent, staking.EventTypeDelegate, *log)
 				s.Require().NoError(err)
 				s.Require().Equal(s.address, delegationEvent.DelegatorAddress)
-				s.Require().Equal(crypto.Keccak256Hash([]byte(s.validators[0].OperatorAddress)), delegationEvent.ValidatorAddress)
+				s.Require().Equal(optHexAddr, delegationEvent.ValidatorAddress)
 				s.Require().Equal(delegationAmt, delegationEvent.Amount)
 				s.Require().Equal(newSharesExp, delegationEvent.NewShares)
 			},
@@ -317,12 +467,16 @@ func (s *PrecompileTestSuite) TestUnbondEvent() {
 				s.Require().Equal(crypto.Keccak256Hash([]byte(event.Sig)), common.HexToHash(log.Topics[0].Hex()))
 				s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
 
+				optAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
+				s.Require().NoError(err)
+				optHexAddr := common.BytesToAddress(optAddr)
+
 				// Check the fully unpacked event matches the one emitted
 				var unbondEvent staking.EventUnbond
-				err := cmn.UnpackLog(s.precompile.ABI, &unbondEvent, staking.EventTypeUnbond, *log)
+				err = cmn.UnpackLog(s.precompile.ABI, &unbondEvent, staking.EventTypeUnbond, *log)
 				s.Require().NoError(err)
 				s.Require().Equal(s.address, unbondEvent.DelegatorAddress)
-				s.Require().Equal(crypto.Keccak256Hash([]byte(s.validators[0].OperatorAddress)), unbondEvent.ValidatorAddress)
+				s.Require().Equal(optHexAddr, unbondEvent.ValidatorAddress)
 				s.Require().Equal(big.NewInt(1000000000000000000), unbondEvent.Amount)
 			},
 		},
@@ -378,12 +532,20 @@ func (s *PrecompileTestSuite) TestRedelegateEvent() {
 				s.Require().Equal(crypto.Keccak256Hash([]byte(event.Sig)), common.HexToHash(log.Topics[0].Hex()))
 				s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
 
+				optSrcAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
+				s.Require().NoError(err)
+				optSrcHexAddr := common.BytesToAddress(optSrcAddr)
+
+				optDstAddr, err := sdk.ValAddressFromBech32(s.validators[1].OperatorAddress)
+				s.Require().NoError(err)
+				optDstHexAddr := common.BytesToAddress(optDstAddr)
+
 				var redelegateEvent staking.EventRedelegate
-				err := cmn.UnpackLog(s.precompile.ABI, &redelegateEvent, staking.EventTypeRedelegate, *log)
+				err = cmn.UnpackLog(s.precompile.ABI, &redelegateEvent, staking.EventTypeRedelegate, *log)
 				s.Require().NoError(err)
 				s.Require().Equal(s.address, redelegateEvent.DelegatorAddress)
-				s.Require().Equal(crypto.Keccak256Hash([]byte(s.validators[0].OperatorAddress)), redelegateEvent.ValidatorSrcAddress)
-				s.Require().Equal(crypto.Keccak256Hash([]byte(s.validators[1].OperatorAddress)), redelegateEvent.ValidatorDstAddress)
+				s.Require().Equal(optSrcHexAddr, redelegateEvent.ValidatorSrcAddress)
+				s.Require().Equal(optDstHexAddr, redelegateEvent.ValidatorDstAddress)
 				s.Require().Equal(big.NewInt(1000000000000000000), redelegateEvent.Amount)
 			},
 		},
@@ -451,12 +613,16 @@ func (s *PrecompileTestSuite) TestCancelUnbondingDelegationEvent() {
 				s.Require().Equal(crypto.Keccak256Hash([]byte(event.Sig)), common.HexToHash(log.Topics[0].Hex()))
 				s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
 
+				optAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
+				s.Require().NoError(err)
+				optHexAddr := common.BytesToAddress(optAddr)
+
 				// Check event fields match the ones emitted
 				var cancelUnbondEvent staking.EventCancelUnbonding
-				err := cmn.UnpackLog(s.precompile.ABI, &cancelUnbondEvent, staking.EventTypeCancelUnbondingDelegation, *log)
+				err = cmn.UnpackLog(s.precompile.ABI, &cancelUnbondEvent, staking.EventTypeCancelUnbondingDelegation, *log)
 				s.Require().NoError(err)
 				s.Require().Equal(s.address, cancelUnbondEvent.DelegatorAddress)
-				s.Require().Equal(crypto.Keccak256Hash([]byte(s.validators[0].OperatorAddress)), cancelUnbondEvent.ValidatorAddress)
+				s.Require().Equal(optHexAddr, cancelUnbondEvent.ValidatorAddress)
 				s.Require().Equal(big.NewInt(1000000000000000000), cancelUnbondEvent.Amount)
 				s.Require().Equal(big.NewInt(2), cancelUnbondEvent.CreationHeight)
 			},

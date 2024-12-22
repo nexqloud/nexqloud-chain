@@ -2,8 +2,8 @@
 // SPDX-License-Identifier:ENCL-1.0(https://github.com/evmos/evmos/blob/main/LICENSE)
 package config
 
-// DefaultConfigTemplate defines the configuration template for the EVM RPC configuration
-const DefaultConfigTemplate = `
+// DefaultEVMConfigTemplate defines the configuration template for the EVM RPC configuration.
+const DefaultEVMConfigTemplate = `
 ###############################################################################
 ###                             EVM Configuration                           ###
 ###############################################################################
@@ -24,7 +24,7 @@ max-tx-gas-wanted = {{ .EVM.MaxTxGasWanted }}
 
 [json-rpc]
 
-# Enable defines if the gRPC server should be enabled.
+# Enable defines if the JSONRPC server should be enabled.
 enable = {{ .JSONRPC.Enable }}
 
 # Address defines the EVM RPC HTTP server address to bind to.
@@ -39,6 +39,9 @@ api = "{{range $index, $elmt := .JSONRPC.API}}{{if $index}},{{$elmt}}{{else}}{{$
 
 # GasCap sets a cap on gas that can be used in eth_call/estimateGas (0=infinite). Default: 25,000,000.
 gas-cap = {{ .JSONRPC.GasCap }}
+
+# Allow insecure account unlocking when account-related RPCs are exposed by http
+allow-insecure-unlock = {{ .JSONRPC.AllowInsecureUnlock }}
 
 # EVMTimeout is the global timeout for eth_call. Default: 5s.
 evm-timeout = "{{ .JSONRPC.EVMTimeout }}"

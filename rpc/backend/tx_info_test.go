@@ -4,19 +4,19 @@ import (
 	"fmt"
 	"math/big"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
+	"cosmossdk.io/math"
+	dbm "github.com/cometbft/cometbft-db"
+	abci "github.com/cometbft/cometbft/abci/types"
+	tmlog "github.com/cometbft/cometbft/libs/log"
+	tmrpctypes "github.com/cometbft/cometbft/rpc/core/types"
+	"github.com/cometbft/cometbft/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/evmos/evmos/v13/indexer"
-	"github.com/evmos/evmos/v13/rpc/backend/mocks"
-	rpctypes "github.com/evmos/evmos/v13/rpc/types"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	abci "github.com/tendermint/tendermint/abci/types"
-	tmlog "github.com/tendermint/tendermint/libs/log"
-	tmrpctypes "github.com/tendermint/tendermint/rpc/core/types"
-	"github.com/tendermint/tendermint/types"
-	dbm "github.com/tendermint/tm-db"
+	"github.com/evmos/evmos/v19/indexer"
+	"github.com/evmos/evmos/v19/rpc/backend/mocks"
+	rpctypes "github.com/evmos/evmos/v19/rpc/types"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -31,12 +31,12 @@ func (suite *BackendTestSuite) TestGetTransactionByHash() {
 			Code: 0,
 			Events: []abci.Event{
 				{Type: evmtypes.EventTypeEthereumTx, Attributes: []abci.EventAttribute{
-					{Key: []byte("ethereumTxHash"), Value: []byte(txHash.Hex())},
-					{Key: []byte("txIndex"), Value: []byte("0")},
-					{Key: []byte("amount"), Value: []byte("1000")},
-					{Key: []byte("txGasUsed"), Value: []byte("21000")},
-					{Key: []byte("txHash"), Value: []byte("")},
-					{Key: []byte("recipient"), Value: []byte("")},
+					{Key: "ethereumTxHash", Value: txHash.Hex()},
+					{Key: "txIndex", Value: "0"},
+					{Key: "amount", Value: "1000"},
+					{Key: "txGasUsed", Value: "21000"},
+					{Key: "txHash", Value: ""},
+					{Key: "recipient", Value: ""},
 				}},
 			},
 		},
@@ -97,7 +97,7 @@ func (suite *BackendTestSuite) TestGetTransactionByHash() {
 				suite.Require().NoError(err)
 				_, err = RegisterBlockResults(client, 1)
 				suite.Require().NoError(err)
-				RegisterBaseFee(queryClient, sdk.NewInt(1))
+				RegisterBaseFee(queryClient, math.NewInt(1))
 			},
 			msgEthereumTx,
 			rpcTransaction,
@@ -289,12 +289,12 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 			Code: 0,
 			Events: []abci.Event{
 				{Type: evmtypes.EventTypeEthereumTx, Attributes: []abci.EventAttribute{
-					{Key: []byte("ethereumTxHash"), Value: []byte(common.HexToHash(msgEthTx.Hash).Hex())},
-					{Key: []byte("txIndex"), Value: []byte("0")},
-					{Key: []byte("amount"), Value: []byte("1000")},
-					{Key: []byte("txGasUsed"), Value: []byte("21000")},
-					{Key: []byte("txHash"), Value: []byte("")},
-					{Key: []byte("recipient"), Value: []byte("")},
+					{Key: "ethereumTxHash", Value: common.HexToHash(msgEthTx.Hash).Hex()},
+					{Key: "txIndex", Value: "0"},
+					{Key: "amount", Value: "1000"},
+					{Key: "txGasUsed", Value: "21000"},
+					{Key: "txHash", Value: ""},
+					{Key: "recipient", Value: ""},
 				}},
 			},
 		},
@@ -355,7 +355,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 				suite.Require().NoError(err)
 				_, err = RegisterBlockResults(client, 1)
 				suite.Require().NoError(err)
-				RegisterBaseFee(queryClient, sdk.NewInt(1))
+				RegisterBaseFee(queryClient, math.NewInt(1))
 			},
 			&tmrpctypes.ResultBlock{Block: defaultBlock},
 			0,
@@ -369,7 +369,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockAndIndex() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				_, err := RegisterBlockResults(client, 1)
 				suite.Require().NoError(err)
-				RegisterBaseFee(queryClient, sdk.NewInt(1))
+				RegisterBaseFee(queryClient, math.NewInt(1))
 			},
 			&tmrpctypes.ResultBlock{Block: defaultBlock},
 			0,
@@ -434,7 +434,7 @@ func (suite *BackendTestSuite) TestGetTransactionByBlockNumberAndIndex() {
 				suite.Require().NoError(err)
 				_, err = RegisterBlockResults(client, 1)
 				suite.Require().NoError(err)
-				RegisterBaseFee(queryClient, sdk.NewInt(1))
+				RegisterBaseFee(queryClient, math.NewInt(1))
 			},
 			0,
 			0,
@@ -516,7 +516,7 @@ func (suite *BackendTestSuite) TestQueryTendermintTxIndexer() {
 				client := suite.backend.clientCtx.Client.(*mocks.Client)
 				RegisterTxSearchEmpty(client, "")
 			},
-			func(txs *rpctypes.ParsedTxs) *rpctypes.ParsedTx {
+			func(_ *rpctypes.ParsedTxs) *rpctypes.ParsedTx {
 				return &rpctypes.ParsedTx{}
 			},
 			"",
@@ -577,12 +577,12 @@ func (suite *BackendTestSuite) TestGetTransactionReceipt() {
 					Code: 0,
 					Events: []abci.Event{
 						{Type: evmtypes.EventTypeEthereumTx, Attributes: []abci.EventAttribute{
-							{Key: []byte("ethereumTxHash"), Value: []byte(txHash.Hex())},
-							{Key: []byte("txIndex"), Value: []byte("0")},
-							{Key: []byte("amount"), Value: []byte("1000")},
-							{Key: []byte("txGasUsed"), Value: []byte("21000")},
-							{Key: []byte("txHash"), Value: []byte("")},
-							{Key: []byte("recipient"), Value: []byte("0x775b87ef5D82ca211811C1a02CE0fE0CA3a455d7")},
+							{Key: "ethereumTxHash", Value: txHash.Hex()},
+							{Key: "txIndex", Value: "0"},
+							{Key: "amount", Value: "1000"},
+							{Key: "txGasUsed", Value: "21000"},
+							{Key: "txHash", Value: ""},
+							{Key: "recipient", Value: "0x775b87ef5D82ca211811C1a02CE0fE0CA3a455d7"},
 						}},
 					},
 				},

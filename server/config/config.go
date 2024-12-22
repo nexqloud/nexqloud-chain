@@ -10,14 +10,34 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/tendermint/tendermint/libs/strings"
+	"github.com/cometbft/cometbft/libs/strings"
 
 	errorsmod "cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/server/config"
 	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
+	"github.com/crypto-org-chain/cronos/memiavl"
+	memiavlcfg "github.com/crypto-org-chain/cronos/store/config"
 )
 
 const (
+	// DefaultAPIEnable is the default value for the parameter that defines if the cosmos REST API server is enabled
+	DefaultAPIEnable = false
+
+	// DefaultGRPCEnable is the default value for the parameter that defines if the gRPC server is enabled
+	DefaultGRPCEnable = false
+
+	// DefaultGRPCWebEnable is the default value for the parameter that defines if the gRPC web server is enabled
+	DefaultGRPCWebEnable = false
+
+	// DefaultJSONRPCEnable is the default value for the parameter that defines if the JSON-RPC server is enabled
+	DefaultJSONRPCEnable = false
+
+	// DefaultRosettaEnable is the default value for the parameter that defines if the Rosetta API server is enabled
+	DefaultRosettaEnable = false
+
+	// DefaultTelemetryEnable is the default value for the parameter that defines if the telemetry is enabled
+	DefaultTelemetryEnable = false
+
 	// DefaultGRPCAddress is the default address the gRPC server binds to.
 	DefaultGRPCAddress = "0.0.0.0:9900"
 
@@ -41,6 +61,9 @@ const (
 
 	// DefaultGasCap is the default cap on gas that can be used in eth_call/estimateGas
 	DefaultGasCap uint64 = 25000000
+
+	// DefaultJSONRPCAllowInsecureUnlock is true
+	DefaultJSONRPCAllowInsecureUnlock bool = true
 
 	// DefaultFilterCap is the default cap for total number of filters that can be created
 	DefaultFilterCap int32 = 200
@@ -71,6 +94,30 @@ const (
 
 	// DefaultMaxOpenConnections represents the amount of open connections (unlimited = 0)
 	DefaultMaxOpenConnections = 0
+
+	// DefaultGasAdjustment value to use as default in gas-adjustment flag
+	DefaultGasAdjustment = 1.2
+
+	// ============================
+	//           MemIAVL
+	// ============================
+
+	// DefaultMemIAVLEnable is the default value that defines if memIAVL is enabled
+	DefaultMemIAVLEnable = false
+
+	// DefaultZeroCopy is the default value that defines if
+	// the zero-copied slices must be retained beyond current block's execution
+	// the sdk address cache will be disabled if zero-copy is enabled
+	DefaultZeroCopy = false
+
+	// DefaultAsyncCommitBuffer value to use as default for the size of
+	// asynchronous commit queue when using memIAVL
+	DefaultAsyncCommitBuffer = 0
+
+	// DefaultSnapshotKeepRecent default value for how many old snapshots
+	// (excluding the latest one) should be kept after new snapshots
+	// when using memIAVL
+	DefaultSnapshotKeepRecent = 1
 )
 
 var evmTracers = []string{"json", "markdown", "struct", "access_list"}
@@ -78,11 +125,13 @@ var evmTracers = []string{"json", "markdown", "struct", "access_list"}
 // Config defines the server's top level configuration. It includes the default app config
 // from the SDK as well as the EVM configuration to enable the JSON-RPC APIs.
 type Config struct {
-	config.Config
+	config.Config `mapstructure:",squash"`
 
 	EVM     EVMConfig     `mapstructure:"evm"`
 	JSONRPC JSONRPCConfig `mapstructure:"json-rpc"`
 	TLS     TLSConfig     `mapstructure:"tls"`
+
+	MemIAVL MemIAVLConfig `mapstructure:"memiavl"`
 }
 
 // EVMConfig defines the application configuration values for the EVM.
@@ -104,6 +153,8 @@ type JSONRPCConfig struct {
 	WsAddress string `mapstructure:"ws-address"`
 	// GasCap is the global gas cap for eth-call variants.
 	GasCap uint64 `mapstructure:"gas-cap"`
+	// AllowInsecureUnlock toggles if account unlocking is enabled when account-related RPCs are exposed by http.
+	AllowInsecureUnlock bool `mapstructure:"allow-insecure-unlock"`
 	// EVMTimeout is the global timeout for eth-call.
 	EVMTimeout time.Duration `mapstructure:"evm-timeout"`
 	// TxFeeCap is the global tx-fee cap for send transaction
@@ -144,6 +195,11 @@ type TLSConfig struct {
 	KeyPath string `mapstructure:"key-path"`
 }
 
+// MemIAVLConfig defines the configuration for memIAVL.
+type MemIAVLConfig struct {
+	memiavlcfg.MemIAVLConfig
+}
+
 // AppConfig helps to override default appConfig template and configs.
 // return "", nil if no custom configuration is required for the application.
 func AppConfig(denom string) (string, interface{}) {
@@ -167,7 +223,9 @@ func AppConfig(denom string) (string, interface{}) {
 		customAppConfig.Config.MinGasPrices = "0" + denom
 	}
 
-	customAppTemplate := config.DefaultConfigTemplate + DefaultConfigTemplate
+	customAppTemplate := config.DefaultConfigTemplate +
+		DefaultEVMConfigTemplate +
+		memiavlcfg.DefaultConfigTemplate
 
 	return customAppTemplate, *customAppConfig
 }
@@ -175,17 +233,18 @@ func AppConfig(denom string) (string, interface{}) {
 // DefaultConfig returns server's default configuration.
 func DefaultConfig() *Config {
 	defaultSDKConfig := config.DefaultConfig()
-	defaultSDKConfig.API.Enable = false
-	defaultSDKConfig.GRPC.Enable = false
-	defaultSDKConfig.GRPCWeb.Enable = false
-	defaultSDKConfig.Rosetta.Enable = false
-	defaultSDKConfig.Telemetry.Enabled = false
+	defaultSDKConfig.API.Enable = DefaultAPIEnable
+	defaultSDKConfig.GRPC.Enable = DefaultGRPCEnable
+	defaultSDKConfig.GRPCWeb.Enable = DefaultGRPCWebEnable
+	defaultSDKConfig.Rosetta.Enable = DefaultRosettaEnable
+	defaultSDKConfig.Telemetry.Enabled = DefaultTelemetryEnable
 
 	return &Config{
 		Config:  *defaultSDKConfig,
 		EVM:     *DefaultEVMConfig(),
 		JSONRPC: *DefaultJSONRPCConfig(),
 		TLS:     *DefaultTLSConfig(),
+		MemIAVL: *DefaultMemIAVLConfig(),
 	}
 }
 
@@ -224,6 +283,7 @@ func DefaultJSONRPCConfig() *JSONRPCConfig {
 		Address:                  DefaultJSONRPCAddress,
 		WsAddress:                DefaultJSONRPCWsAddress,
 		GasCap:                   DefaultGasCap,
+		AllowInsecureUnlock:      DefaultJSONRPCAllowInsecureUnlock,
 		EVMTimeout:               DefaultEVMTimeout,
 		TxFeeCap:                 DefaultTxFeeCap,
 		FilterCap:                DefaultFilterCap,
@@ -316,52 +376,39 @@ func (c TLSConfig) Validate() error {
 	return nil
 }
 
-// GetConfig returns a fully parsed Config object.
-func GetConfig(v *viper.Viper) (Config, error) {
-	cfg, err := config.GetConfig(v)
-	if err != nil {
-		return Config{}, err
-	}
-
-	return Config{
-		Config: cfg,
-		EVM: EVMConfig{
-			Tracer:         v.GetString("evm.tracer"),
-			MaxTxGasWanted: v.GetUint64("evm.max-tx-gas-wanted"),
-		},
-		JSONRPC: JSONRPCConfig{
-			Enable:                   v.GetBool("json-rpc.enable"),
-			API:                      v.GetStringSlice("json-rpc.api"),
-			Address:                  v.GetString("json-rpc.address"),
-			WsAddress:                v.GetString("json-rpc.ws-address"),
-			GasCap:                   v.GetUint64("json-rpc.gas-cap"),
-			FilterCap:                v.GetInt32("json-rpc.filter-cap"),
-			FeeHistoryCap:            v.GetInt32("json-rpc.feehistory-cap"),
-			TxFeeCap:                 v.GetFloat64("json-rpc.txfee-cap"),
-			EVMTimeout:               v.GetDuration("json-rpc.evm-timeout"),
-			LogsCap:                  v.GetInt32("json-rpc.logs-cap"),
-			BlockRangeCap:            v.GetInt32("json-rpc.block-range-cap"),
-			HTTPTimeout:              v.GetDuration("json-rpc.http-timeout"),
-			HTTPIdleTimeout:          v.GetDuration("json-rpc.http-idle-timeout"),
-			MaxOpenConnections:       v.GetInt("json-rpc.max-open-connections"),
-			EnableIndexer:            v.GetBool("json-rpc.enable-indexer"),
-			MetricsAddress:           v.GetString("json-rpc.metrics-address"),
-			FixRevertGasRefundHeight: v.GetInt64("json-rpc.fix-revert-gas-refund-height"),
-		},
-		TLS: TLSConfig{
-			CertificatePath: v.GetString("tls.certificate-path"),
-			KeyPath:         v.GetString("tls.key-path"),
-		},
-	}, nil
+// DefaultMemIAVLConfig returns the default MemIAVL configuration
+func DefaultMemIAVLConfig() *MemIAVLConfig {
+	return &MemIAVLConfig{memiavlcfg.MemIAVLConfig{
+		Enable:             DefaultMemIAVLEnable,
+		ZeroCopy:           DefaultZeroCopy,
+		AsyncCommitBuffer:  DefaultAsyncCommitBuffer,
+		SnapshotKeepRecent: DefaultSnapshotKeepRecent,
+		SnapshotInterval:   memiavl.DefaultSnapshotInterval,
+		CacheSize:          memiavlcfg.DefaultCacheSize,
+	}}
 }
 
-// ParseConfig retrieves the default environment configuration for the
-// application.
-func ParseConfig(v *viper.Viper) (*Config, error) {
-	conf := DefaultConfig()
-	err := v.Unmarshal(conf)
+// Validate returns an error if the MemIAVL configuration fields are invalid.
+func (c MemIAVLConfig) Validate() error {
+	// AsyncCommitBuffer can be -1, which means synchronous commit
+	if c.AsyncCommitBuffer < -1 {
+		return errors.New("AsyncCommitBuffer cannot be negative")
+	}
 
-	return conf, err
+	if c.CacheSize < 0 {
+		return errors.New("CacheSize cannot be negative")
+	}
+
+	return nil
+}
+
+// GetConfig returns a fully parsed Config object.
+func GetConfig(v *viper.Viper) (Config, error) {
+	conf := DefaultConfig()
+	if err := v.Unmarshal(conf); err != nil {
+		return Config{}, fmt.Errorf("error extracting app config: %w", err)
+	}
+	return *conf, nil
 }
 
 // ValidateBasic returns an error any of the application configuration fields are invalid
@@ -376,6 +423,10 @@ func (c Config) ValidateBasic() error {
 
 	if err := c.TLS.Validate(); err != nil {
 		return errorsmod.Wrapf(errortypes.ErrAppConfig, "invalid tls config value: %s", err.Error())
+	}
+
+	if err := c.MemIAVL.Validate(); err != nil {
+		return errorsmod.Wrapf(errortypes.ErrAppConfig, "invalid memIAVL config value: %s", err.Error())
 	}
 
 	return c.Config.ValidateBasic()

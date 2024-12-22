@@ -10,11 +10,12 @@ import (
 
 	errorsmod "cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
-	"github.com/evmos/evmos/v13/x/evm/types"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
+	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
 var _ statedb.Keeper = &Keeper{}
@@ -34,7 +35,7 @@ func (k *Keeper) GetAccount(ctx sdk.Context, addr common.Address) *statedb.Accou
 	return acct
 }
 
-// GetState loads contract state from database, implements `statedb.Keeper` interface.
+// GetState loads contract state from database.
 func (k *Keeper) GetState(ctx sdk.Context, addr common.Address, key common.Hash) common.Hash {
 	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.AddressStoragePrefix(addr))
 
@@ -44,6 +45,13 @@ func (k *Keeper) GetState(ctx sdk.Context, addr common.Address, key common.Hash)
 	}
 
 	return common.BytesToHash(value)
+}
+
+// GetFastState loads contract state from database.
+func (k *Keeper) GetFastState(ctx sdk.Context, addr common.Address, key common.Hash) []byte {
+	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.AddressStoragePrefix(addr))
+
+	return store.Get(key.Bytes())
 }
 
 // GetCode loads contract code from database, implements `statedb.Keeper` interface.
@@ -57,7 +65,7 @@ func (k *Keeper) ForEachStorage(ctx sdk.Context, addr common.Address, cb func(ke
 	store := ctx.KVStore(k.storeKey)
 	prefix := types.AddressStoragePrefix(addr)
 
-	iterator := sdk.KVStorePrefixIterator(store, prefix)
+	iterator := storetypes.KVStorePrefixIterator(store, prefix)
 	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {

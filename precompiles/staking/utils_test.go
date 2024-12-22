@@ -1,52 +1,61 @@
 package staking_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"slices"
 	"time"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
 
 	"cosmossdk.io/math"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/tmhash"
+	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
+	"github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	"github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/testutil/mock"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	evmosapp "github.com/evmos/evmos/v13/app"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
-	"github.com/evmos/evmos/v13/precompiles/staking"
-	"github.com/evmos/evmos/v13/precompiles/testutil"
-	"github.com/evmos/evmos/v13/precompiles/testutil/contracts"
-	evmosutil "github.com/evmos/evmos/v13/testutil"
-	testutiltx "github.com/evmos/evmos/v13/testutil/tx"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	"github.com/evmos/evmos/v13/utils"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	inflationtypes "github.com/evmos/evmos/v13/x/inflation/types"
-	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/crypto/tmhash"
-	tmtypes "github.com/tendermint/tendermint/types"
-	"golang.org/x/exp/slices"
+	"github.com/ethereum/go-ethereum/crypto"
+	evmosapp "github.com/evmos/evmos/v19/app"
+	"github.com/evmos/evmos/v19/crypto/ethsecp256k1"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/precompiles/staking"
+	"github.com/evmos/evmos/v19/precompiles/testutil"
+	"github.com/evmos/evmos/v19/precompiles/testutil/contracts"
+	evmosutil "github.com/evmos/evmos/v19/testutil"
+	testutiltx "github.com/evmos/evmos/v19/testutil/tx"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	"github.com/evmos/evmos/v19/utils"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
+	inflationtypes "github.com/evmos/evmos/v19/x/inflation/v1/types"
+	stakingkeeper "github.com/evmos/evmos/v19/x/staking/keeper"
+	vestingtypes "github.com/evmos/evmos/v19/x/vesting/types"
 )
+
+// stipend to pay EVM tx fees
+var accountGasCoverage = sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(1e16)))
 
 // SetupWithGenesisValSet initializes a new EvmosApp with a validator set and genesis accounts
 // that also act as delegators. For simplicity, each validator is bonded with a delegation
 // of one consensus engine unit (10^6) in the default token of the simapp from first genesis
 // account. A Nop logger is set in SimApp.
 func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSet, genAccs []authtypes.GenesisAccount, balances ...banktypes.Balance) {
-	appI, genesisState := evmosapp.SetupTestingApp()
+	appI, genesisState := evmosapp.SetupTestingApp(cmn.DefaultChainID)()
 	app, ok := appI.(*evmosapp.Evmos)
 	s.Require().True(ok)
 
@@ -70,15 +79,15 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSe
 			Jailed:            false,
 			Status:            stakingtypes.Bonded,
 			Tokens:            bondAmt,
-			DelegatorShares:   sdk.OneDec(),
+			DelegatorShares:   math.LegacyOneDec(),
 			Description:       stakingtypes.Description{},
 			UnbondingHeight:   int64(0),
 			UnbondingTime:     time.Unix(0, 0).UTC(),
-			Commission:        stakingtypes.NewCommission(sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()),
-			MinSelfDelegation: sdk.ZeroInt(),
+			Commission:        stakingtypes.NewCommission(math.LegacyZeroDec(), math.LegacyNewDecWithPrec(5, 1), math.LegacyNewDecWithPrec(5, 2)),
+			MinSelfDelegation: math.ZeroInt(),
 		}
 		validators = append(validators, validator)
-		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), val.Address.Bytes(), sdk.OneDec()))
+		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), val.Address.Bytes(), math.LegacyOneDec()))
 	}
 	s.validators = validators
 
@@ -89,7 +98,7 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSe
 	stakingGenesis := stakingtypes.NewGenesisState(stakingParams, validators, delegations)
 	genesisState[stakingtypes.ModuleName] = app.AppCodec().MustMarshalJSON(stakingGenesis)
 
-	totalBondAmt := sdk.ZeroInt()
+	totalBondAmt := math.ZeroInt()
 	for range validators {
 		totalBondAmt = totalBondAmt.Add(bondAmt)
 	}
@@ -106,7 +115,7 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSe
 	})
 
 	// update total supply
-	bankGenesis := banktypes.NewGenesisState(banktypes.DefaultGenesisState().Params, balances, totalSupply, []banktypes.Metadata{})
+	bankGenesis := banktypes.NewGenesisState(banktypes.DefaultGenesisState().Params, balances, totalSupply, []banktypes.Metadata{}, []banktypes.SendEnabled{})
 	genesisState[banktypes.ModuleName] = app.AppCodec().MustMarshalJSON(bankGenesis)
 
 	stateBytes, err := json.MarshalIndent(genesisState, "", " ")
@@ -186,7 +195,8 @@ func (s *PrecompileTestSuite) DoSetupTest() {
 	stakingParams := s.app.StakingKeeper.GetParams(s.ctx)
 	stakingParams.BondDenom = utils.BaseDenom
 	s.bondDenom = stakingParams.BondDenom
-	s.app.StakingKeeper.SetParams(s.ctx, stakingParams)
+	err := s.app.StakingKeeper.SetParams(s.ctx, stakingParams)
+	s.Require().NoError(err)
 
 	s.ethSigner = ethtypes.LatestSignerForChainID(s.app.EvmKeeper.ChainID())
 
@@ -194,8 +204,8 @@ func (s *PrecompileTestSuite) DoSetupTest() {
 	s.Require().NoError(err)
 	s.precompile = precompile
 
-	coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, sdk.NewInt(5000000000000000000)))
-	distrCoins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, sdk.NewInt(2000000000000000000)))
+	coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(5000000000000000000)))
+	distrCoins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(2000000000000000000)))
 	err = s.app.BankKeeper.MintCoins(s.ctx, inflationtypes.ModuleName, coins)
 	s.Require().NoError(err)
 	err = s.app.BankKeeper.SendCoinsFromModuleToModule(s.ctx, inflationtypes.ModuleName, authtypes.FeeCollectorName, distrCoins)
@@ -220,7 +230,7 @@ func (s *PrecompileTestSuite) ApproveAndCheckAuthz(method abi.Method, msgType st
 	auth, _ := s.CheckAuthorization(staking.DelegateAuthz, s.address, s.address)
 	s.Require().NotNil(auth)
 	s.Require().Equal(auth.AuthorizationType, staking.DelegateAuthz)
-	s.Require().Equal(auth.MaxTokens, &sdk.Coin{Denom: s.bondDenom, Amount: sdk.NewIntFromBigInt(amount)})
+	s.Require().Equal(auth.MaxTokens, &sdk.Coin{Denom: s.bondDenom, Amount: math.NewIntFromBigInt(amount)})
 }
 
 // CheckAuthorization is a helper function to check if the authorization is set and if it is the correct type.
@@ -327,6 +337,13 @@ func (s *PrecompileTestSuite) SetupApprovalWithContractCalls(approvalArgs contra
 	_, _, err := contracts.CallContractAndCheckLogs(s.ctx, s.app, approvalArgs, logCheckArgs)
 	Expect(err).To(BeNil(), "error while approving: %v", err)
 
+	// get granter address from private key provided
+	pk, ok := approvalArgs.PrivKey.(*ethsecp256k1.PrivKey)
+	Expect(ok).To(BeTrue(), fmt.Sprintf("expected a ethsecp256k1.PrivKey, but got %T", approvalArgs.PrivKey))
+	key, err := pk.ToECDSA()
+	Expect(err).To(BeNil())
+	granter := crypto.PubkeyToAddress(key.PublicKey)
+
 	// iterate over args
 	var expectedAuthz stakingtypes.AuthorizationType
 	for _, msgType := range msgTypes {
@@ -340,9 +357,9 @@ func (s *PrecompileTestSuite) SetupApprovalWithContractCalls(approvalArgs contra
 		case staking.CancelUnbondingDelegationMsg:
 			expectedAuthz = staking.CancelUnbondingDelegationAuthz
 		}
-		authz, expirationTime := s.CheckAuthorization(expectedAuthz, approvalArgs.ContractAddr, s.address)
+		authz, expirationTime := s.CheckAuthorization(expectedAuthz, approvalArgs.ContractAddr, granter)
 		Expect(authz).ToNot(BeNil(), "expected authorization to be set")
-		Expect(authz.MaxTokens.Amount).To(Equal(sdk.NewInt(expAmount.Int64())), "expected different allowance")
+		Expect(authz.MaxTokens.Amount).To(Equal(math.NewInt(expAmount.Int64())), "expected different allowance")
 		Expect(authz.MsgTypeURL()).To(Equal(msgType), "expected different message type")
 		Expect(expirationTime).ToNot(BeNil(), "expected expiration time to not be nil")
 	}
@@ -362,8 +379,13 @@ func (s *PrecompileTestSuite) DeployContract(contract evmtypes.CompiledContract)
 
 // NextBlock commits the current block and sets up the next block.
 func (s *PrecompileTestSuite) NextBlock() {
+	s.NextBlockAfter(time.Second)
+}
+
+// NextBlock commits the current block and sets up the next block.
+func (s *PrecompileTestSuite) NextBlockAfter(t time.Duration) {
 	var err error
-	s.ctx, err = evmosutil.CommitAndCreateNewCtx(s.ctx, s.app, time.Second, nil)
+	s.ctx, err = evmosutil.CommitAndCreateNewCtx(s.ctx, s.app, t, nil)
 	Expect(err).To(BeNil(), "failed to commit block")
 }
 
@@ -375,11 +397,11 @@ func (s *PrecompileTestSuite) CheckAllowanceChangeEvent(log *ethtypes.Log, metho
 	s.Require().Equal(event.ID, common.HexToHash(log.Topics[0].Hex()))
 	s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
 
-	var approvalEvent staking.EventAllowanceChange
+	var approvalEvent authorization.EventAllowanceChange
 	err := cmn.UnpackLog(s.precompile.ABI, &approvalEvent, authorization.EventTypeAllowanceChange, *log)
 	s.Require().NoError(err)
-	s.Require().Equal(s.address, approvalEvent.Spender)
-	s.Require().Equal(s.address, approvalEvent.Owner)
+	s.Require().Equal(s.address, approvalEvent.Grantee)
+	s.Require().Equal(s.address, approvalEvent.Granter)
 	s.Require().Equal(len(methods), len(approvalEvent.Methods))
 
 	for i, method := range methods {
@@ -402,12 +424,14 @@ func (s *PrecompileTestSuite) ExpectAuthorization(authorizationType stakingtypes
 func (s *PrecompileTestSuite) assertValidatorsResponse(validators []staking.ValidatorInfo, expLen int) {
 	// returning order can change
 	valOrder := []int{0, 1}
-	if validators[0].OperatorAddress != s.validators[0].OperatorAddress {
+	varAddr := sdk.ValAddress(common.HexToAddress(validators[0].OperatorAddress).Bytes()).String()
+	if varAddr != s.validators[0].OperatorAddress {
 		valOrder = []int{1, 0}
 	}
 	for i := 0; i < expLen; i++ {
 		j := valOrder[i]
-		s.Require().Equal(s.validators[j].OperatorAddress, validators[i].OperatorAddress)
+
+		s.Require().Equal(s.validators[j].OperatorAddress, sdk.ValAddress(common.HexToAddress(validators[i].OperatorAddress).Bytes()).String())
 		s.Require().Equal(uint8(s.validators[j].Status), validators[i].Status)
 		s.Require().Equal(s.validators[j].Tokens.Uint64(), validators[i].Tokens.Uint64())
 		s.Require().Equal(s.validators[j].DelegatorShares.BigInt(), validators[i].DelegatorShares)
@@ -416,7 +440,7 @@ func (s *PrecompileTestSuite) assertValidatorsResponse(validators []staking.Vali
 		s.Require().Equal(int64(0), validators[i].UnbondingTime)
 		s.Require().Equal(int64(0), validators[i].Commission.Int64())
 		s.Require().Equal(int64(0), validators[i].MinSelfDelegation.Int64())
-		s.Require().Contains(validators[i].ConsensusPubkey, fmt.Sprintf("%v", s.validators[j].ConsensusPubkey.Value))
+		s.Require().Equal(validators[i].ConsensusPubkey, staking.FormatConsensusPubkey(s.validators[j].ConsensusPubkey))
 	}
 }
 
@@ -485,10 +509,10 @@ func (s *PrecompileTestSuite) setupRedelegations(redelAmt *big.Int) error {
 		DelegatorAddress:    sdk.AccAddress(s.address.Bytes()).String(),
 		ValidatorSrcAddress: s.validators[0].OperatorAddress,
 		ValidatorDstAddress: s.validators[1].OperatorAddress,
-		Amount:              sdk.NewCoin(s.bondDenom, sdk.NewIntFromBigInt(redelAmt)),
+		Amount:              sdk.NewCoin(s.bondDenom, math.NewIntFromBigInt(redelAmt)),
 	}
 
-	msgSrv := stakingkeeper.NewMsgServerImpl(s.app.StakingKeeper)
+	msgSrv := stakingkeeper.NewMsgServerImpl(&s.app.StakingKeeper)
 	// create 2 entries for same redelegation
 	for i := 0; i < 2; i++ {
 		if _, err := msgSrv.BeginRedelegate(s.ctx, &msg); err != nil {
@@ -498,7 +522,7 @@ func (s *PrecompileTestSuite) setupRedelegations(redelAmt *big.Int) error {
 
 	// create a validator with s.address and s.privKey
 	// then create a redelegation from validator[0] to this new validator
-	testutil.CreateValidator(s.ctx, s.T(), s.privKey.PubKey(), s.app.StakingKeeper, math.NewInt(100))
+	testutil.CreateValidator(s.ctx, s.T(), s.privKey.PubKey(), *s.app.StakingKeeper.Keeper, math.NewInt(100))
 	msg.ValidatorDstAddress = sdk.ValAddress(s.address.Bytes()).String()
 	_, err := msgSrv.BeginRedelegate(s.ctx, &msg)
 	return err
@@ -510,6 +534,51 @@ func (s *PrecompileTestSuite) CheckValidatorOutput(valOut staking.ValidatorInfo)
 	for i, v := range s.validators {
 		validatorAddrs[i] = v.OperatorAddress
 	}
-	Expect(slices.Contains(validatorAddrs, valOut.OperatorAddress)).To(BeTrue(), "operator address not found in test suite validators")
+
+	operatorAddress := sdk.ValAddress(common.HexToAddress(valOut.OperatorAddress).Bytes()).String()
+
+	Expect(slices.Contains(validatorAddrs, operatorAddress)).To(BeTrue(), "operator address not found in test suite validators")
 	Expect(valOut.DelegatorShares).To(Equal(big.NewInt(1e18)), "expected different delegator shares")
+}
+
+// setupVestingAccount is a helper function used in integraiton tests to setup a vesting account
+// using the TestVestingSchedule. Also, funds the account with extra funds to pay for transaction fees
+func (s *PrecompileTestSuite) setupVestingAccount(funder, vestAcc sdk.AccAddress) *vestingtypes.ClawbackVestingAccount {
+	vestingAmtTotal := evmosutil.TestVestingSchedule.TotalVestingCoins
+
+	vestingStart := s.ctx.BlockTime()
+	baseAccount := authtypes.NewBaseAccountWithAddress(vestAcc.Bytes())
+	clawbackAccount := vestingtypes.NewClawbackVestingAccount(
+		baseAccount,
+		funder,
+		vestingAmtTotal,
+		vestingStart,
+		evmosutil.TestVestingSchedule.LockupPeriods,
+		evmosutil.TestVestingSchedule.VestingPeriods,
+	)
+
+	err := evmosutil.FundAccount(s.ctx, s.app.BankKeeper, clawbackAccount.GetAddress(), vestingAmtTotal)
+	Expect(err).To(BeNil())
+	acc := s.app.AccountKeeper.NewAccount(s.ctx, clawbackAccount)
+	s.app.AccountKeeper.SetAccount(s.ctx, acc)
+
+	// Check all coins are locked up
+	lockedUp := clawbackAccount.GetLockedUpCoins(s.ctx.BlockTime())
+	Expect(vestingAmtTotal).To(Equal(lockedUp))
+
+	// Grant gas stipend to cover EVM fees
+	err = evmosutil.FundAccount(s.ctx, s.app.BankKeeper, clawbackAccount.GetAddress(), accountGasCoverage)
+	Expect(err).To(BeNil())
+	granteeBalance := s.app.BankKeeper.GetBalance(s.ctx, clawbackAccount.GetAddress(), s.bondDenom)
+	Expect(granteeBalance).To(Equal(accountGasCoverage[0].Add(vestingAmtTotal[0])))
+
+	return clawbackAccount
+}
+
+// Generate the Base64 encoded PubKey associated with a PrivKey generated with
+// the ed25519 algorithm used in Tendermint nodes.
+func GenerateBase64PubKey() string {
+	privKey := ed25519.GenPrivKey()
+	pubKey := privKey.PubKey().(*ed25519.PubKey)
+	return base64.StdEncoding.EncodeToString(pubKey.Bytes())
 }

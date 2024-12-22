@@ -5,16 +5,19 @@ package ics20
 
 import (
 	"fmt"
-	"time"
 
 	errorsmod "cosmossdk.io/errors"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/cosmos/cosmos-sdk/x/authz"
-	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
+	transfertypes "github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	channeltypes "github.com/cosmos/ibc-go/v7/modules/core/04-channel/types"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/utils"
 )
 
 const (
@@ -24,7 +27,7 @@ const (
 )
 
 // Transfer implements the ICS20 transfer transactions.
-func (p Precompile) Transfer(
+func (p *Precompile) Transfer(
 	ctx sdk.Context,
 	origin common.Address,
 	contract *vm.Contract,
@@ -42,37 +45,19 @@ func (p Precompile) Transfer(
 		return nil, errorsmod.Wrapf(channeltypes.ErrChannelNotFound, "port ID (%s) channel ID (%s)", msg.SourcePort, msg.SourceChannel)
 	}
 
-	// The provided sender address should always be equal to the origin address.
-	// In case the contract caller address is the same as the sender address provided,
-	// update the sender address to be equal to the origin address.
-	// Otherwise, if the provided delegator address is different from the origin address,
-	// return an error because is a forbidden operation
-	if contract.CallerAddress == sender {
-		sender = origin
-	} else if origin != sender {
+	// isCallerSender is true when the contract caller is the same as the sender
+	isCallerSender := contract.CallerAddress == sender
+
+	// If the contract caller is not the same as the sender, the sender must be the origin
+	if !isCallerSender && origin != sender {
 		return nil, fmt.Errorf(ErrDifferentOriginFromSender, origin.String(), sender.String())
 	}
 
 	// no need to have authorization when the contract caller is the same as origin (owner of funds)
 	// and the sender is the origin
-	var (
-		expiration *time.Time
-		auth       authz.Authorization
-		resp       *authz.AcceptResponse
-	)
-
-	if contract.CallerAddress != origin {
-		// check if authorization exists
-		auth, expiration, err = authorization.CheckAuthzExists(ctx, p.AuthzKeeper, contract.CallerAddress, origin, TransferMsg)
-		if err != nil {
-			return nil, fmt.Errorf(authorization.ErrAuthzDoesNotExistOrExpired, contract.CallerAddress, origin)
-		}
-
-		// Accept the grant and return an error if the grant is not accepted
-		resp, err = p.AcceptGrant(ctx, contract.CallerAddress, origin, msg, auth)
-		if err != nil {
-			return nil, err
-		}
+	resp, expiration, err := CheckAndAcceptAuthorizationIfNeeded(ctx, contract, origin, p.AuthzKeeper, msg)
+	if err != nil {
+		return nil, err
 	}
 
 	res, err := p.transferKeeper.Transfer(sdk.WrapSDKContext(ctx), msg)
@@ -80,17 +65,30 @@ func (p Precompile) Transfer(
 		return nil, err
 	}
 
-	// Update grant only if is needed
-	if contract.CallerAddress != origin {
-		// accepts and updates the grant adjusting the spending limit
-		if err = p.UpdateGrant(ctx, contract.CallerAddress, origin, expiration, resp); err != nil {
-			return nil, err
-		}
+	if err := UpdateGrantIfNeeded(ctx, contract, p.AuthzKeeper, origin, expiration, resp); err != nil {
+		return nil, err
 	}
 
-	if err = p.EmitIBCTransferEvent(
+	if contract.CallerAddress != origin && msg.Token.Denom == utils.BaseDenom {
+		// escrow address is also changed on this tx, and it is not a module account
+		// so we need to account for this on the UpdateDirties
+		escrowAccAddress := transfertypes.GetEscrowAddress(msg.SourcePort, msg.SourceChannel)
+		escrowHexAddr := common.BytesToAddress(escrowAccAddress)
+		// NOTE: This ensures that the changes in the bank keeper are correctly mirrored to the EVM stateDB
+		// when calling the precompile from another smart contract.
+		// This prevents the stateDB from overwriting the changed balance in the bank keeper when committing the EVM state.
+		amt := msg.Token.Amount.BigInt()
+		p.SetBalanceChangeEntries(
+			cmn.NewBalanceChangeEntry(sender, amt, cmn.Sub),
+			cmn.NewBalanceChangeEntry(escrowHexAddr, amt, cmn.Add),
+		)
+	}
+
+	if err = EmitIBCTransferEvent(
 		ctx,
 		stateDB,
+		p.ABI.Events[EventTypeIBCTransfer],
+		p.Address(),
 		sender,
 		msg.Receiver,
 		msg.SourcePort,

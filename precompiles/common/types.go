@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	evmosutils "github.com/evmos/evmos/v13/utils"
+	evmosutils "github.com/evmos/evmos/v19/utils"
 )
 
 var (
@@ -22,6 +22,16 @@ var (
 	// DefaultChainID is the standard chain id used for testing purposes
 	DefaultChainID = evmosutils.MainnetChainID + "-1"
 )
+
+// ICS20Allocation defines the spend limit for a particular port and channel.
+// We need this to be able to unpack to big.Int instead of math.Int.
+type ICS20Allocation struct {
+	SourcePort        string
+	SourceChannel     string
+	SpendLimit        []Coin
+	AllowList         []string
+	AllowedPacketData []string
+}
 
 // Coin defines a struct that stores all needed information about a coin
 // in types native to the EVM.
@@ -47,7 +57,7 @@ type Dec struct {
 
 // ToSDKType converts the Coin to the Cosmos SDK representation.
 func (c Coin) ToSDKType() sdk.Coin {
-	return sdk.NewCoin(c.Denom, sdk.NewIntFromBigInt(c.Amount))
+	return sdk.NewCoin(c.Denom, math.NewIntFromBigInt(c.Amount))
 }
 
 // NewCoinsResponse converts a response to an array of Coin.
@@ -71,7 +81,7 @@ func NewDecCoinsResponse(amount sdk.DecCoins) []DecCoin {
 		outputs[i] = DecCoin{
 			Denom:     coin.Denom,
 			Amount:    coin.Amount.TruncateInt().BigInt(),
-			Precision: sdk.Precision,
+			Precision: math.LegacyPrecision,
 		}
 	}
 	return outputs
@@ -91,7 +101,7 @@ func HexAddressFromBech32String(addr string) (res common.Address, err error) {
 
 // SafeAdd adds two integers and returns a boolean if an overflow occurs to avoid panic.
 // TODO: Upstream this to the SDK math package.
-func SafeAdd(a, b sdkmath.Int) (res *big.Int, overflow bool) {
+func SafeAdd(a, b math.Int) (res *big.Int, overflow bool) {
 	res = a.BigInt().Add(a.BigInt(), b.BigInt())
-	return res, res.BitLen() > sdkmath.MaxBitLen
+	return res, res.BitLen() > math.MaxBitLen
 }

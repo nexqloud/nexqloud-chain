@@ -6,22 +6,25 @@ import (
 	"testing"
 	"time"
 
+	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	ibctesting "github.com/cosmos/ibc-go/v6/testing"
+	ibctesting "github.com/cosmos/ibc-go/v7/testing"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	evmosapp "github.com/evmos/evmos/v13/app"
-	evmosibc "github.com/evmos/evmos/v13/ibc/testing"
-	"github.com/evmos/evmos/v13/precompiles/ics20"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	tmtypes "github.com/tendermint/tendermint/types"
+	evmosapp "github.com/evmos/evmos/v19/app"
+	evmosibc "github.com/evmos/evmos/v19/ibc/testing"
+	"github.com/evmos/evmos/v19/precompiles/ics20"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
+
 	"github.com/stretchr/testify/suite"
 )
 

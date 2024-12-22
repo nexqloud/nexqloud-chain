@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"math/big"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	transfertypes "github.com/cosmos/ibc-go/v6/modules/apps/transfer/types"
-	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
-	"github.com/evmos/evmos/v13/precompiles/ics20"
-	"github.com/evmos/evmos/v13/utils"
+	transfertypes "github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	channeltypes "github.com/cosmos/ibc-go/v7/modules/core/04-channel/types"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/precompiles/ics20"
+	"github.com/evmos/evmos/v19/utils"
 )
 
 type allowanceTestCase struct {
@@ -30,7 +31,7 @@ var defaultAllowanceCases = []allowanceTestCase{
 		func() []interface{} {
 			return []interface{}{}
 		},
-		func(data []byte, inputArgs []interface{}) {},
+		func([]byte, []interface{}) {},
 		200000,
 		true,
 		fmt.Sprintf(cmn.ErrInvalidNumberOfArgs, 5, 0),
@@ -62,7 +63,7 @@ var defaultAllowanceCases = []allowanceTestCase{
 				big.NewInt(1e18),
 			}
 		},
-		func(data []byte, inputArgs []interface{}) {},
+		func([]byte, []interface{}) {},
 		200000,
 		true,
 		"does not exist",
@@ -72,7 +73,7 @@ var defaultAllowanceCases = []allowanceTestCase{
 		func() []interface{} {
 			path := NewTransferPath(s.chainA, s.chainB)
 			s.coordinator.Setup(path)
-			err := s.NewTransferAuthorization(s.ctx, s.app, s.address, s.address, path, maxUint256Coins, nil)
+			err := s.NewTransferAuthorization(s.ctx, s.app, s.address, s.address, path, maxUint256Coins, nil, nil)
 			s.Require().NoError(err)
 			return []interface{}{
 				s.address,
@@ -82,7 +83,7 @@ var defaultAllowanceCases = []allowanceTestCase{
 				big.NewInt(1e18),
 			}
 		},
-		func(data []byte, inputArgs []interface{}) {
+		func([]byte, []interface{}) {
 		},
 		200000,
 		true,
@@ -93,7 +94,7 @@ var defaultAllowanceCases = []allowanceTestCase{
 		func() []interface{} {
 			path := NewTransferPath(s.chainA, s.chainB)
 			s.coordinator.Setup(path)
-			err := s.NewTransferAuthorization(s.ctx, s.app, s.address, s.address, path, maxUint256Coins, nil)
+			err := s.NewTransferAuthorization(s.ctx, s.app, s.address, s.address, path, maxUint256Coins, nil, nil)
 			s.Require().NoError(err)
 			return []interface{}{
 				s.address,
@@ -103,7 +104,7 @@ var defaultAllowanceCases = []allowanceTestCase{
 				big.NewInt(1e18),
 			}
 		},
-		func(data []byte, inputArgs []interface{}) {
+		func([]byte, []interface{}) {
 		},
 		200000,
 		true,
@@ -127,7 +128,7 @@ func (s *PrecompileTestSuite) TestApprove() {
 			func() []interface{} {
 				return []interface{}{}
 			},
-			func(data []byte, inputArgs []interface{}) {},
+			func([]byte, []interface{}) {},
 			200000,
 			true,
 			fmt.Sprintf(cmn.ErrInvalidNumberOfArgs, 2, 0),
@@ -137,7 +138,7 @@ func (s *PrecompileTestSuite) TestApprove() {
 			func() []interface{} {
 				return []interface{}{
 					s.address,
-					[]ics20.Allocation{
+					[]cmn.ICS20Allocation{
 						{
 							SourcePort:    "port-1",
 							SourceChannel: "channel-1",
@@ -147,7 +148,7 @@ func (s *PrecompileTestSuite) TestApprove() {
 					},
 				}
 			},
-			func(data []byte, inputArgs []interface{}) {},
+			func([]byte, []interface{}) {},
 			200000,
 			true,
 			channeltypes.ErrChannelNotFound.Error(),
@@ -159,7 +160,7 @@ func (s *PrecompileTestSuite) TestApprove() {
 				s.coordinator.Setup(path)
 				return []interface{}{
 					s.address,
-					[]ics20.Allocation{
+					[]cmn.ICS20Allocation{
 						{
 							SourcePort:    path.EndpointA.ChannelConfig.PortID,
 							SourceChannel: path.EndpointA.ChannelID,
@@ -170,7 +171,7 @@ func (s *PrecompileTestSuite) TestApprove() {
 				}
 			},
 			func(_ []byte, _ []interface{}) {
-				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, s.address.Bytes(), s.address.Bytes(), ics20.TransferMsg)
+				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, s.address.Bytes(), s.address.Bytes(), ics20.TransferMsgURL)
 				transferAuthz := authz.(*transfertypes.TransferAuthorization)
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit, maxUint256Coins)
 			},
@@ -185,7 +186,7 @@ func (s *PrecompileTestSuite) TestApprove() {
 				s.coordinator.Setup(path)
 				return []interface{}{
 					differentAddress,
-					[]ics20.Allocation{
+					[]cmn.ICS20Allocation{
 						{
 							SourcePort:    path.EndpointA.ChannelConfig.PortID,
 							SourceChannel: path.EndpointA.ChannelID,
@@ -196,7 +197,7 @@ func (s *PrecompileTestSuite) TestApprove() {
 				}
 			},
 			func(_ []byte, _ []interface{}) {
-				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, differentAddress.Bytes(), s.address.Bytes(), ics20.TransferMsg)
+				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, differentAddress.Bytes(), s.address.Bytes(), ics20.TransferMsgURL)
 				transferAuthz := authz.(*transfertypes.TransferAuthorization)
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit, defaultCoins)
 			},
@@ -247,7 +248,7 @@ func (s *PrecompileTestSuite) TestRevoke() {
 			fmt.Sprintf(cmn.ErrInvalidNumberOfArgs, 1, 0),
 		},
 		{
-			"fail - not a correct spender address",
+			"fail - not a correct grantee address",
 			func() []interface{} {
 				return []interface{}{
 					"test string",
@@ -256,7 +257,7 @@ func (s *PrecompileTestSuite) TestRevoke() {
 			func() {},
 			200000,
 			true,
-			fmt.Sprintf(authorization.ErrInvalidGranter, "test string"),
+			fmt.Sprintf(authorization.ErrInvalidGrantee, "test string"),
 		},
 		{
 			"fail - authorization does not exist",
@@ -275,16 +276,16 @@ func (s *PrecompileTestSuite) TestRevoke() {
 			func() []interface{} {
 				path := NewTransferPath(s.chainA, s.chainB)
 				s.coordinator.Setup(path)
-				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil)
+				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil, nil)
 				s.Require().NoError(err)
-				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, differentAddress.Bytes(), s.address.Bytes(), ics20.TransferMsg)
+				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, differentAddress.Bytes(), s.address.Bytes(), ics20.TransferMsgURL)
 				s.Require().NotNil(authz)
 				return []interface{}{
 					differentAddress,
 				}
 			},
 			func() {
-				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, differentAddress.Bytes(), s.address.Bytes(), ics20.TransferMsg)
+				authz, _ := s.app.AuthzKeeper.GetAuthorization(s.ctx, differentAddress.Bytes(), s.address.Bytes(), ics20.TransferMsgURL)
 				s.Require().Nil(authz)
 			},
 			200000,
@@ -322,7 +323,7 @@ func (s *PrecompileTestSuite) TestIncreaseAllowance() {
 				path := NewTransferPath(s.chainA, s.chainB)
 				s.coordinator.Setup(path)
 				overflowTestCoins := maxUint256Coins.Sub(sdk.NewInt64Coin(utils.BaseDenom, 1))
-				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, overflowTestCoins, nil)
+				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, overflowTestCoins, nil, nil)
 				s.Require().NoError(err)
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit, overflowTestCoins)
@@ -334,7 +335,7 @@ func (s *PrecompileTestSuite) TestIncreaseAllowance() {
 					big.NewInt(2e18),
 				}
 			},
-			func(data []byte, inputArgs []interface{}) {},
+			func([]byte, []interface{}) {},
 			200000,
 			true,
 			cmn.ErrIntegerOverflow,
@@ -344,7 +345,7 @@ func (s *PrecompileTestSuite) TestIncreaseAllowance() {
 			func() []interface{} {
 				path := NewTransferPath(s.chainA, s.chainB)
 				s.coordinator.Setup(path)
-				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil)
+				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil, nil)
 				s.Require().NoError(err)
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit, defaultCoins)
@@ -356,9 +357,9 @@ func (s *PrecompileTestSuite) TestIncreaseAllowance() {
 					big.NewInt(1e18),
 				}
 			},
-			func(data []byte, inputArgs []interface{}) {
+			func([]byte, []interface{}) {
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
-				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[0].Amount, sdk.NewInt(2e18))
+				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[0].Amount, math.NewInt(2e18))
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[0].Denom, utils.BaseDenom)
 			},
 			200000,
@@ -370,7 +371,7 @@ func (s *PrecompileTestSuite) TestIncreaseAllowance() {
 			func() []interface{} {
 				path := NewTransferPath(s.chainA, s.chainB)
 				s.coordinator.Setup(path)
-				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, mutliSpendLimit, nil)
+				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, mutliSpendLimit, nil, nil)
 				s.Require().NoError(err)
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit, mutliSpendLimit)
@@ -382,9 +383,9 @@ func (s *PrecompileTestSuite) TestIncreaseAllowance() {
 					big.NewInt(1e18),
 				}
 			},
-			func(data []byte, inputArgs []interface{}) {
+			func([]byte, []interface{}) {
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
-				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[1].Amount, sdk.NewInt(2e18))
+				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[1].Amount, math.NewInt(2e18))
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[1].Denom, "uatom")
 			},
 			200000,
@@ -423,10 +424,10 @@ func (s *PrecompileTestSuite) TestIncreaseAllowance() {
 					big.NewInt(1e18),
 				}
 			},
-			func(data []byte, inputArgs []interface{}) {
+			func([]byte, []interface{}) {
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit, atomCoins)
-				s.Require().Equal(transferAuthz.Allocations[1].SpendLimit[0].Amount, sdk.NewInt(2e18))
+				s.Require().Equal(transferAuthz.Allocations[1].SpendLimit[0].Amount, math.NewInt(2e18))
 				s.Require().Equal(transferAuthz.Allocations[1].SpendLimit[0].Denom, utils.BaseDenom)
 			},
 			200000,
@@ -464,7 +465,7 @@ func (s *PrecompileTestSuite) TestDecreaseAllowance() {
 			func() []interface{} {
 				path := NewTransferPath(s.chainA, s.chainB)
 				s.coordinator.Setup(path)
-				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil)
+				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil, nil)
 				s.Require().NoError(err)
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
 				s.Require().NotNil(transferAuthz)
@@ -478,7 +479,7 @@ func (s *PrecompileTestSuite) TestDecreaseAllowance() {
 					big.NewInt(2e18),
 				}
 			},
-			func(data []byte, inputArgs []interface{}) {},
+			func([]byte, []interface{}) {},
 			200000,
 			true,
 			cmn.ErrNegativeAmount,
@@ -488,7 +489,7 @@ func (s *PrecompileTestSuite) TestDecreaseAllowance() {
 			func() []interface{} {
 				path := NewTransferPath(s.chainA, s.chainB)
 				s.coordinator.Setup(path)
-				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil)
+				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, defaultCoins, nil, nil)
 				s.Require().NoError(err)
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
 				s.Require().NotNil(transferAuthz)
@@ -508,7 +509,7 @@ func (s *PrecompileTestSuite) TestDecreaseAllowance() {
 				s.Require().Len(transferAuthz.Allocations, 1, "should have at least one allocation", transferAuthz)
 				s.Require().Len(transferAuthz.Allocations[0].SpendLimit, 1, "should have at least one coin; allocation %s", transferAuthz.Allocations[0])
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[0].Denom, utils.BaseDenom)
-				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[0].Amount, sdk.NewInt(500000000000000000))
+				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[0].Amount, math.NewInt(500000000000000000))
 			},
 			200000,
 			false,
@@ -519,7 +520,7 @@ func (s *PrecompileTestSuite) TestDecreaseAllowance() {
 			func() []interface{} {
 				path := NewTransferPath(s.chainA, s.chainB)
 				s.coordinator.Setup(path)
-				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, mutliSpendLimit, nil)
+				err := s.NewTransferAuthorization(s.ctx, s.app, differentAddress, s.address, path, mutliSpendLimit, nil, nil)
 				s.Require().NoError(err)
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit, mutliSpendLimit)
@@ -536,7 +537,7 @@ func (s *PrecompileTestSuite) TestDecreaseAllowance() {
 				s.Require().NotNil(transferAuthz)
 				s.Require().Len(transferAuthz.Allocations, 1, "should have at least one allocation")
 				s.Require().Len(transferAuthz.Allocations[0].SpendLimit, len(mutliSpendLimit), "should have two coins; allocation %s", transferAuthz.Allocations[0])
-				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[1].Amount, sdk.NewInt(500000000000000000))
+				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[1].Amount, math.NewInt(500000000000000000))
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[1].Denom, "uatom")
 				// other denom should remain unchanged
 				s.Require().Equal(transferAuthz.Allocations[0].SpendLimit[0], defaultCoins[0])
@@ -579,7 +580,7 @@ func (s *PrecompileTestSuite) TestDecreaseAllowance() {
 			},
 			func(_ []byte, _ []interface{}) {
 				transferAuthz := s.GetTransferAuthorization(s.ctx, differentAddress, s.address)
-				s.Require().Equal(transferAuthz.Allocations[1].SpendLimit[0].Amount, sdk.NewInt(1e18/2))
+				s.Require().Equal(transferAuthz.Allocations[1].SpendLimit[0].Amount, math.NewInt(1e18/2))
 				s.Require().Equal(transferAuthz.Allocations[1].SpendLimit[0].Denom, utils.BaseDenom)
 			},
 			200000,

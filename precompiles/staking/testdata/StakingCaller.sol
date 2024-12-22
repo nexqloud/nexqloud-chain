@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity >=0.8.17;
 
-import "Staking.sol" as staking;
+import "../StakingI.sol" as staking;
 
 /// @title StakingCaller
 /// @author Evmos Core Team
 /// @dev This contract is used to test external contract calls to the staking precompile.
 contract StakingCaller {
-    /// counter is used to test the state persistence bug, when EVM and Cosmos state were both changed in the same function.
+    /// counter is used to test the state persistence bug, when EVM and Cosmos state were both
+    /// changed in the same function.
     uint256 public counter;
     string[] private delegateMethod = [staking.MSG_DELEGATE];
 
@@ -30,15 +31,62 @@ contract StakingCaller {
     /// @dev This function calls the staking precompile's revoke method.
     /// @param _grantee The address that was approved to spend the funds.
     /// @param _methods The methods to revoke.
-    function testRevoke(
-        address _grantee,
-        string[] calldata _methods
-    ) public {
-        bool success = staking.STAKING_CONTRACT.revoke(
-            _grantee,
-            _methods
-        );
+    function testRevoke(address _grantee, string[] calldata _methods) public {
+        bool success = staking.STAKING_CONTRACT.revoke(_grantee, _methods);
         require(success, "Failed to revoke approval for staking methods");
+    }
+
+    /// @dev This function calls the staking precompile's create validator method
+    /// using the msg.sender as the validator's operator address.
+    /// @param _descr The initial description
+    /// @param _commRates The initial commissionRates
+    /// @param _minSelfDel The validator's self declared minimum self delegation
+    /// @param _valAddr The validator's operator address
+    /// @param _pubkey The consensus public key of the validator
+    /// @param _value The amount of the coin to be self delegated to the validator
+    /// @return success Whether or not the create validator was successful
+    function testCreateValidator(
+        staking.Description calldata _descr,
+        staking.CommissionRates calldata _commRates,
+        uint256 _minSelfDel,
+        address _valAddr,
+        string memory _pubkey,
+        uint256 _value
+    ) public returns (bool) {
+        return
+            staking.STAKING_CONTRACT.createValidator(
+            _descr,
+            _commRates,
+            _minSelfDel,
+            _valAddr,
+            _pubkey,
+            _value
+        );
+    }
+
+    /// @dev This function calls the staking precompile's edit validator
+    /// method using the msg.sender as the validator's operator address.
+    /// @param _descr Description parameter to be updated. Use the string "[do-not-modify]"
+    /// as the value of fields that should not be updated.
+    /// @param _valAddr The validator's operator address
+    /// @param _commRate CommissionRate parameter to be updated.
+    /// Use commissionRate = -1 to keep the current value and not update it.
+    /// @param _minSelfDel MinSelfDelegation parameter to be updated.
+    /// Use minSelfDelegation = -1 to keep the current value and not update it.
+    /// @return success Whether or not edit validator was successful.
+    function testEditValidator(
+        staking.Description calldata _descr,
+        address _valAddr,
+        int256 _commRate,
+        int256 _minSelfDel
+    ) public returns (bool) {
+        return
+            staking.STAKING_CONTRACT.editValidator(
+            _descr,
+            _valAddr,
+            _commRate,
+            _minSelfDel
+        );
     }
 
     /// @dev This function calls the staking precompile's delegate method.
@@ -50,7 +98,9 @@ contract StakingCaller {
         string memory _validatorAddr,
         uint256 _amount
     ) public {
+        counter++;
         staking.STAKING_CONTRACT.delegate(_addr, _validatorAddr, _amount);
+        counter--;
     }
 
     /// @dev This function calls the staking precompile's undelegate method.
@@ -111,14 +161,14 @@ contract StakingCaller {
         address _grantee,
         string memory method
     ) public view returns (uint256 allowance) {
-        return staking.STAKING_CONTRACT.allowance(tx.origin, _grantee, method);
+        return staking.STAKING_CONTRACT.allowance(_grantee, msg.sender, method);
     }
 
     /// @dev This function calls the staking precompile's validator query method.
     /// @param _validatorAddr The validator address to query.
     /// @return validator The validator.
     function getValidator(
-        string memory _validatorAddr
+        address _validatorAddr
     ) public view returns (staking.Validator memory validator) {
         return staking.STAKING_CONTRACT.validator(_validatorAddr);
     }
@@ -132,12 +182,12 @@ contract StakingCaller {
         string memory _status,
         staking.PageRequest calldata _pageRequest
     )
-        public
-        view
-        returns (
-            staking.Validator[] memory validators,
-            staking.PageResponse memory pageResponse
-        )
+    public
+    view
+    returns (
+        staking.Validator[] memory validators,
+        staking.PageResponse memory pageResponse
+    )
     {
         return staking.STAKING_CONTRACT.validators(_status, _pageRequest);
     }
@@ -158,18 +208,18 @@ contract StakingCaller {
     /// @param _addr The address to approve.
     /// @param _validatorSrcAddr The validator address to delegate from.
     /// @param _validatorDstAddr The validator address to delegate to.
-    /// @return entries The redelegation entries.
+    /// @return redelegation The redelegation output.
     function getRedelegation(
         address _addr,
         string memory _validatorSrcAddr,
         string memory _validatorDstAddr
-    ) public view returns (staking.RedelegationEntry[] memory entries) {
+    ) public view returns (staking.RedelegationOutput memory redelegation) {
         return
             staking.STAKING_CONTRACT.redelegation(
-                _addr,
-                _validatorSrcAddr,
-                _validatorDstAddr
-            );
+            _addr,
+            _validatorSrcAddr,
+            _validatorDstAddr
+        );
     }
 
     /// @dev This function calls the staking precompile's redelegations query method.
@@ -184,30 +234,34 @@ contract StakingCaller {
         string memory _validatorDstAddr,
         staking.PageRequest memory _pageRequest
     )
-        public
-        view
-        returns (
-            staking.RedelegationResponse[] memory response,
-            staking.PageResponse memory pageResponse
-        )
+    public
+    view
+    returns (
+        staking.RedelegationResponse[] memory response,
+        staking.PageResponse memory pageResponse
+    )
     {
         return
             staking.STAKING_CONTRACT.redelegations(
-                _delegatorAddr,
-                _validatorSrcAddr,
-                _validatorDstAddr,
-                _pageRequest
-            );
+            _delegatorAddr,
+            _validatorSrcAddr,
+            _validatorDstAddr,
+            _pageRequest
+        );
     }
 
     /// @dev This function calls the staking precompile's unbonding delegation query method.
     /// @param _addr The address to approve.
     /// @param _validatorAddr The validator address to delegate from.
-    /// @return entries The unbonding delegation entries.
+    /// @return unbondingDelegation The unbonding delegation output.
     function getUnbondingDelegation(
         address _addr,
         string memory _validatorAddr
-    ) public view returns (staking.UnbondingDelegationEntry[] memory entries) {
+    )
+    public
+    view
+    returns (staking.UnbondingDelegationOutput memory unbondingDelegation)
+    {
         return
             staking.STAKING_CONTRACT.unbondingDelegation(_addr, _validatorAddr);
     }
@@ -239,7 +293,8 @@ contract StakingCaller {
         );
     }
 
-    /// @dev This function is used to test the behaviour when executing transactions using special function calling opcodes,
+    /// @dev This function is used to test the behaviour when executing transactions using special
+    /// function calling opcodes,
     /// like call, delegatecall, staticcall, and callcode.
     /// @param _addr The address to approve.
     /// @param _validatorAddr The validator address to delegate from.
@@ -272,12 +327,12 @@ contract StakingCaller {
         } else if (calltypeHash == keccak256(abi.encodePacked("callcode"))) {
             // NOTE: callcode is deprecated and now only available via inline assembly
             assembly {
-                // Load the function signature and argument data onto the stack
+            // Load the function signature and argument data onto the stack
                 let ptr := add(payload, 0x20)
                 let len := mload(payload)
 
-                // Invoke the contract at calledContractAddress in the context of the current contract
-                // using CALLCODE opcode and the loaded function signature and argument data
+            // Invoke the contract at calledContractAddress in the context of the current contract
+            // using CALLCODE opcode and the loaded function signature and argument data
                 let success := callcode(
                     gas(),
                     calledContractAddress,
@@ -288,7 +343,7 @@ contract StakingCaller {
                     0
                 )
 
-                // Check if the call was successful and revert the transaction if it failed
+            // Check if the call was successful and revert the transaction if it failed
                 if iszero(success) {
                     revert(0, 0)
                 }
@@ -354,17 +409,17 @@ contract StakingCaller {
                 let chunk1 := mload(add(_validatorAddr, 32)) // first 32 bytes of validator address string
                 let chunk2 := mload(add(add(_validatorAddr, 32), 32)) // remaining 19 bytes of val address string
 
-                // Load the function signature and argument data onto the stack
+            // Load the function signature and argument data onto the stack
                 let x := mload(0x40) // Find empty storage location using "free memory pointer"
-                mstore(x, sig) // Place function signature at begining of empty storage
+                mstore(x, sig) // Place function signature at beginning of empty storage
                 mstore(add(x, 0x04), _addr) // Place the address (input param) after the function sig
                 mstore(add(x, 0x24), 0x40) // These are needed for
                 mstore(add(x, 0x44), 0x33) // bytes unpacking
                 mstore(add(x, 0x64), chunk1) // Place the validator address in 2 chunks (input param)
                 mstore(add(x, 0x84), chunk2) // because mstore stores 32bytes
 
-                // Invoke the contract at calledContractAddress in the context of the current contract
-                // using CALLCODE opcode and the loaded function signature and argument data
+            // Invoke the contract at calledContractAddress in the context of the current contract
+            // using CALLCODE opcode and the loaded function signature and argument data
                 let success := callcode(
                     gas(),
                     calledContractAddress, // to addr
@@ -375,24 +430,26 @@ contract StakingCaller {
                     0xC0 // output length for this call
                 )
 
-                // output length for this call is 192 bytes splitted on these 32 bytes chunks:
-                // 1 - 0x00..amt   -> @ 0x40
-                // 2 - 0x000..00   -> @ 0x60
-                // 3 - 0x40..000   -> @ 0x80
-                // 4 - 0x00..amt    -> @ 0xC0
-                // 5 - 0x00..denom  -> @ 0xE0   TODO: cannot get the return value
+            // output length for this call is 192 bytes splitted on these 32 bytes chunks:
+            // 1 - 0x00..amt   -> @ 0x40
+            // 2 - 0x000..00   -> @ 0x60
+            // 3 - 0x40..000   -> @ 0x80
+            // 4 - 0x00..amt    -> @ 0xC0
+            // 5 - 0x00..denom  -> @ 0xE0   TODO: cannot get the return value
 
                 shares := mload(x) // Assign shares output value - 32 bytes long
                 amt := mload(add(x, 0x60)) // Assign output value to c - 64 bytes long (string & uint256)
 
                 mstore(0x40, add(x, 0x100)) // Set storage pointer to empty space
 
-                // Check if the call was successful and revert the transaction if it failed
+            // Check if the call was successful and revert the transaction if it failed
                 if iszero(success) {
                     revert(0, 0)
                 }
             }
-            coin = staking.Coin(denom, amt); // NOTE: this is returning a blank denom because unpacking the denom is not straightforward and hasn't been solved, which is okay for this generic test case
+            // NOTE: this is returning a blank denom because unpacking the denom is not
+            // straightforward and hasn't been solved, which is okay for this generic test case.
+            coin = staking.Coin(denom, amt);
         } else {
             revert("invalid calltype");
         }
@@ -400,7 +457,7 @@ contract StakingCaller {
         return (shares, coin);
     }
 
-    /// @dev This function showcased, that there was a bug in the EVM implementation, that occured when
+    /// @dev This function showcased, that there was a bug in the EVM implementation, that occurred when
     /// Cosmos state is modified in the same transaction as state information inside
     /// the EVM.
     /// @param _validatorAddr Address of the validator to delegate to
@@ -425,7 +482,9 @@ contract StakingCaller {
 
     /// @dev This function showcases the possibility to deposit into the contract
     /// and immediately delegate to a validator using the same balance in the same transaction.
-    function approveDepositAndDelegate(string memory _validatorAddr) payable public {
+    function approveDepositAndDelegate(
+        string memory _validatorAddr
+    ) public payable {
         bool successTx = staking.STAKING_CONTRACT.approve(
             address(this),
             msg.value,
@@ -441,7 +500,9 @@ contract StakingCaller {
 
     /// @dev This function is suppose to fail because the amount to delegate is
     /// higher than the amount approved.
-    function approveDepositAndDelegateExceedingAllowance(string memory _validatorAddr) payable public {
+    function approveDepositAndDelegateExceedingAllowance(
+        string memory _validatorAddr
+    ) public payable {
         bool successTx = staking.STAKING_CONTRACT.approve(
             tx.origin,
             msg.value,
@@ -457,7 +518,9 @@ contract StakingCaller {
 
     /// @dev This function is suppose to fail because the amount to delegate is
     /// higher than the amount approved.
-    function approveDepositDelegateAndFailCustomLogic(string memory _validatorAddr) payable public {
+    function approveDepositDelegateAndFailCustomLogic(
+        string memory _validatorAddr
+    ) public payable {
         bool successTx = staking.STAKING_CONTRACT.approve(
             tx.origin,
             msg.value,
@@ -471,5 +534,37 @@ contract StakingCaller {
         );
         // This should fail since the balance is already spent in the previous call
         payable(msg.sender).transfer(msg.value);
+    }
+
+    /// @dev This function is used to check that both the cosmos and evm state are correctly
+    /// updated for a successful transaction or reverted for a failed transaction.
+    /// To test this, deploy an ERC20 token contract to chain and mint some tokens to this
+    /// contract's address.
+    /// This contract will then transfer some tokens to the msg.sender address as well as
+    /// set up a delegation approval and stake funds using the staking EVM extension.
+    /// @param _contract Address of the ERC20 to call
+    /// @param _validatorAddr Address of the validator to delegate to
+    function callERC20AndDelegate(
+        address _contract,
+        string memory _validatorAddr,
+        uint256 _amount
+    ) public {
+        bool successApprove = staking.STAKING_CONTRACT.approve(
+            address(this),
+            _amount,
+            delegateMethod
+        );
+        require(successApprove, "delegation approval failed");
+
+        (bool success, ) = _contract.call(
+            abi.encodeWithSignature(
+                "transfer(address,uint256)",
+                msg.sender,
+                _amount
+            )
+        );
+        require(success, "transfer failed");
+
+        staking.STAKING_CONTRACT.delegate(msg.sender, _validatorAddr, _amount);
     }
 }

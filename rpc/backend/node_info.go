@@ -9,6 +9,7 @@ import (
 
 	errorsmod "cosmossdk.io/errors"
 	sdkmath "cosmossdk.io/math"
+	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdkcrypto "github.com/cosmos/cosmos-sdk/crypto"
@@ -20,17 +21,22 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/evmos/evmos/v13/crypto/ethsecp256k1"
-	rpctypes "github.com/evmos/evmos/v13/rpc/types"
-	"github.com/evmos/evmos/v13/server/config"
-	"github.com/evmos/evmos/v13/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	tmtypes "github.com/tendermint/tendermint/types"
+
+	"github.com/evmos/evmos/v19/crypto/ethsecp256k1"
+	rpctypes "github.com/evmos/evmos/v19/rpc/types"
+	"github.com/evmos/evmos/v19/server/config"
+	"github.com/evmos/evmos/v19/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 // Accounts returns the list of accounts available to this node.
 func (b *Backend) Accounts() ([]common.Address, error) {
 	addresses := make([]common.Address, 0) // return [] instead of nil if empty
+
+	if !b.cfg.JSONRPC.AllowInsecureUnlock {
+		b.logger.Debug("account unlock with HTTP access is forbidden")
+		return addresses, fmt.Errorf("account unlock with HTTP access is forbidden")
+	}
 
 	infos, err := b.clientCtx.Keyring.List()
 	if err != nil {
@@ -77,6 +83,11 @@ func (b *Backend) Syncing() (interface{}, error) {
 
 // SetEtherbase sets the etherbase of the miner
 func (b *Backend) SetEtherbase(etherbase common.Address) bool {
+	if !b.cfg.JSONRPC.AllowInsecureUnlock {
+		b.logger.Debug("account unlock with HTTP access is forbidden")
+		return false
+	}
+
 	delAddr, err := b.GetCoinbase()
 	if err != nil {
 		b.logger.Debug("failed to get coinbase address", "error", err.Error())
@@ -104,10 +115,10 @@ func (b *Backend) SetEtherbase(etherbase common.Address) bool {
 		return false
 	}
 
-	// Fetch minimun gas price to calculate fees using the configuration.
+	// Fetch minimum gas price to calculate fees using the configuration.
 	minGasPrices := b.cfg.GetMinGasPrices()
 	if len(minGasPrices) == 0 || minGasPrices.Empty() {
-		b.logger.Debug("the minimun fee is not set")
+		b.logger.Debug("the minimum fee is not set")
 		return false
 	}
 	minGasPriceValue := minGasPrices[0].Amount
@@ -218,6 +229,11 @@ func (b *Backend) ImportRawKey(privkey, password string) (common.Address, error)
 func (b *Backend) ListAccounts() ([]common.Address, error) {
 	addrs := []common.Address{}
 
+	if !b.cfg.JSONRPC.AllowInsecureUnlock {
+		b.logger.Debug("account unlock with HTTP access is forbidden")
+		return addrs, fmt.Errorf("account unlock with HTTP access is forbidden")
+	}
+
 	list, err := b.clientCtx.Keyring.List()
 	if err != nil {
 		return nil, err
@@ -273,7 +289,7 @@ func (b *Backend) SetGasPrice(gasPrice hexutil.Big) bool {
 		unit = minGasPrices[0].Denom
 	}
 
-	c := sdk.NewDecCoin(unit, sdk.NewIntFromBigInt(gasPrice.ToInt()))
+	c := sdk.NewDecCoin(unit, sdkmath.NewIntFromBigInt(gasPrice.ToInt()))
 
 	appConf.SetMinGasPrices(sdk.DecCoins{c})
 	sdkconfig.WriteConfigFile(b.clientCtx.Viper.ConfigFileUsed(), appConf)

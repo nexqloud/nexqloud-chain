@@ -9,17 +9,17 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/tendermint/tendermint/libs/log"
+	"github.com/cometbft/cometbft/libs/log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/evmos/evmos/v13/rpc/backend"
+	"github.com/evmos/evmos/v19/rpc/backend"
 
-	rpctypes "github.com/evmos/evmos/v13/rpc/types"
-	"github.com/evmos/evmos/v13/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
+	rpctypes "github.com/evmos/evmos/v19/rpc/types"
+	"github.com/evmos/evmos/v19/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 // The Ethereum API allows applications to connect to an Evmos node that is
@@ -321,7 +321,10 @@ func (e *PublicAPI) FeeHistory(blockCount rpc.DecimalOrHex,
 // MaxPriorityFeePerGas returns a suggestion for a gas tip cap for dynamic fee transactions.
 func (e *PublicAPI) MaxPriorityFeePerGas() (*hexutil.Big, error) {
 	e.logger.Debug("eth_maxPriorityFeePerGas")
-	head := e.backend.CurrentHeader()
+	head, err := e.backend.CurrentHeader()
+	if err != nil {
+		return nil, err
+	}
 	tipcap, err := e.backend.SuggestGasTipCap(head.BaseFee)
 	if err != nil {
 		return nil, err

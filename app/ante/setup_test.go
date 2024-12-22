@@ -4,17 +4,19 @@ import (
 	"testing"
 	"time"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/evmos/evmos/v13/app"
-	"github.com/evmos/evmos/v13/crypto/ethsecp256k1"
-	"github.com/evmos/evmos/v13/encoding"
-	"github.com/evmos/evmos/v13/testutil"
-	"github.com/evmos/evmos/v13/utils"
-	feemarkettypes "github.com/evmos/evmos/v13/x/feemarket/types"
+	"github.com/evmos/evmos/v19/app"
+	"github.com/evmos/evmos/v19/crypto/ethsecp256k1"
+	"github.com/evmos/evmos/v19/encoding"
+	"github.com/evmos/evmos/v19/testutil"
+	"github.com/evmos/evmos/v19/utils"
+	feemarkettypes "github.com/evmos/evmos/v19/x/feemarket/types"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -37,11 +39,12 @@ func (suite *AnteTestSuite) SetupTest() {
 	consAddress := sdk.ConsAddress(privCons.PubKey().Address())
 
 	isCheckTx := false
-	suite.app = app.Setup(isCheckTx, feemarkettypes.DefaultGenesisState())
+	chainID := utils.MainnetChainID + "-1"
+	suite.app = app.Setup(isCheckTx, feemarkettypes.DefaultGenesisState(), chainID)
 	suite.Require().NotNil(suite.app.AppCodec())
 
 	header := testutil.NewHeader(
-		1, time.Now().UTC(), utils.MainnetChainID+"-1", consAddress, nil, nil)
+		1, time.Now().UTC(), chainID, consAddress, nil, nil)
 	suite.ctx = suite.app.BaseApp.NewContext(isCheckTx, header)
 
 	suite.denom = utils.BaseDenom

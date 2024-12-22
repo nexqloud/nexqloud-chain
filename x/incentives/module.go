@@ -3,28 +3,32 @@
 
 package incentives
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"math/rand"
+// NOTE: THIS MODULE IS DEPRECATED
+// WE'RE KEEPING THIS CODE FOR v16 RELEASE
+// TO HAVE THE INTERFACES REGISTERED TO REMOVE THE
+// EXISTING PROPOSALS FROM STORE
+// REMOVE THIS MODULE IN THE FOLLOWING RELEASE AFTER DELETING
+// THE GOV PROPOSALS
 
+import (
+	"encoding/json"
+
+	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	simtypes "github.com/cosmos/cosmos-sdk/types/simulation"
-	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
-	abci "github.com/tendermint/tendermint/abci/types"
 
-	"github.com/evmos/evmos/v13/x/incentives/client/cli"
-	"github.com/evmos/evmos/v13/x/incentives/keeper"
-	"github.com/evmos/evmos/v13/x/incentives/types"
+	"github.com/evmos/evmos/v19/x/incentives/types"
 )
+
+// consensusVersion defines the current x/incentives module consensus version.
+var consensusVersion uint64 = 2
 
 // type check to ensure the interface is properly implemented
 var (
@@ -45,7 +49,7 @@ func (AppModuleBasic) RegisterLegacyAminoCodec(_ *codec.LegacyAmino) {}
 
 // ConsensusVersion returns the consensus state-breaking version for the module.
 func (AppModuleBasic) ConsensusVersion() uint64 {
-	return 2
+	return consensusVersion
 }
 
 // RegisterInterfaces registers interfaces and implementations of the incentives
@@ -57,56 +61,28 @@ func (AppModuleBasic) RegisterInterfaces(interfaceRegistry codectypes.InterfaceR
 // DefaultGenesis returns default genesis state as raw bytes for the incentives
 // module.
 func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
-	return cdc.MustMarshalJSON(types.DefaultGenesisState())
+	return cdc.MustMarshalJSON(&types.GenesisState{})
 }
 
-func (b AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, _ client.TxEncodingConfig, bz json.RawMessage) error {
-	var genesisState types.GenesisState
-	if err := cdc.UnmarshalJSON(bz, &genesisState); err != nil {
-		return fmt.Errorf("failed to unmarshal %s genesis state: %w", types.ModuleName, err)
-	}
-
-	return genesisState.Validate()
+func (b AppModuleBasic) ValidateGenesis(_ codec.JSONCodec, _ client.TxEncodingConfig, _ json.RawMessage) error {
+	return nil
 }
 
 // RegisterRESTRoutes performs a no-op as the incentives module doesn't expose REST
 // endpoints
 func (AppModuleBasic) RegisterRESTRoutes(_ client.Context, _ *mux.Router) {}
 
-func (b AppModuleBasic) RegisterGRPCGatewayRoutes(c client.Context, serveMux *runtime.ServeMux) {
-	if err := types.RegisterQueryHandlerClient(context.Background(), serveMux, types.NewQueryClient(c)); err != nil {
-		panic(err)
-	}
+func (b AppModuleBasic) RegisterGRPCGatewayRoutes(_ client.Context, _ *runtime.ServeMux) {
 }
 
 // GetTxCmd returns the root tx command for the incentives module.
 func (AppModuleBasic) GetTxCmd() *cobra.Command { return nil }
 
 // GetQueryCmd returns no root query command for the incentives module.
-func (AppModuleBasic) GetQueryCmd() *cobra.Command {
-	return cli.GetQueryCmd()
-}
+func (AppModuleBasic) GetQueryCmd() *cobra.Command { return nil }
 
 type AppModule struct {
 	AppModuleBasic
-	keeper keeper.Keeper
-	ak     authkeeper.AccountKeeper
-	// legacySubspace is used solely for migration of x/params managed parameters
-	legacySubspace types.Subspace
-}
-
-// NewAppModule creates a new AppModule Object
-func NewAppModule(
-	k keeper.Keeper,
-	ak authkeeper.AccountKeeper,
-	ss types.Subspace,
-) AppModule {
-	return AppModule{
-		AppModuleBasic: AppModuleBasic{},
-		keeper:         k,
-		ak:             ak,
-		legacySubspace: ss,
-	}
 }
 
 func (AppModule) Name() string {
@@ -120,58 +96,17 @@ func (am AppModule) NewHandler() sdk.Handler {
 	return nil
 }
 
-func (am AppModule) Route() sdk.Route {
-	return sdk.NewRoute(types.RouterKey, am.NewHandler())
-}
+func (am AppModule) RegisterServices(_ module.Configurator) {}
 
-func (am AppModule) QuerierRoute() string {
-	return types.RouterKey
-}
-
-func (am AppModule) LegacyQuerierHandler(_ *codec.LegacyAmino) sdk.Querier {
-	return nil
-}
-
-func (am AppModule) RegisterServices(cfg module.Configurator) {
-	types.RegisterQueryServer(cfg.QueryServer(), am.keeper)
-	types.RegisterMsgServer(cfg.MsgServer(), &am.keeper)
-
-	m := keeper.NewMigrator(am.keeper, am.legacySubspace)
-	err := cfg.RegisterMigration(types.ModuleName, 1, m.Migrate1to2)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (am AppModule) BeginBlock(_ sdk.Context, _ abci.RequestBeginBlock) {
-}
-
-func (am AppModule) EndBlock(_ sdk.Context, _ abci.RequestEndBlock) []abci.ValidatorUpdate {
+func (am AppModule) InitGenesis(_ sdk.Context, _ codec.JSONCodec, _ json.RawMessage) []abci.ValidatorUpdate {
 	return []abci.ValidatorUpdate{}
 }
 
-func (am AppModule) InitGenesis(ctx sdk.Context, cdc codec.JSONCodec, data json.RawMessage) []abci.ValidatorUpdate {
-	var genesisState types.GenesisState
-
-	cdc.MustUnmarshalJSON(data, &genesisState)
-	InitGenesis(ctx, am.keeper, am.ak, genesisState)
-	return []abci.ValidatorUpdate{}
-}
-
-func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.RawMessage {
-	gs := ExportGenesis(ctx, am.keeper)
-	return cdc.MustMarshalJSON(gs)
+func (am AppModule) ExportGenesis(_ sdk.Context, cdc codec.JSONCodec) json.RawMessage {
+	return cdc.MustMarshalJSON(&types.GenesisState{})
 }
 
 func (am AppModule) GenerateGenesisState(_ *module.SimulationState) {
-}
-
-func (am AppModule) ProposalContents(_ module.SimulationState) []simtypes.WeightedProposalContent {
-	return []simtypes.WeightedProposalContent{}
-}
-
-func (am AppModule) RandomizedParams(_ *rand.Rand) []simtypes.ParamChange {
-	return []simtypes.ParamChange{}
 }
 
 func (am AppModule) RegisterStoreDecoder(_ sdk.StoreDecoderRegistry) {

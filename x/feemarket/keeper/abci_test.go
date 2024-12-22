@@ -3,8 +3,8 @@ package keeper_test
 import (
 	"fmt"
 
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/tendermint/tendermint/abci/types"
+	"github.com/cometbft/cometbft/abci/types"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 )
 
 func (suite *KeeperTestSuite) TestEndBlock() {
@@ -24,7 +24,7 @@ func (suite *KeeperTestSuite) TestEndBlock() {
 			"pass",
 			false,
 			func() {
-				meter := sdk.NewGasMeter(uint64(1000000000))
+				meter := storetypes.NewGasMeter(uint64(1000000000))
 				suite.ctx = suite.ctx.WithBlockGasMeter(meter)
 				suite.app.FeeMarketKeeper.SetTransientBlockGasWanted(suite.ctx, 5000000)
 			},

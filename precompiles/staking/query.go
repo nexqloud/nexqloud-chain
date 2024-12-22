@@ -12,9 +12,9 @@ import (
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
 )
 
 const (
@@ -50,7 +50,7 @@ func (p Precompile) Delegation(
 		return nil, err
 	}
 
-	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper}
+	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper.Keeper}
 
 	res, err := queryServer.Delegation(sdk.WrapSDKContext(ctx), req)
 	if err != nil {
@@ -80,21 +80,21 @@ func (p Precompile) UnbondingDelegation(
 		return nil, err
 	}
 
-	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper}
+	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper.Keeper}
 
 	res, err := queryServer.UnbondingDelegation(sdk.WrapSDKContext(ctx), req)
 	if err != nil {
 		// return empty unbonding delegation output if the unbonding delegation is not found
 		expError := fmt.Sprintf("unbonding delegation with delegator %s not found for validator %s", req.DelegatorAddr, req.ValidatorAddr)
 		if strings.Contains(err.Error(), expError) {
-			return method.Outputs.Pack([]UnbondingDelegationEntry{})
+			return method.Outputs.Pack(UnbondingDelegationResponse{})
 		}
 		return nil, err
 	}
 
 	out := new(UnbondingDelegationOutput).FromResponse(res)
 
-	return method.Outputs.Pack(out.Entries)
+	return method.Outputs.Pack(out.UnbondingDelegation)
 }
 
 // Validator returns the validator information for a given validator address.
@@ -109,7 +109,7 @@ func (p Precompile) Validator(
 		return nil, err
 	}
 
-	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper}
+	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper.Keeper}
 
 	res, err := queryServer.Validator(sdk.WrapSDKContext(ctx), req)
 	if err != nil {
@@ -138,7 +138,7 @@ func (p Precompile) Validators(
 		return nil, err
 	}
 
-	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper}
+	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper.Keeper}
 
 	res, err := queryServer.Validators(sdk.WrapSDKContext(ctx), req)
 	if err != nil {
@@ -163,9 +163,10 @@ func (p Precompile) Redelegation(
 	}
 
 	res, _ := p.stakingKeeper.GetRedelegation(ctx, req.DelegatorAddress, req.ValidatorSrcAddress, req.ValidatorDstAddress)
+
 	out := new(RedelegationOutput).FromResponse(res)
 
-	return method.Outputs.Pack(out.Entries)
+	return method.Outputs.Pack(out.Redelegation)
 }
 
 // Redelegations returns the redelegations according to
@@ -183,7 +184,7 @@ func (p Precompile) Redelegations(
 		return nil, err
 	}
 
-	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper}
+	queryServer := stakingkeeper.Querier{Keeper: p.stakingKeeper.Keeper}
 
 	res, err := queryServer.Redelegations(ctx, req)
 	if err != nil {
@@ -195,14 +196,14 @@ func (p Precompile) Redelegations(
 	return out.Pack(method.Outputs)
 }
 
-// Allowance returns the remaining allowance of a spender to the contract.
+// Allowance returns the remaining allowance of a grantee to the contract.
 func (p Precompile) Allowance(
 	ctx sdk.Context,
 	method *abi.Method,
 	_ *vm.Contract,
 	args []interface{},
 ) ([]byte, error) {
-	granter, grantee, msg, err := authorization.CheckAllowanceArgs(args)
+	grantee, granter, msg, err := authorization.CheckAllowanceArgs(args)
 	if err != nil {
 		return nil, err
 	}

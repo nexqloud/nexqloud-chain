@@ -7,12 +7,17 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/evmos/evmos/v19/utils"
+
+	"cosmossdk.io/math"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
 	distributiontypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
+	"github.com/evmos/evmos/v19/cmd/config"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
 )
 
 // EventSetWithdrawAddress defines the event data for the SetWithdrawAddress transaction.
@@ -24,7 +29,7 @@ type EventSetWithdrawAddress struct {
 // EventWithdrawDelegatorRewards defines the event data for the WithdrawDelegatorRewards transaction.
 type EventWithdrawDelegatorRewards struct {
 	DelegatorAddress common.Address
-	ValidatorAddress common.Hash
+	ValidatorAddress common.Address
 	Amount           *big.Int
 }
 
@@ -34,12 +39,35 @@ type EventWithdrawValidatorRewards struct {
 	Commission       *big.Int
 }
 
-// EventApproval defines the event data for the authorization Approve transaction.
-type EventApproval struct {
-	Owner       common.Address
-	Spender     common.Address
-	Methods     []string
-	AllowedList []string
+// EventClaimRewards defines the event data for the ClaimRewards transaction.
+type EventClaimRewards struct {
+	DelegatorAddress common.Address
+	Amount           *big.Int
+}
+
+// EventFundCommunityPool defines the event data for the FundCommunityPool transaction.
+type EventFundCommunityPool struct {
+	Depositor common.Address
+	Amount    *big.Int
+}
+
+// parseClaimRewardsArgs parses the arguments for the ClaimRewards method.
+func parseClaimRewardsArgs(args []interface{}) (common.Address, uint32, error) {
+	if len(args) != 2 {
+		return common.Address{}, 0, fmt.Errorf(cmn.ErrInvalidNumberOfArgs, 2, len(args))
+	}
+
+	delegatorAddress, ok := args[0].(common.Address)
+	if !ok || delegatorAddress == (common.Address{}) {
+		return common.Address{}, 0, fmt.Errorf(cmn.ErrInvalidDelegator, args[0])
+	}
+
+	maxRetrieve, ok := args[1].(uint32)
+	if !ok {
+		return common.Address{}, 0, fmt.Errorf(cmn.ErrInvalidType, "maxRetrieve", uint32(0), args[1])
+	}
+
+	return delegatorAddress, maxRetrieve, nil
 }
 
 // NewMsgSetWithdrawAddress creates a new MsgSetWithdrawAddress instance.
@@ -58,7 +86,7 @@ func NewMsgSetWithdrawAddress(args []interface{}) (*distributiontypes.MsgSetWith
 	// If the withdrawer address is a hex address, convert it to a bech32 address.
 	if common.IsHexAddress(withdrawerAddress) {
 		var err error
-		withdrawerAddress, err = sdk.Bech32ifyAddressBytes("evmos", common.HexToAddress(withdrawerAddress).Bytes())
+		withdrawerAddress, err = sdk.Bech32ifyAddressBytes(config.Bech32Prefix, common.HexToAddress(withdrawerAddress).Bytes())
 		if err != nil {
 			return nil, common.Address{}, err
 		}
@@ -123,6 +151,34 @@ func NewMsgWithdrawValidatorCommission(args []interface{}) (*distributiontypes.M
 	}
 
 	return msg, validatorHexAddr, nil
+}
+
+// NewMsgFundCommunityPool creates a new NewMsgFundCommunityPool message.
+func NewMsgFundCommunityPool(args []interface{}) (*distributiontypes.MsgFundCommunityPool, common.Address, error) {
+	if len(args) != 2 {
+		return nil, common.Address{}, fmt.Errorf(cmn.ErrInvalidNumberOfArgs, 2, len(args))
+	}
+
+	depositorAddress, ok := args[0].(common.Address)
+	if !ok || depositorAddress == (common.Address{}) {
+		return nil, common.Address{}, fmt.Errorf(cmn.ErrInvalidHexAddress, args[0])
+	}
+
+	amount, ok := args[1].(*big.Int)
+	if !ok {
+		return nil, common.Address{}, fmt.Errorf(cmn.ErrInvalidAmount, args[1])
+	}
+
+	msg := &distributiontypes.MsgFundCommunityPool{
+		Depositor: sdk.AccAddress(depositorAddress.Bytes()).String(),
+		Amount:    sdk.Coins{sdk.Coin{Denom: utils.BaseDenom, Amount: math.NewIntFromBigInt(amount)}},
+	}
+
+	if err := msg.ValidateBasic(); err != nil {
+		return nil, common.Address{}, err
+	}
+
+	return msg, depositorAddress, nil
 }
 
 // NewValidatorDistributionInfoRequest creates a new QueryValidatorDistributionInfoRequest  instance and does sanity
@@ -320,7 +376,7 @@ func (vs *ValidatorSlashesOutput) FromResponse(res *distributiontypes.QueryValid
 			ValidatorPeriod: s.ValidatorPeriod,
 			Fraction: cmn.Dec{
 				Value:     s.Fraction.BigInt(),
-				Precision: sdk.Precision,
+				Precision: math.LegacyPrecision,
 			},
 		}
 	}

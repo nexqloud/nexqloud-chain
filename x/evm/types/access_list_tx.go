@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/evmos/evmos/v13/types"
+	"github.com/evmos/evmos/v19/types"
 )
 
 func newAccessListTx(tx *ethtypes.Transaction) (*AccessListTx, error) {
@@ -215,9 +215,7 @@ func (tx AccessListTx) Validate() error {
 		}
 	}
 
-	chainID := tx.GetChainID()
-
-	if chainID == nil {
+	if tx.GetChainID() == nil {
 		return errorsmod.Wrap(
 			errortypes.ErrInvalidChainID,
 			"chain ID must be present on AccessList txs",

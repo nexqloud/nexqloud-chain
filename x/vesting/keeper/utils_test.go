@@ -1,124 +1,22 @@
 package keeper_test
 
 import (
-	"math"
 	"strings"
 	"time"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
 
 	sdkmath "cosmossdk.io/math"
-	"github.com/cosmos/cosmos-sdk/baseapp"
-	"github.com/cosmos/cosmos-sdk/client"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
-	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-
 	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/evmos/evmos/v13/app"
-	cosmosante "github.com/evmos/evmos/v13/app/ante/cosmos"
-	evmante "github.com/evmos/evmos/v13/app/ante/evm"
-	"github.com/evmos/evmos/v13/contracts"
-	"github.com/evmos/evmos/v13/crypto/ethsecp256k1"
-	"github.com/evmos/evmos/v13/encoding"
-	"github.com/evmos/evmos/v13/testutil"
-	utiltx "github.com/evmos/evmos/v13/testutil/tx"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	"github.com/evmos/evmos/v13/utils"
-	epochstypes "github.com/evmos/evmos/v13/x/epochs/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	"github.com/evmos/evmos/v13/x/vesting/types"
-
-	"github.com/stretchr/testify/require"
+	evmante "github.com/evmos/evmos/v19/app/ante/evm"
+	"github.com/evmos/evmos/v19/contracts"
+	"github.com/evmos/evmos/v19/testutil"
+	"github.com/evmos/evmos/v19/x/vesting/types"
 )
-
-func (suite *KeeperTestSuite) DoSetupTest(t require.TestingT) {
-	checkTx := false
-
-	// account key
-	priv, err := ethsecp256k1.GenerateKey()
-	require.NoError(t, err)
-	suite.address = common.BytesToAddress(priv.PubKey().Address().Bytes())
-	suite.signer = utiltx.NewSigner(priv)
-	suite.priv = priv
-
-	// consensus key
-	priv, err = ethsecp256k1.GenerateKey()
-	require.NoError(t, err)
-	suite.consAddress = sdk.ConsAddress(priv.PubKey().Address())
-
-	// Init app
-	suite.app = app.Setup(checkTx, nil)
-
-	// Set Context
-	header := testutil.NewHeader(
-		1, time.Now().UTC(), "evmos_9001-1", suite.consAddress, nil, nil,
-	)
-	suite.ctx = suite.app.BaseApp.NewContext(false, header)
-
-	// Setup query helpers
-	queryHelperEvm := baseapp.NewQueryServerTestHelper(suite.ctx, suite.app.InterfaceRegistry())
-	evmtypes.RegisterQueryServer(queryHelperEvm, suite.app.EvmKeeper)
-	suite.queryClientEvm = evmtypes.NewQueryClient(queryHelperEvm)
-
-	queryHelper := baseapp.NewQueryServerTestHelper(suite.ctx, suite.app.InterfaceRegistry())
-	types.RegisterQueryServer(queryHelper, suite.app.VestingKeeper)
-	suite.queryClient = types.NewQueryClient(queryHelper)
-
-	// Set epoch start time and height for all epoch identifiers from the epoch
-	// module
-	identifiers := []string{epochstypes.WeekEpochID, epochstypes.DayEpochID}
-	for _, identifier := range identifiers {
-		epoch, found := suite.app.EpochsKeeper.GetEpochInfo(suite.ctx, identifier)
-		suite.Require().True(found)
-		epoch.StartTime = suite.ctx.BlockTime()
-		epoch.CurrentEpochStartHeight = suite.ctx.BlockHeight()
-		suite.app.EpochsKeeper.SetEpochInfo(suite.ctx, epoch)
-	}
-
-	acc := &evmostypes.EthAccount{
-		BaseAccount: authtypes.NewBaseAccount(sdk.AccAddress(suite.address.Bytes()), nil, 0, 0),
-		CodeHash:    common.BytesToHash(crypto.Keccak256(nil)).String(),
-	}
-
-	suite.app.AccountKeeper.SetAccount(suite.ctx, acc)
-
-	// fund signer acc to pay for tx fees
-	amt := sdk.NewInt(int64(math.Pow10(18) * 2))
-	err = testutil.FundAccount(
-		suite.ctx,
-		suite.app.BankKeeper,
-		suite.priv.PubKey().Address().Bytes(),
-		sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, amt)),
-	)
-	suite.Require().NoError(err)
-
-	// Set Validator
-	valAddr := sdk.ValAddress(suite.address.Bytes())
-	validator, err := stakingtypes.NewValidator(valAddr, priv.PubKey(), stakingtypes.Description{})
-	require.NoError(t, err)
-	validator = stakingkeeper.TestingUpdateValidator(suite.app.StakingKeeper, suite.ctx, validator, true)
-	err = suite.app.StakingKeeper.AfterValidatorCreated(suite.ctx, validator.GetOperator())
-	require.NoError(t, err)
-	err = suite.app.StakingKeeper.SetValidatorByConsAddr(suite.ctx, validator)
-	require.NoError(t, err)
-	validators := s.app.StakingKeeper.GetValidators(s.ctx, 1)
-	suite.validator = validators[0]
-
-	encodingConfig := encoding.MakeConfig(app.ModuleBasics)
-	suite.clientCtx = client.Context{}.WithTxConfig(encodingConfig.TxConfig)
-	suite.ethSigner = ethtypes.LatestSignerForChainID(suite.app.EvmKeeper.ChainID())
-
-	// Deploy contracts
-	contract, err = suite.DeployContract(erc20Name, erc20Symbol, erc20Decimals)
-	require.NoError(t, err)
-	contract2, err = suite.DeployContract(erc20Name2, erc20Symbol2, erc20Decimals)
-	require.NoError(t, err)
-}
 
 // Commit commits and starts a new block with an updated context.
 func (suite *KeeperTestSuite) Commit() {
@@ -130,10 +28,6 @@ func (suite *KeeperTestSuite) CommitAfter(t time.Duration) {
 	var err error
 	suite.ctx, err = testutil.CommitAndCreateNewCtx(suite.ctx, suite.app, t, nil)
 	suite.Require().NoError(err)
-
-	queryHelper := baseapp.NewQueryServerTestHelper(suite.ctx, suite.app.InterfaceRegistry())
-	evmtypes.RegisterQueryServer(queryHelper, suite.app.EvmKeeper)
-	suite.queryClientEvm = evmtypes.NewQueryClient(queryHelper)
 }
 
 // MintFeeCollector mints coins with the bank modules and sends them to the fee
@@ -211,21 +105,6 @@ func assertEthSucceeds(testAccounts []TestClawbackAccount, funder sdk.AccAddress
 		// Use GreaterOrEqual because the gas fee is non-recoverable
 		s.Require().GreaterOrEqual(granteeBalances[i].SubAmount(amount).Amount.Uint64(), gb.Amount.Uint64())
 	}
-}
-
-// delegate is a helper function which creates a message to delegate a given amount of tokens
-// to a validator and checks if the Cosmos vesting delegation decorator returns no error.
-func delegate(clawbackAccount *types.ClawbackVestingAccount, amount sdkmath.Int) error {
-	addr, err := sdk.AccAddressFromBech32(clawbackAccount.Address)
-	s.Require().NoError(err)
-
-	val, err := sdk.ValAddressFromBech32("evmosvaloper1z3t55m0l9h0eupuz3dp5t5cypyv674jjn4d6nn")
-	s.Require().NoError(err)
-	delegateMsg := stakingtypes.NewMsgDelegate(addr, val, sdk.NewCoin(utils.BaseDenom, amount))
-
-	dec := cosmosante.NewVestingDelegationDecorator(s.app.AccountKeeper, s.app.StakingKeeper, types.ModuleCdc)
-	err = testutil.ValidateAnteForMsgs(s.ctx, dec, delegateMsg)
-	return err
 }
 
 // validateEthVestingTransactionDecorator is a helper function to execute the eth vesting transaction decorator

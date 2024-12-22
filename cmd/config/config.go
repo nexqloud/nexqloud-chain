@@ -4,14 +4,15 @@
 package config
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/evmos/evmos/v13/types"
+	"github.com/evmos/evmos/v19/types"
 )
 
 const (
 	// Bech32Prefix defines the Bech32 prefix used for EthAccounts
-	Bech32Prefix = "nxq"
+	Bech32Prefix = "evmos"
 
 	// Bech32PrefixAccAddr defines the Bech32 prefix of an account's address
 	Bech32PrefixAccAddr = Bech32Prefix
@@ -29,9 +30,9 @@ const (
 
 const (
 	// DisplayDenom defines the denomination displayed to users in client applications.
-	DisplayDenom = "nxq"
+	DisplayDenom = "evmos"
 	// BaseDenom defines to the default denomination used in Evmos (staking, EVM, governance, etc.)
-	BaseDenom = "unxq"
+	BaseDenom = "aevmos"
 )
 
 // SetBech32Prefixes sets the global prefixes to be used when serializing addresses and public keys to Bech32 strings.
@@ -50,11 +51,11 @@ func SetBip44CoinType(config *sdk.Config) {
 
 // RegisterDenoms registers the base and display denominations to the SDK.
 func RegisterDenoms() {
-	if err := sdk.RegisterDenom(DisplayDenom, sdk.OneDec()); err != nil {
+	if err := sdk.RegisterDenom(DisplayDenom, math.LegacyOneDec()); err != nil {
 		panic(err)
 	}
 
-	if err := sdk.RegisterDenom(BaseDenom, sdk.NewDecWithPrec(1, types.BaseDenomUnit)); err != nil {
+	if err := sdk.RegisterDenom(BaseDenom, math.LegacyNewDecWithPrec(1, types.BaseDenomUnit)); err != nil {
 		panic(err)
 	}
 }

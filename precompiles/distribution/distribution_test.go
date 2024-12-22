@@ -3,15 +3,16 @@ package distribution_test
 import (
 	"math/big"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/evmos/evmos/v13/app"
-	"github.com/evmos/evmos/v13/precompiles/distribution"
-	"github.com/evmos/evmos/v13/utils"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
+	"github.com/evmos/evmos/v19/app"
+	"github.com/evmos/evmos/v19/precompiles/distribution"
+	"github.com/evmos/evmos/v19/utils"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 func (s *PrecompileTestSuite) TestIsTransaction() {
@@ -33,6 +34,11 @@ func (s *PrecompileTestSuite) TestIsTransaction() {
 		{
 			distribution.WithdrawValidatorCommissionMethod,
 			s.precompile.Methods[distribution.WithdrawValidatorCommissionMethod].Name,
+			true,
+		},
+		{
+			distribution.FundCommunityPoolMethod,
+			s.precompile.Methods[distribution.FundCommunityPoolMethod].Name,
 			true,
 		},
 		{
@@ -69,7 +75,7 @@ func (s *PrecompileTestSuite) TestRun() {
 				valAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
 				s.Require().NoError(err)
 				val, _ := s.app.StakingKeeper.GetValidator(s.ctx, valAddr)
-				coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, sdk.NewInt(1e18)))
+				coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(1e18)))
 				s.app.DistrKeeper.AllocateTokensToValidator(s.ctx, val, sdk.NewDecCoinsFromCoins(coins...))
 
 				input, err := s.precompile.Pack(
@@ -91,7 +97,7 @@ func (s *PrecompileTestSuite) TestRun() {
 				s.Require().NoError(err)
 				caller := common.BytesToAddress(valAddr)
 
-				valCommission := sdk.DecCoins{sdk.NewDecCoinFromDec(utils.BaseDenom, sdk.NewDecWithPrec(1000000000000000000, 1))}
+				valCommission := sdk.DecCoins{sdk.NewDecCoinFromDec(utils.BaseDenom, math.LegacyNewDecWithPrec(1000000000000000000, 1))}
 				// set outstanding rewards
 				s.app.DistrKeeper.SetValidatorOutstandingRewards(s.ctx, valAddr, types.ValidatorOutstandingRewards{Rewards: valCommission})
 				// set commission
@@ -113,13 +119,49 @@ func (s *PrecompileTestSuite) TestRun() {
 				valAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
 				s.Require().NoError(err)
 				val, _ := s.app.StakingKeeper.GetValidator(s.ctx, valAddr)
-				coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, sdk.NewInt(1e18)))
+				coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(1e18)))
 				s.app.DistrKeeper.AllocateTokensToValidator(s.ctx, val, sdk.NewDecCoinsFromCoins(coins...))
 
 				input, err := s.precompile.Pack(
 					distribution.WithdrawDelegatorRewardsMethod,
 					s.address,
 					valAddr.String(),
+				)
+				s.Require().NoError(err, "failed to pack input")
+
+				return s.address, input
+			},
+			readOnly: false,
+			expPass:  true,
+		},
+		{
+			name: "pass - claim rewards transaction",
+			malleate: func() (common.Address, []byte) {
+				valAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
+				s.Require().NoError(err)
+				val, _ := s.app.StakingKeeper.GetValidator(s.ctx, valAddr)
+				coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(1e18)))
+				s.app.DistrKeeper.AllocateTokensToValidator(s.ctx, val, sdk.NewDecCoinsFromCoins(coins...))
+
+				input, err := s.precompile.Pack(
+					distribution.ClaimRewardsMethod,
+					s.address,
+					uint32(2),
+				)
+				s.Require().NoError(err, "failed to pack input")
+
+				return s.address, input
+			},
+			readOnly: false,
+			expPass:  true,
+		},
+		{
+			name: "pass - fund community pool transaction",
+			malleate: func() (common.Address, []byte) {
+				input, err := s.precompile.Pack(
+					distribution.FundCommunityPoolMethod,
+					s.address,
+					big.NewInt(1e18),
 				)
 				s.Require().NoError(err, "failed to pack input")
 
@@ -176,13 +218,10 @@ func (s *PrecompileTestSuite) TestRun() {
 				s.ctx, msg, cfg, nil, s.stateDB,
 			)
 
-			params := s.app.EvmKeeper.GetParams(s.ctx)
-			activePrecompiles := params.GetActivePrecompilesAddrs()
-			precompileMap := s.app.EvmKeeper.Precompiles(activePrecompiles...)
-			err = vm.ValidatePrecompiles(precompileMap, activePrecompiles)
-			s.Require().NoError(err, "invalid precompiles", activePrecompiles)
-			evm.WithPrecompiles(precompileMap, activePrecompiles)
-
+			precompiles, found, err := s.app.EvmKeeper.GetPrecompileInstance(s.ctx, contractAddr)
+			s.Require().NoError(err, "failed to instantiate precompile")
+			s.Require().True(found, "not found precompile")
+			evm.WithPrecompiles(precompiles.Map, precompiles.Addresses)
 			// Run precompiled contract
 			bz, err := s.precompile.Run(evm, contract, tc.readOnly)
 

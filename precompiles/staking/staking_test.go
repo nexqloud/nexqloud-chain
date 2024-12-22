@@ -4,18 +4,19 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/evmos/evmos/v13/app"
+	"cosmossdk.io/math"
 
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-
+	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	"github.com/evmos/evmos/v13/precompiles/staking"
-	"github.com/evmos/evmos/v13/utils"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
+	"github.com/evmos/evmos/v19/app"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	"github.com/evmos/evmos/v19/precompiles/staking"
+	"github.com/evmos/evmos/v19/utils"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 func (s *PrecompileTestSuite) TestIsTransaction() {
@@ -37,6 +38,11 @@ func (s *PrecompileTestSuite) TestIsTransaction() {
 		{
 			authorization.DecreaseAllowanceMethod,
 			s.precompile.Methods[authorization.DecreaseAllowanceMethod].Name,
+			true,
+		},
+		{
+			staking.CreateValidatorMethod,
+			s.precompile.Methods[staking.CreateValidatorMethod].Name,
 			true,
 		},
 		{
@@ -227,7 +233,8 @@ func (s *PrecompileTestSuite) TestRun() {
 					s.validators[0].GetOperator(),
 					1000,
 					time.Now().Add(time.Hour),
-					sdk.NewInt(1000),
+					math.NewInt(1000),
+					0,
 				)
 				s.app.StakingKeeper.SetUnbondingDelegation(s.ctx, ubd)
 
@@ -236,7 +243,7 @@ func (s *PrecompileTestSuite) TestRun() {
 
 				// Needs to be called after setting unbonding delegation
 				// In order to mimic the coins being added to the unboding pool
-				coin := sdk.NewCoin(utils.BaseDenom, sdk.NewInt(1000))
+				coin := sdk.NewCoin(utils.BaseDenom, math.NewInt(1000))
 				err = s.app.BankKeeper.SendCoinsFromModuleToModule(s.ctx, stakingtypes.BondedPoolName, stakingtypes.NotBondedPoolName, sdk.Coins{coin})
 				s.Require().NoError(err, "failed to send coins from module to module")
 
@@ -274,9 +281,12 @@ func (s *PrecompileTestSuite) TestRun() {
 		{
 			"pass - validator query",
 			func() []byte {
+				valAddr, err := sdk.ValAddressFromBech32(s.validators[0].OperatorAddress)
+				s.Require().NoError(err)
+
 				input, err := s.precompile.Pack(
 					staking.ValidatorMethod,
-					s.validators[0].OperatorAddress,
+					common.BytesToAddress(valAddr.Bytes()),
 				)
 				s.Require().NoError(err, "failed to pack input")
 				return input
@@ -296,8 +306,9 @@ func (s *PrecompileTestSuite) TestRun() {
 					s.validators[1].GetOperator(),
 					1000,
 					time.Now().Add(time.Hour),
-					sdk.NewInt(1000),
-					sdk.NewDec(1),
+					math.NewInt(1000),
+					math.LegacyNewDec(1),
+					0,
 				)
 
 				s.app.StakingKeeper.SetRedelegation(s.ctx, redelegation)
@@ -341,13 +352,14 @@ func (s *PrecompileTestSuite) TestRun() {
 					s.validators[0].GetOperator(),
 					1000,
 					time.Now().Add(time.Hour),
-					sdk.NewInt(1000),
+					math.NewInt(1000),
+					0,
 				)
 				s.app.StakingKeeper.SetUnbondingDelegation(s.ctx, ubd)
 
 				// Needs to be called after setting unbonding delegation
 				// In order to mimic the coins being added to the unboding pool
-				coin := sdk.NewCoin(utils.BaseDenom, sdk.NewInt(1000))
+				coin := sdk.NewCoin(utils.BaseDenom, math.NewInt(1000))
 				err := s.app.BankKeeper.SendCoinsFromModuleToModule(s.ctx, stakingtypes.BondedPoolName, stakingtypes.NotBondedPoolName, sdk.Coins{coin})
 				s.Require().NoError(err, "failed to send coins from module to module")
 
@@ -437,12 +449,10 @@ func (s *PrecompileTestSuite) TestRun() {
 				s.ctx, msg, cfg, nil, s.stateDB,
 			)
 
-			params := s.app.EvmKeeper.GetParams(s.ctx)
-			activePrecompiles := params.GetActivePrecompilesAddrs()
-			precompileMap := s.app.EvmKeeper.Precompiles(activePrecompiles...)
-			err = vm.ValidatePrecompiles(precompileMap, activePrecompiles)
-			s.Require().NoError(err, "invalid precompiles", activePrecompiles)
-			evm.WithPrecompiles(precompileMap, activePrecompiles)
+			precompiles, found, err := s.app.EvmKeeper.GetPrecompileInstance(s.ctx, contractAddr)
+			s.Require().NoError(err, "failed to instantiate precompile")
+			s.Require().True(found, "not found precompile")
+			evm.WithPrecompiles(precompiles.Map, precompiles.Addresses)
 
 			// Run precompiled contract
 			bz, err := s.precompile.Run(evm, contract, tc.readOnly)

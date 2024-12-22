@@ -7,6 +7,11 @@ import (
 	"math/big"
 	"time"
 
+	"cosmossdk.io/math"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/tmhash"
+	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
+	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
@@ -16,38 +21,34 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	transfertypes "github.com/cosmos/ibc-go/v6/modules/apps/transfer/types"
-	clienttypes "github.com/cosmos/ibc-go/v6/modules/core/02-client/types"
-	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
-	ibctesting "github.com/cosmos/ibc-go/v6/testing"
-	ibcgotestinghelpers "github.com/cosmos/ibc-go/v6/testing/simapp/helpers"
+	transfertypes "github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	clienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	channeltypes "github.com/cosmos/ibc-go/v7/modules/core/04-channel/types"
+	ibctesting "github.com/cosmos/ibc-go/v7/testing"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	evmosapp "github.com/evmos/evmos/v13/app"
-	evmoscontracts "github.com/evmos/evmos/v13/contracts"
-	evmosibc "github.com/evmos/evmos/v13/ibc/testing"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
-	"github.com/evmos/evmos/v13/precompiles/ics20"
-	"github.com/evmos/evmos/v13/precompiles/staking"
-	"github.com/evmos/evmos/v13/precompiles/testutil"
-	"github.com/evmos/evmos/v13/precompiles/testutil/contracts"
-	evmosutil "github.com/evmos/evmos/v13/testutil"
-	evmosutiltx "github.com/evmos/evmos/v13/testutil/tx"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	"github.com/evmos/evmos/v13/utils"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	feemarkettypes "github.com/evmos/evmos/v13/x/feemarket/types"
-	inflationtypes "github.com/evmos/evmos/v13/x/inflation/types"
-	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/crypto/tmhash"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
-	tmtypes "github.com/tendermint/tendermint/types"
+	evmosapp "github.com/evmos/evmos/v19/app"
+	evmoscontracts "github.com/evmos/evmos/v19/contracts"
+	evmosibc "github.com/evmos/evmos/v19/ibc/testing"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/precompiles/erc20"
+	"github.com/evmos/evmos/v19/precompiles/ics20"
+	"github.com/evmos/evmos/v19/precompiles/testutil"
+	"github.com/evmos/evmos/v19/precompiles/testutil/contracts"
+	evmosutil "github.com/evmos/evmos/v19/testutil"
+	evmosutiltx "github.com/evmos/evmos/v19/testutil/tx"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	"github.com/evmos/evmos/v19/utils"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
+	feemarkettypes "github.com/evmos/evmos/v19/x/feemarket/types"
+	inflationtypes "github.com/evmos/evmos/v19/x/inflation/v1/types"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
 )
 
@@ -58,15 +59,14 @@ type erc20Meta struct {
 }
 
 var (
-	maxUint256Coins    = sdk.Coins{sdk.Coin{Denom: utils.BaseDenom, Amount: sdk.NewIntFromBigInt(abi.MaxUint256)}}
+	maxUint256Coins    = sdk.Coins{sdk.Coin{Denom: utils.BaseDenom, Amount: math.NewIntFromBigInt(abi.MaxUint256)}}
 	maxUint256CmnCoins = []cmn.Coin{{Denom: utils.BaseDenom, Amount: abi.MaxUint256}}
-	defaultCoins       = sdk.Coins{sdk.Coin{Denom: utils.BaseDenom, Amount: sdk.NewInt(1e18)}}
+	defaultCoins       = sdk.Coins{sdk.Coin{Denom: utils.BaseDenom, Amount: math.NewInt(1e18)}}
 	baseDenomCmnCoin   = cmn.Coin{Denom: utils.BaseDenom, Amount: big.NewInt(1e18)}
 	defaultCmnCoins    = []cmn.Coin{baseDenomCmnCoin}
-	atomCoins          = sdk.Coins{sdk.Coin{Denom: "uatom", Amount: sdk.NewInt(1e18)}}
+	atomCoins          = sdk.Coins{sdk.Coin{Denom: "uatom", Amount: math.NewInt(1e18)}}
 	atomCmnCoin        = cmn.Coin{Denom: "uatom", Amount: big.NewInt(1e18)}
-	atomComnCoins      = []cmn.Coin{atomCmnCoin}
-	mutliSpendLimit    = sdk.Coins{sdk.Coin{Denom: utils.BaseDenom, Amount: sdk.NewInt(1e18)}, sdk.Coin{Denom: "uatom", Amount: sdk.NewInt(1e18)}}
+	mutliSpendLimit    = sdk.Coins{sdk.Coin{Denom: utils.BaseDenom, Amount: math.NewInt(1e18)}, sdk.Coin{Denom: "uatom", Amount: math.NewInt(1e18)}}
 	mutliCmnCoins      = []cmn.Coin{baseDenomCmnCoin, atomCmnCoin}
 	testERC20          = erc20Meta{
 		Name:     "TestCoin",
@@ -79,8 +79,8 @@ var (
 // that also act as delegators. For simplicity, each validator is bonded with a delegation
 // of one consensus engine unit (10^6) in the default token of the simapp from first genesis
 // account. A Nop logger is set in SimApp.
-func (s *PrecompileTestSuite) SetupWithGenesisValSet(chainID string, valSet *tmtypes.ValidatorSet, genAccs []authtypes.GenesisAccount, balances ...banktypes.Balance) {
-	appI, genesisState := evmosapp.SetupTestingApp()
+func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSet, genAccs []authtypes.GenesisAccount, balances ...banktypes.Balance) {
+	appI, genesisState := evmosapp.SetupTestingApp(cmn.DefaultChainID)()
 	app, ok := appI.(*evmosapp.Evmos)
 	s.Require().True(ok)
 
@@ -104,15 +104,15 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(chainID string, valSet *tmt
 			Jailed:            false,
 			Status:            stakingtypes.Bonded,
 			Tokens:            bondAmt,
-			DelegatorShares:   sdk.OneDec(),
+			DelegatorShares:   math.LegacyOneDec(),
 			Description:       stakingtypes.Description{},
 			UnbondingHeight:   int64(0),
 			UnbondingTime:     time.Unix(0, 0).UTC(),
-			Commission:        stakingtypes.NewCommission(sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()),
-			MinSelfDelegation: sdk.ZeroInt(),
+			Commission:        stakingtypes.NewCommission(math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()),
+			MinSelfDelegation: math.ZeroInt(),
 		}
 		validators = append(validators, validator)
-		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), val.Address.Bytes(), sdk.OneDec()))
+		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), val.Address.Bytes(), math.LegacyOneDec()))
 	}
 	s.validators = validators
 
@@ -123,7 +123,7 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(chainID string, valSet *tmt
 	stakingGenesis := stakingtypes.NewGenesisState(stakingParams, validators, delegations)
 	genesisState[stakingtypes.ModuleName] = app.AppCodec().MustMarshalJSON(stakingGenesis)
 
-	totalBondAmt := bondAmt.Mul(sdk.NewInt(int64(len(validators))))
+	totalBondAmt := bondAmt.Mul(math.NewInt(int64(len(validators))))
 	totalSupply := sdk.NewCoins()
 	for _, b := range balances {
 		// add genesis acc tokens and delegated tokens to total supply
@@ -137,7 +137,7 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(chainID string, valSet *tmt
 	})
 
 	// update total supply
-	bankGenesis := banktypes.NewGenesisState(banktypes.DefaultGenesisState().Params, balances, totalSupply, []banktypes.Metadata{})
+	bankGenesis := banktypes.NewGenesisState(banktypes.DefaultGenesisState().Params, balances, totalSupply, []banktypes.Metadata{}, []banktypes.SendEnabled{})
 	genesisState[banktypes.ModuleName] = app.AppCodec().MustMarshalJSON(bankGenesis)
 
 	stateBytes, err := json.MarshalIndent(genesisState, "", " ")
@@ -149,7 +149,7 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(chainID string, valSet *tmt
 	// init chain will set the validator set and initialize the genesis accounts
 	app.InitChain(
 		abci.RequestInitChain{
-			ChainId:         chainID,
+			ChainId:         cmn.DefaultChainID,
 			Validators:      []abci.ValidatorUpdate{},
 			ConsensusParams: evmosapp.DefaultConsensusParams,
 			AppStateBytes:   stateBytes,
@@ -163,7 +163,7 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(chainID string, valSet *tmt
 	header := evmosutil.NewHeader(
 		2,
 		time.Now().UTC(),
-		chainID,
+		cmn.DefaultChainID,
 		sdk.ConsAddress(validators[0].GetOperator()),
 		tmhash.Sum([]byte("app")),
 		tmhash.Sum([]byte("validators")),
@@ -207,7 +207,7 @@ func (s *PrecompileTestSuite) DoSetupTest() {
 		CurrentTime: time.Date(time.Now().Year()+1, 1, 2, 0, 0, 0, 0, time.UTC),
 	}
 	// Create 2 Evmos chains
-	chains[cmn.DefaultChainID] = s.NewTestChainWithValSet(s.coordinator, cmn.DefaultChainID, s.valSet, signersByAddress)
+	chains[cmn.DefaultChainID] = s.NewTestChainWithValSet(s.coordinator, s.valSet, signersByAddress)
 	// TODO: Figure out if we want to make the second chain keepers accessible to the tests to check the state
 	chainID2 := utils.MainnetChainID + "-2"
 	chains[chainID2] = ibctesting.NewTestChain(s.T(), s.coordinator, chainID2)
@@ -222,7 +222,7 @@ func (s *PrecompileTestSuite) DoSetupTest() {
 	}
 }
 
-func (s *PrecompileTestSuite) NewTestChainWithValSet(coord *ibctesting.Coordinator, chainID string, valSet *tmtypes.ValidatorSet, signers map[string]tmtypes.PrivValidator) *ibctesting.TestChain {
+func (s *PrecompileTestSuite) NewTestChainWithValSet(coord *ibctesting.Coordinator, valSet *tmtypes.ValidatorSet, signers map[string]tmtypes.PrivValidator) *ibctesting.TestChain {
 	// generate genesis account
 	addr, priv := evmosutiltx.NewAddrKey()
 	s.privKey = priv
@@ -245,11 +245,11 @@ func (s *PrecompileTestSuite) NewTestChainWithValSet(coord *ibctesting.Coordinat
 		Coins:   sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, amount)),
 	}
 
-	s.SetupWithGenesisValSet(chainID, s.valSet, []authtypes.GenesisAccount{acc}, balance)
+	s.SetupWithGenesisValSet(s.valSet, []authtypes.GenesisAccount{acc}, balance)
 
 	// create current header and call begin block
 	header := tmproto.Header{
-		ChainID: chainID,
+		ChainID: cmn.DefaultChainID,
 		Height:  1,
 		Time:    coord.CurrentTime.UTC(),
 	}
@@ -263,7 +263,8 @@ func (s *PrecompileTestSuite) NewTestChainWithValSet(coord *ibctesting.Coordinat
 	stakingParams := s.app.StakingKeeper.GetParams(s.ctx)
 	stakingParams.BondDenom = utils.BaseDenom
 	s.bondDenom = stakingParams.BondDenom
-	s.app.StakingKeeper.SetParams(s.ctx, stakingParams)
+	err := s.app.StakingKeeper.SetParams(s.ctx, stakingParams)
+	s.Require().NoError(err)
 
 	s.ethSigner = ethtypes.LatestSignerForChainID(s.app.EvmKeeper.ChainID())
 
@@ -272,7 +273,7 @@ func (s *PrecompileTestSuite) NewTestChainWithValSet(coord *ibctesting.Coordinat
 	s.app.FeeMarketKeeper.SetBlockGasWanted(s.ctx, 0)
 	s.app.FeeMarketKeeper.SetTransientBlockGasWanted(s.ctx, 0)
 
-	precompile, err := ics20.NewPrecompile(s.app.TransferKeeper, s.app.IBCKeeper.ChannelKeeper, s.app.AuthzKeeper)
+	precompile, err := ics20.NewPrecompile(s.app.StakingKeeper, s.app.TransferKeeper, s.app.IBCKeeper.ChannelKeeper, s.app.AuthzKeeper)
 	s.Require().NoError(err)
 	s.precompile = precompile
 
@@ -284,7 +285,7 @@ func (s *PrecompileTestSuite) NewTestChainWithValSet(coord *ibctesting.Coordinat
 	chain := &ibctesting.TestChain{
 		T:              s.T(),
 		Coordinator:    coord,
-		ChainID:        chainID,
+		ChainID:        cmn.DefaultChainID,
 		App:            s.app,
 		CurrentHeader:  header,
 		QueryServer:    s.app.GetIBCKeeper(),
@@ -326,13 +327,14 @@ func (s *PrecompileTestSuite) NewTransferAuthorizationWithAllocations(ctx sdk.Co
 }
 
 // NewTransferAuthorization creates a new transfer authorization for the given grantee and granter and the given coins
-func (s *PrecompileTestSuite) NewTransferAuthorization(ctx sdk.Context, app *evmosapp.Evmos, grantee, granter common.Address, path *ibctesting.Path, coins sdk.Coins, allowList []string) error {
+func (s *PrecompileTestSuite) NewTransferAuthorization(ctx sdk.Context, app *evmosapp.Evmos, grantee, granter common.Address, path *ibctesting.Path, coins sdk.Coins, allowList []string, allowedPacketData []string) error {
 	allocations := []transfertypes.Allocation{
 		{
-			SourcePort:    path.EndpointA.ChannelConfig.PortID,
-			SourceChannel: path.EndpointA.ChannelID,
-			SpendLimit:    coins,
-			AllowList:     allowList,
+			SourcePort:        path.EndpointA.ChannelConfig.PortID,
+			SourceChannel:     path.EndpointA.ChannelID,
+			SpendLimit:        coins,
+			AllowList:         allowList,
+			AllowedPacketData: allowedPacketData,
 		},
 	}
 
@@ -347,7 +349,7 @@ func (s *PrecompileTestSuite) NewTransferAuthorization(ctx sdk.Context, app *evm
 
 // GetTransferAuthorization returns the transfer authorization for the given grantee and granter
 func (s *PrecompileTestSuite) GetTransferAuthorization(ctx sdk.Context, grantee, granter common.Address) *transfertypes.TransferAuthorization {
-	grant, _ := s.app.AuthzKeeper.GetAuthorization(ctx, grantee.Bytes(), granter.Bytes(), ics20.TransferMsg)
+	grant, _ := s.app.AuthzKeeper.GetAuthorization(ctx, grantee.Bytes(), granter.Bytes(), ics20.TransferMsgURL)
 	s.Require().NotNil(grant)
 	transferAuthz, ok := grant.(*transfertypes.TransferAuthorization)
 	s.Require().True(ok)
@@ -356,22 +358,27 @@ func (s *PrecompileTestSuite) GetTransferAuthorization(ctx sdk.Context, grantee,
 }
 
 // CheckAllowanceChangeEvent is a helper function used to check the allowance change event arguments.
-func (s *PrecompileTestSuite) CheckAllowanceChangeEvent(log *ethtypes.Log, methods []string, amounts []*big.Int) {
+func (s *PrecompileTestSuite) CheckAllowanceChangeEvent(log *ethtypes.Log, amount *big.Int, isIncrease bool) {
 	// Check event signature matches the one emitted
-	event := s.precompile.ABI.Events[authorization.EventTypeAllowanceChange]
+	event := s.precompile.ABI.Events[authorization.EventTypeIBCTransferAuthorization]
 	s.Require().Equal(event.ID, common.HexToHash(log.Topics[0].Hex()))
 	s.Require().Equal(log.BlockNumber, uint64(s.ctx.BlockHeight()))
 
-	var approvalEvent staking.EventAllowanceChange
-	err := cmn.UnpackLog(s.precompile.ABI, &approvalEvent, authorization.EventTypeAllowanceChange, *log)
+	var approvalEvent ics20.EventTransferAuthorization
+	err := cmn.UnpackLog(s.precompile.ABI, &approvalEvent, authorization.EventTypeIBCTransferAuthorization, *log)
 	s.Require().NoError(err)
-	s.Require().Equal(s.address, approvalEvent.Spender)
-	s.Require().Equal(s.address, approvalEvent.Owner)
-	s.Require().Equal(len(methods), len(approvalEvent.Methods))
+	s.Require().Equal(s.address, approvalEvent.Grantee)
+	s.Require().Equal(s.address, approvalEvent.Granter)
+	s.Require().Equal("transfer", approvalEvent.Allocations[0].SourcePort)
+	s.Require().Equal("channel-0", approvalEvent.Allocations[0].SourceChannel)
 
-	for i, method := range methods {
-		s.Require().Equal(method, approvalEvent.Methods[i])
-		s.Require().Equal(amounts[i], approvalEvent.Values[i])
+	allocationAmount := approvalEvent.Allocations[0].SpendLimit[0].Amount
+	if isIncrease {
+		newTotal := amount.Add(allocationAmount, amount)
+		s.Require().Equal(amount, newTotal)
+	} else {
+		newTotal := amount.Sub(allocationAmount, amount)
+		s.Require().Equal(amount, newTotal)
 	}
 }
 
@@ -398,9 +405,6 @@ func (s *PrecompileTestSuite) setupIBCTest() {
 	err := s.app.EvmKeeper.SetParams(s.chainA.GetContext(), evmParams)
 	s.Require().NoError(err)
 
-	// Increase max gas
-	ibcgotestinghelpers.DefaultGenTxGas = uint64(1_000_000_000)
-
 	// Set block proposer once, so its carried over on the ibc-go-testing suite
 	validators := s.app.StakingKeeper.GetValidators(s.chainA.GetContext(), 2)
 	cons, err := validators[0].GetConsAddr()
@@ -414,7 +418,7 @@ func (s *PrecompileTestSuite) setupIBCTest() {
 	s.Require().NoError(err)
 
 	// Mint coins locked on the evmos account generated with secp.
-	amt, ok := sdk.NewIntFromString("1000000000000000000000")
+	amt, ok := math.NewIntFromString("1000000000000000000000")
 	s.Require().True(ok)
 	coinEvmos := sdk.NewCoin(utils.BaseDenom, amt)
 	coins := sdk.NewCoins(coinEvmos)
@@ -434,7 +438,7 @@ func (s *PrecompileTestSuite) setupIBCTest() {
 func (s *PrecompileTestSuite) setTransferApproval(
 	args contracts.CallArgs,
 	grantee common.Address,
-	allocations []ics20.Allocation,
+	allocations []cmn.ICS20Allocation,
 ) {
 	args.MethodName = authorization.ApproveMethod
 	args.Args = []interface{}{
@@ -444,7 +448,7 @@ func (s *PrecompileTestSuite) setTransferApproval(
 
 	logCheckArgs := testutil.LogCheckArgs{
 		ABIEvents: s.precompile.Events,
-		ExpEvents: []string{ics20.EventTypeIBCTransferAuthorization},
+		ExpEvents: []string{authorization.EventTypeIBCTransferAuthorization},
 		ExpPass:   true,
 	}
 
@@ -454,7 +458,7 @@ func (s *PrecompileTestSuite) setTransferApproval(
 	s.chainA.NextBlock()
 
 	// check auth created successfully
-	authz, _ := s.app.AuthzKeeper.GetAuthorization(s.chainA.GetContext(), grantee.Bytes(), args.PrivKey.PubKey().Address().Bytes(), ics20.TransferMsg)
+	authz, _ := s.app.AuthzKeeper.GetAuthorization(s.chainA.GetContext(), grantee.Bytes(), args.PrivKey.PubKey().Address().Bytes(), ics20.TransferMsgURL)
 	Expect(authz).NotTo(BeNil())
 	transferAuthz, ok := authz.(*transfertypes.TransferAuthorization)
 	Expect(ok).To(BeTrue())
@@ -470,7 +474,7 @@ func (s *PrecompileTestSuite) setTransferApproval(
 func (s *PrecompileTestSuite) setTransferApprovalForContract(args contracts.CallArgs) {
 	logCheckArgs := testutil.LogCheckArgs{
 		ABIEvents: s.precompile.Events,
-		ExpEvents: []string{ics20.EventTypeIBCTransferAuthorization},
+		ExpEvents: []string{authorization.EventTypeIBCTransferAuthorization},
 		ExpPass:   true,
 	}
 
@@ -480,7 +484,7 @@ func (s *PrecompileTestSuite) setTransferApprovalForContract(args contracts.Call
 	s.chainA.NextBlock()
 
 	// check auth created successfully
-	authz, _ := s.app.AuthzKeeper.GetAuthorization(s.chainA.GetContext(), args.ContractAddr.Bytes(), args.PrivKey.PubKey().Address().Bytes(), ics20.TransferMsg)
+	authz, _ := s.app.AuthzKeeper.GetAuthorization(s.chainA.GetContext(), args.ContractAddr.Bytes(), args.PrivKey.PubKey().Address().Bytes(), ics20.TransferMsgURL)
 	Expect(authz).NotTo(BeNil())
 	transferAuthz, ok := authz.(*transfertypes.TransferAuthorization)
 	Expect(ok).To(BeTrue())
@@ -489,24 +493,12 @@ func (s *PrecompileTestSuite) setTransferApprovalForContract(args contracts.Call
 
 // setupAllocationsForTesting sets the allocations for testing
 func (s *PrecompileTestSuite) setupAllocationsForTesting() {
-	defaultSingleAlloc = []ics20.Allocation{
+	defaultSingleAlloc = []cmn.ICS20Allocation{
 		{
-			SourcePort:    ibctesting.TransferPort,
-			SourceChannel: s.transferPath.EndpointA.ChannelID,
-			SpendLimit:    defaultCmnCoins,
-		},
-	}
-
-	defaultManyAllocs = []ics20.Allocation{
-		{
-			SourcePort:    ibctesting.TransferPort,
-			SourceChannel: s.transferPath.EndpointA.ChannelID,
-			SpendLimit:    defaultCmnCoins,
-		},
-		{
-			SourcePort:    ibctesting.TransferPort,
-			SourceChannel: "channel-1",
-			SpendLimit:    atomComnCoins,
+			SourcePort:        ibctesting.TransferPort,
+			SourceChannel:     s.transferPath.EndpointA.ChannelID,
+			SpendLimit:        defaultCmnCoins,
+			AllowedPacketData: []string{"memo"},
 		},
 	}
 }
@@ -601,7 +593,7 @@ func (s *PrecompileTestSuite) setupERC20ContractTests(amount *big.Int) common.Ad
 
 	mintCheck := testutil.LogCheckArgs{
 		ABIEvents: evmoscontracts.ERC20MinterBurnerDecimalsContract.ABI.Events,
-		ExpEvents: []string{"Transfer"}, // upon minting the tokens are sent to the receiving address
+		ExpEvents: []string{erc20.EventTypeTransfer}, // upon minting the tokens are sent to the receiving address
 		ExpPass:   true,
 	}
 
@@ -624,7 +616,7 @@ func (s *PrecompileTestSuite) setupERC20ContractTests(amount *big.Int) common.Ad
 }
 
 // makePacket is a helper function to build the sent IBC packet
-// to perform an ICS20 tranfer.
+// to perform an ICS20 transfer.
 // This packet is then used to test the IBC callbacks (Timeout, Ack)
 func (s *PrecompileTestSuite) makePacket(
 	senderAddr,
