@@ -164,11 +164,13 @@ if [[ $1 == "init" ]]; then
 	sudo cp "$HOMEDIR/node-id" /usr/share/nginx/html/node-id
 fi
 
-# Start the node
-nxqd start \
-	--metrics "$TRACE" \
-	--log_level $LOGLEVEL \
-	--minimum-gas-prices=0.0001nxq \
-	--json-rpc.api eth,txpool,personal,net,debug,web3 \
-	--home "$HOMEDIR" \
-	--chain-id "$CHAINID"
+else
+	# Start the node
+	nxqd start \
+		--metrics "$TRACE" \
+		--log_level $LOGLEVEL \
+		--minimum-gas-prices=0.0001nxq \
+		--json-rpc.api eth,txpool,personal,net,debug,web3 \
+		--home "$HOMEDIR" \
+		--chain-id "$CHAINID"
+fi
