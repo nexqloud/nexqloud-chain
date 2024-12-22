@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/evmos/evmos/v19/app"
-	evmosd "github.com/evmos/evmos/v19/cmd/evmosd"
+	evmosd "github.com/evmos/evmos/v19/cmd/nxqd"
 	"github.com/evmos/evmos/v19/utils"
 )
 

@@ -199,7 +199,7 @@ func init() {
 }
 
 // Name defines the application binary name
-const Name = "evmosd"
+const Name = "nxqd"
 
 var (
 	// DefaultNodeHome default home directories for the application daemon

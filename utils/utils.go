@@ -24,13 +24,13 @@ import (
 
 const (
 	// MainnetChainID defines the Evmos EIP155 chain ID for mainnet
-	MainnetChainID = "evmos_9001"
+	MainnetChainID = "nxqd_6001"
 	// TestnetChainID defines the Evmos EIP155 chain ID for testnet
-	TestnetChainID = "evmos_9000"
+	TestnetChainID = "nxqd_6000"
 	// TestingChainID defines the Evmos EIP155 chain ID for integration test
-	TestingChainID = "test_9000"
+	TestingChainID = "test_6000"
 	// BaseDenom defines the Evmos mainnet denomination
-	BaseDenom = "aevmos"
+	BaseDenom = "unxq"
 )
 
 // EthHexToSDKAddr takes a given Hex string and derives a Cosmos SDK account address
