@@ -142,7 +142,7 @@ if [[ $1 == "init" ]]; then
 
 	# Sign genesis transaction
 	nxqd gentx "$VAL_KEY" 1000000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
-	nxqd gentx "$VAL2_KEY" 1000000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+
 	## In case you want to create multiple validators at genesis
 	## 1. Back to `nxqd keys add` step, init more keys
 	## 2. Back to `nxqd add-genesis-account` step, add balance for those
