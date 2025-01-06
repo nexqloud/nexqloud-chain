@@ -110,28 +110,14 @@ if [[ $1 == "init" ]]; then
 	# enable prometheus metrics and all APIs for dev node
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
-		sed -i '' 's/prometheus-retention-time = 0/prometheus-retention-time  = 1000000000000/g' "$APP_TOML"
-		sed -i '' 's/enabled = false/enabled = true/g' "$APP_TOML"
-		sed -i '' 's/enable = false/enable = true/g' "$APP_TOML"
 		# Don't enable memiavl by default
-		grep -q -F '[memiavl]' "$APP_TOML" && sed -i '' '/\[memiavl\]/,/^\[/ s/enable = true/enable = false/' "$APP_TOML"
 	else
 		sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
-		sed -i 's/prometheus-retention-time  = "0"/prometheus-retention-time  = "1000000000000"/g' "$APP_TOML"
-		sed -i 's/enabled = false/enabled = true/g' "$APP_TOML"
-		sed -i 's/enable = false/enable = true/g' "$APP_TOML"
-		# Don't enable memiavl by default
-		grep -q -F '[memiavl]' "$APP_TOML" && sed -i '/\[memiavl\]/,/^\[/ s/enable = true/enable = false/' "$APP_TOML"
 	fi
 
 	# Change proposal periods to pass within a reasonable time for local testing
 	sed -i.bak 's/"max_deposit_period": "172800s"/"max_deposit_period": "30s"/g' "$GENESIS"
 	sed -i.bak 's/"voting_period": "172800s"/"voting_period": "30s"/g' "$GENESIS"
-
-	# set custom pruning settings
-	sed -i.bak 's/pruning = "default"/pruning = "custom"/g' "$APP_TOML"
-	sed -i.bak 's/pruning-keep-recent = "0"/pruning-keep-recent = "2"/g' "$APP_TOML"
-	sed -i.bak 's/pruning-interval = "0"/pruning-interval = "10"/g' "$APP_TOML"
 
 	# Allocate genesis accounts (cosmos formatted addresses)
 	nxqd add-genesis-account "$(nxqd keys show "$VAL_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 100000000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
