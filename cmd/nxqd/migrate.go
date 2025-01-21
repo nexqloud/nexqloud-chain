@@ -27,6 +27,14 @@ const FlagGenesisTime = "genesis-time"
 
 var migrationMap = genutiltypes.MigrationMap{}
 
+func init() {
+    // Register v18 migration function
+    migrationMap["v18"] = v18.MigrateGenesis
+    // For testnet, register with "t" prefix
+    migrationMap["tv18"] = v18.MigrateGenesis
+}
+
+
 // GetMigrationCallback returns a MigrationCallback for a given version.
 func GetMigrationCallback(version, chainID string) genutiltypes.MigrationCallback {
 	if !utils.IsMainnet(chainID) {
