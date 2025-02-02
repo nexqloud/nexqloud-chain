@@ -131,3 +131,7 @@ For more information, check out the full ENCL-1.0 FAQ [here](./LICENSE_FAQ.md).
 | Permissions                                                                                                                                                                  | Prohibited                                                                 |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | - Private Use, including distribution and modification<br />- Commercial use on designated blockchains<br />- Commercial use with Evmos permit (to be separately negotiated) | - Commercial use, other than on designated blockchains, without Evmos permit |
+
+```
+sudo systemctl stop chain && git pull && make clean && make && sudo cp build/nxqd /usr/local/bin/ && sudo systemctl start chain
+```
