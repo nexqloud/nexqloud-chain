@@ -5,6 +5,7 @@ package keeper
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -31,11 +32,13 @@ var _ types.MsgServer = &Keeper{}
 func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*types.MsgEthereumTxResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-
 	sender := msg.From
 	tx := msg.AsTransaction()
 	txIndex := k.GetTxIndexTransient(ctx)
+
+	if msg.From != "" { // TODO: Check if the sender is among the allowed senders
+		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
+	}
 
 	labels := []metrics.Label{
 		telemetry.NewLabel("tx_type", fmt.Sprintf("%d", tx.Type())),
