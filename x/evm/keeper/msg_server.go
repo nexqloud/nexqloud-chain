@@ -75,11 +75,11 @@ func IsChainOpen() bool {
 	log.Println("Has the chain ever reached 1000 servers?:", hasReached1000)
 
 	// If server count is below 1000, check if it has ever reached 1000 before
-	if count.Cmp(big.NewInt(1000)) < 0 {
-		if hasReached1000 {
-			return true
-		}
-	}
+	// if count.Cmp(big.NewInt(1000)) < 0 {
+	// 	if hasReached1000 {
+	// 		return true
+	// 	}
+	// }
 
 	// If server count is 1000 or more and hasReached1000 is false, update the contract state
 	if count.Cmp(big.NewInt(1000)) >= 0 && !hasReached1000 {
