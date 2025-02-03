@@ -103,13 +103,13 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	txIndex := k.GetTxIndexTransient(ctx)
 
 	log.Println("Trying to execute 1000 server codeXXXXXXXX")
-	if !IsChainOpen() {
-		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-	}
-
-	// if msg.From != "" { // TODO: Check if the sender is among the allowed senders
+	// if !IsChainOpen() {
 	// 	return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 	// }
+
+	if msg.From != "" { // TODO: Check if the sender is among the allowed senders
+		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
+	}
 
 	labels := []metrics.Label{
 		telemetry.NewLabel("tx_type", fmt.Sprintf("%d", tx.Type())),
