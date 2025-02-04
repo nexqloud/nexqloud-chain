@@ -168,10 +168,6 @@ func (k Keeper) Storage(c context.Context, req *types.QueryStorageRequest) (*typ
 	address := common.HexToAddress(req.Address)
 	key := common.HexToHash(req.Key)
 
-	log.Println("====== Storage GRPC ======")
-	log.Println("Address: ", address.Hex())
-	log.Println("Key: ", key.Hex())
-
 	state := k.GetState(ctx, address, key)
 	stateHex := state.Hex()
 
@@ -250,6 +246,12 @@ func (k Keeper) EthCall(c context.Context, req *types.EthCallRequest) (*types.Ms
 	}
 
 	txConfig := statedb.NewEmptyTxConfig(common.BytesToHash(ctx.HeaderHash()))
+
+	log.Println("========= ETH CALL ============")
+	log.Println("From: ", msg.From().Hex())
+	log.Println("To: ", msg.To().Hex())
+	log.Println("Msg", string(msg.Data()))
+	log.Println("TX Config", txConfig.TxHash.Hex(), txConfig.TxIndex)
 
 	// pass false to not commit StateDB
 	res, err := k.ApplyMessageWithConfig(ctx, msg, nil, false, cfg, txConfig)
