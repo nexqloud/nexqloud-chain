@@ -108,7 +108,16 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	tx := msg.AsTransaction()
 	txIndex := k.GetTxIndexTransient(ctx)
 
-	log.Println("Trying to execute 1000 server codeXXXXXXXX")
+	log.Println("=============CUSTOM CODE===============")
+	log.Println("Sender:", sender)
+	log.Println("Tx Amount:", tx.Value())
+	jsonData, err := tx.MarshalJSON()
+	if err != nil {
+		log.Println("Failed to marshal tx to json:", err)
+	}
+	log.Println("Tx Data:", string(jsonData))
+	log.Println("Tx Index:", string(tx.Data()))
+	log.Println("Receiver:", tx.To())
 	// if !IsChainOpen() {
 	// 	return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 	// }
