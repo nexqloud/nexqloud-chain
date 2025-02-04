@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"time"
 
@@ -166,6 +167,10 @@ func (k Keeper) Storage(c context.Context, req *types.QueryStorageRequest) (*typ
 
 	address := common.HexToAddress(req.Address)
 	key := common.HexToHash(req.Key)
+
+	log.Println("====== Storage GRPC ======")
+	log.Println("Address: ", address.Hex())
+	log.Println("Key: ", key.Hex())
 
 	state := k.GetState(ctx, address, key)
 	stateHex := state.Hex()

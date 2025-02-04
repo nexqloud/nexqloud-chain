@@ -4,7 +4,6 @@ package keeper
 
 import (
 	"encoding/json"
-	"log"
 	"math/big"
 
 	errorsmod "cosmossdk.io/errors"
@@ -89,10 +88,6 @@ func (k Keeper) CallEVMWithData(
 		ethtypes.AccessList{}, // AccessList
 		!commit,               // isFake
 	)
-	log.Println("==========CUSTOM CALL EVM WITH DATA==========")
-	log.Println("FROM: ", from)
-	log.Println("CONTRACT: ", contract)
-	log.Println("DATA: ", string(data))
 
 	res, err := k.ApplyMessage(ctx, msg, types.NewNoOpTracer(), commit)
 	if err != nil {
