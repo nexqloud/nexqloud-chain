@@ -250,7 +250,7 @@ func (k Keeper) EthCall(c context.Context, req *types.EthCallRequest) (*types.Ms
 	log.Println("========= ETH CALL ============")
 	log.Println("From: ", msg.From().Hex())
 	log.Println("To: ", msg.To().Hex())
-	log.Println("Req Args", req.Args)
+	log.Println("Req Args", string(req.Args))
 	log.Println("TX Config", txConfig.TxHash.Hex(), txConfig.TxIndex)
 
 	// pass false to not commit StateDB
