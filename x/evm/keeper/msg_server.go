@@ -112,6 +112,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
     addr := common.HexToAddress(ContractAddress)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
+	log.Println("data after mod:", data)
 
     // Prepare the EthCallRequest
     args := types.TransactionArgs{
