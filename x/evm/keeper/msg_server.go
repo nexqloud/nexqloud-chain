@@ -32,74 +32,11 @@ import (
 	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
-// func IsChainOpen() bool {
-// 	log.Println("INSIDE THE CHAIN OPEN FUNCTION before modifying XXXXXXXXXXXXXXXXXXX")
-// 	// Connect to the Ethereum node
-// 	client, err := ethclient.Dial(NodeURL)
-// 	if err != nil {
-// 		// log.Fatal("Failed to connect to Ethereum node:", err)
-// 		log.Println("Failed to connect to Ethereum node XXXXXXXXXXX:", err)
-// 		return false // Return false if the node is unavailable
-// 	}
-// 	defer client.Close()
-// 	privateKey, err := crypto.HexToECDSA(PrivateKeyHex)
-// 	if err != nil {
-// 		log.Println("Failed to load private key:", err)
-// 		return false
-// 	}
-
-// 	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, big.NewInt(ChainID))
-// 	if err != nil {
-// 		log.Println("Failed to create transactor:", err)
-// 		return false
-// 	}
-
-// 	// Load the contract
-// 	contract, err := NewOnlineServerMonitor(common.HexToAddress(ContractAddress), client)
-// 	if err != nil {
-// 		log.Println("Failed to load contract:", err)
-// 		return false
-// 	}
-
-// 	// Get the current online server count
-// 	count, err := contract.GetOnlineServerCount(&bind.CallOpts{})
-// 	if err != nil {
-// 		log.Println("Failed to get online server count:", err)
-// 		return false
-// 	}
-// 	log.Println("Current Online Server Count:", count)
-
-// 	// Get the state variable that tracks if 1000 servers were ever reached
-// 	hasReached1000, err := contract.Reached1000ServerCountValue(&bind.CallOpts{})
-// 	if err != nil {
-// 		log.Println("Failed to check if 1000 server count was reached:", err)
-// 		return false
-// 	}
-// 	log.Println("Has the chain ever reached 1000 servers?:", hasReached1000)
-
-// 	// If server count is below 1000, check if it has ever reached 1000 before
-// 	// if count.Cmp(big.NewInt(1000)) < 0 {
-// 	// 	if hasReached1000 {
-// 	// 		return true
-// 	// 	}
-// 	// }
-
-// 	// If server count is 1000 or more and hasReached1000 is false, update the contract state
-// 	if count.Cmp(big.NewInt(1000)) >= 0 && !hasReached1000 {
-// 		tx, err := contract.Reached1000ServerCount(auth)
-// 		if err != nil {
-// 			log.Println("Failed to update Reached1000ServerCountValue:", err)
-// 			return false
-// 		}
-
-// 		log.Println("Updated Reached1000ServerCountValue, transaction hash:", tx.Hash().Hex())
-// 		return true
-// 	}
-
-// 	return false
 // }
-
 var _ types.MsgServer = &Keeper{}
+var whitelist = map[string]bool{
+	"0x7cB61D4117AE31a12E393a1Cfa3BaC666481D02E": true,
+}
 
 func getFunctionSelector(signature string) []byte {
 	log.Println("Enter getFunctionSelector()")
@@ -108,8 +45,12 @@ func getFunctionSelector(signature string) []byte {
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
 }
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
-    log.Println("Enter IsChainOpen()")
+    log.Println("Enter IsChainOpen() and checking for whitelisted addresses")
 
+	if whitelist[from.Hex()] {
+        log.Println("Sender is whitelisted, allowing transaction")
+        return true, nil
+    }
     addr := common.HexToAddress(ContractAddress)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 	log.Println("data after mod:", data)
