@@ -102,6 +102,7 @@ import (
 var _ types.MsgServer = &Keeper{}
 
 func getFunctionSelector(signature string) []byte {
+	log.Println("Enter getFunctionSelector()")
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write([]byte(signature))
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
