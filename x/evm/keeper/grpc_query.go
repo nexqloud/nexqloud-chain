@@ -216,6 +216,8 @@ func (k Keeper) Params(c context.Context, _ *types.QueryParamsRequest) (*types.Q
 
 // EthCall implements eth_call rpc api.
 func (k Keeper) EthCall(c context.Context, req *types.EthCallRequest) (*types.MsgEthereumTxResponse, error) {
+	log.Println("Enter EthCall()")
+	
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "empty request")
 	}

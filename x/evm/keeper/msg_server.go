@@ -168,6 +168,8 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	log.Println("Receiver:", tx.To())
 
 	from := common.HexToAddress(msg.From)
+	log.Println("From:", from)
+	log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
 	isOpen, err := k.IsChainOpen(ctx, from)
     if err != nil {
         return nil, errorsmod.Wrap(err, "failed to check if chain is open")
