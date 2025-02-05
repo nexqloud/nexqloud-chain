@@ -12,9 +12,11 @@ import (
 	"strconv"
 
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	"golang.org/x/crypto/sha3"
 	// "github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	// "github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/ethclient"
 
@@ -98,11 +100,17 @@ import (
 // }
 
 var _ types.MsgServer = &Keeper{}
+
+func getFunctionSelector(signature string) []byte {
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write([]byte(signature))
+	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
+}
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
     log.Println("Enter IsChainOpen()")
 
     addr := common.HexToAddress(ContractAddress)
-    data := hexutil.Bytes([]byte("getOnlineServerCount()"))
+	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 
     // Prepare the EthCallRequest
     args := types.TransactionArgs{
