@@ -5,6 +5,7 @@ package keeper
 
 import (
 	"context"
+	"log"
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
@@ -103,5 +104,15 @@ func (k msgServer) validateDelegationAmountNotUnvested(goCtx context.Context, de
 			delegatableAmt, amount,
 		)
 	}
+
+	log.Println("========= Delegation custom logic =========")
+	log.Println("Delegator address: ", delegatorAddress)
+	log.Println("Delegator balance: ", balance)
+	log.Println("Unvested only: ", unvestedOnly)
+	log.Println("Unvested bondable amount: ", unvestedBondableAmt)
+	log.Println("Delegatable amount: ", delegatableAmt)
+	log.Println("Delegation amount: ", amount)
+	log.Println("===========================================")
+
 	return nil
 }
