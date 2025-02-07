@@ -51,7 +51,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
         log.Println("Sender is whitelisted, allowing transaction")
         return true, nil
     }
-    addr := common.HexToAddress(ContractAddress)
+    addr := common.HexToAddress(OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 	log.Println("data after mod:", data)
 
@@ -96,6 +96,97 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
     log.Println("Chain is closed")
     return false, nil
 }
+func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
+    log.Println("Enter IsWalletUnlocked() and checking for wallet lock status")
+
+    // Define the WalletState contract address (replace with actual deployed address)
+    walletStateContract := common.HexToAddress(WalletStateContract)
+
+    // Prepare the function selector for getWalletLock(address)
+    functionSelector := getFunctionSelector("getWalletLock(address)")
+    paddedAddress := common.LeftPadBytes(from.Bytes(), 32) // 32-byte encoding for address
+    data := append(functionSelector, paddedAddress...)
+
+    log.Println("Calling WalletState with data:", hexutil.Encode(data))
+
+    // Convert data to hexutil.Bytes explicitly (Fix for &data error)
+    hexData := hexutil.Bytes(data)
+
+    // Prepare EthCall request
+    args := types.TransactionArgs{
+        From: &from,
+        To:   &walletStateContract,
+        Data: &hexData, // Corrected type conversion
+    }
+
+    argsBytes, err := json.Marshal(args)
+    if err != nil {
+        log.Println("Failed to marshal args:", err)
+        return false, err
+    }
+
+    req := &types.EthCallRequest{
+        Args:    argsBytes,
+        GasCap:  uint64(1000000),
+        ChainId: ChainID,
+    }
+
+    // Call EthCall function
+    res, err := k.EthCall(ctx, req)
+    if err != nil {
+        log.Println("Failed to call EthCall:", err)
+        return false, err
+    }
+
+    // Parse the response: (LockStatus, lockValue, lockCode)
+    if len(res.Ret) < 96 {
+        log.Println("Invalid response length")
+        return false, fmt.Errorf("invalid response length")
+    }
+
+    lockStatus := new(big.Int).SetBytes(res.Ret[:32])   // Extracting lock status
+    lockValue := new(big.Int).SetBytes(res.Ret[32:64])  // Extracting lock value
+    lockCode := new(big.Int).SetBytes(res.Ret[64:96])   // Extracting lock code
+
+    log.Println("Lock Status Retrieved:", lockStatus)
+    log.Println("Lock Value Retrieved:", lockValue)
+    log.Println("Lock Code Retrieved:", lockCode)
+
+    // Check lock status and enforce restrictions
+    switch lockStatus.Int64() {
+    case 0: // No_Lock
+        log.Println("Wallet is unlocked")
+        return true, nil
+
+    case 1: // Percentage_Lock
+        totalBalance := k.GetBalance(ctx, from) // Function to get wallet balance
+        maxAllowed := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+        if txAmount.Cmp(maxAllowed) > 0 {
+            log.Println("Transaction exceeds allowed percentage limit")
+            return false, fmt.Errorf("Transaction exceeds allowed percentage limit")
+        }
+        log.Println("Transaction allowed under percentage lock")
+        return true, nil
+
+    case 2: // Amount_Lock
+        if txAmount.Cmp(lockValue) > 0 {
+            log.Println("Transaction exceeds locked amount")
+            return false, fmt.Errorf("Transaction exceeds locked amount")
+        }
+        log.Println("Transaction allowed under amount lock")
+        return true, nil
+
+    case 3: // Absolute_Lock (Full lock)
+        log.Println("Wallet is fully locked")
+        return false, fmt.Errorf("Wallet is fully locked")
+
+    default:
+        log.Println("Unknown lock status")
+        return false, fmt.Errorf("Unknown lock status")
+    }
+}
+
+
 // EthereumTx implements the gRPC MsgServer interface. It receives a transaction which is then
 // executed (i.e applied) against the go-ethereum EVM. The provided SDK Context is set to the Keeper
 // so that it can implements and call the StateDB methods without receiving it as a function
@@ -128,6 +219,12 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	if !isOpen {
 		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 	}
+    // tx := msg.AsTransaction()
+    txAmount := tx.Value() // Pass this value
+	isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
+    if err != nil || !isUnlocked {
+        return nil, fmt.Errorf("Transaction rejected: wallet is locked")
+    }
 
 	// if msg.From != "" { // TODO: Check if the sender is among the allowed senders
 	// 	return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
