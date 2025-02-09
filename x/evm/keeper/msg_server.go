@@ -13,6 +13,7 @@ import (
 
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	"golang.org/x/crypto/sha3"
+
 	// "github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -45,159 +46,160 @@ func getFunctionSelector(signature string) []byte {
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
 }
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
-    log.Println("Enter IsChainOpen() and checking for whitelisted addresses")
+	log.Println("Enter IsChainOpen() and checking for whitelisted addresses")
 
 	if whitelist[from.Hex()] {
-        log.Println("Sender is whitelisted, allowing transaction")
-        return true, nil
-    }
-    addr := common.HexToAddress(OnlineServerCountContract)
+		log.Println("Sender is whitelisted, allowing transaction")
+		return true, nil
+	}
+	addr := common.HexToAddress(OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 	log.Println("data after mod:", data)
 
-    // Prepare the EthCallRequest
-    args := types.TransactionArgs{
-        From:     &from, // Use the dynamic sender address passed from EthereumTx
-        To:       &addr, // Replace with the contract address
-        Data:     &data, // Replace with the actual function call data
-    }
+	// Prepare the EthCallRequest
+	args := types.TransactionArgs{
+		From: &from, // Use the dynamic sender address passed from EthereumTx
+		To:   &addr, // Replace with the contract address
+		Data: &data, // Replace with the actual function call data
+	}
 
-    argsBytes, err := json.Marshal(args)
-    if err != nil {
-        log.Println("Failed to marshal args:", err)
-        return false, err
-    }
+	argsBytes, err := json.Marshal(args)
+	if err != nil {
+		log.Println("Failed to marshal args:", err)
+		return false, err
+	}
 
-    req := &types.EthCallRequest{
-        Args:     argsBytes,
-        GasCap:   uint64(1000000), // Adjust gas cap as needed
-        ChainId:  ChainID,   // Replace with the chain ID
-    }
+	req := &types.EthCallRequest{
+		Args:    argsBytes,
+		GasCap:  uint64(1000000), // Adjust gas cap as needed
+		ChainId: ChainID,         // Replace with the chain ID
+	}
 
-    // Call the EthCall function
-    res, err := k.EthCall(ctx, req)
-    if err != nil {
-        log.Println("Failed to call EthCall:", err)
-        return false, err
-    }
+	// Call the EthCall function
+	res, err := k.EthCall(ctx, req)
+	if err != nil {
+		log.Println("Failed to call EthCall:", err)
+		return false, err
+	}
 
-    // Parse the response to get the online server count
-    count := new(big.Int)
-    count.SetBytes(res.Ret)
+	// Parse the response to get the online server count
+	count := new(big.Int)
+	count.SetBytes(res.Ret)
 
-    log.Println("Current Online Server Count:", count)
+	log.Println("Current Online Server Count:", count)
 
-    // Check if the chain is open based on the count
-    if count.Cmp(big.NewInt(1000)) >= 0 {
-        log.Println("Chain is open")
-        return true, nil
-    }
+	// Check if the chain is open based on the count
+	if count.Cmp(big.NewInt(1000)) >= 0 {
+		log.Println("Chain is open")
+		return true, nil
+	}
 
-    log.Println("Chain is closed")
-    return false, nil
+	log.Println("Chain is closed")
+	return false, nil
 }
 func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
-    log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
+	log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
 
-    // Define the WalletState contract address (replace with actual deployed address)
-    walletStateContract := common.HexToAddress(WalletStateContract)
+	// Define the WalletState contract address (replace with actual deployed address)
+	walletStateContract := common.HexToAddress(WalletStateContract)
 
-    // Prepare the function selector for getWalletLock(address)
-    functionSelector := getFunctionSelector("getWalletLock(address)")
-    paddedAddress := common.LeftPadBytes(from.Bytes(), 32) // 32-byte encoding for address
-    data := append(functionSelector, paddedAddress...)
+	// Prepare the function selector for getWalletLock(address)
+	functionSelector := getFunctionSelector("getWalletLock(address)")
+	paddedAddress := common.LeftPadBytes(from.Bytes(), 32) // 32-byte encoding for address
+	data := append(functionSelector, paddedAddress...)
 
-    log.Println("Calling WalletState with data:", hexutil.Encode(data))
+	log.Println("Calling WalletState with data:", hexutil.Encode(data))
 
-    // Convert data to hexutil.Bytes explicitly (Fix for &data error)
-    hexData := hexutil.Bytes(data)
+	// Convert data to hexutil.Bytes explicitly (Fix for &data error)
+	hexData := hexutil.Bytes(data)
 
-    // Prepare EthCall request
-    args := types.TransactionArgs{
-        From: &from,
-        To:   &walletStateContract,
-        Data: &hexData, // Corrected type conversion
-    }
+	// Prepare EthCall request
+	args := types.TransactionArgs{
+		From: &from,
+		To:   &walletStateContract,
+		Data: &hexData, // Corrected type conversion
+	}
 
-    argsBytes, err := json.Marshal(args)
-    if err != nil {
-        log.Println("Failed to marshal args:", err)
-        return false, err
-    }
+	argsBytes, err := json.Marshal(args)
+	if err != nil {
+		log.Println("Failed to marshal args:", err)
+		return false, err
+	}
 
-    req := &types.EthCallRequest{
-        Args:    argsBytes,
-        GasCap:  uint64(1000000),
-        ChainId: ChainID,
-    }
+	req := &types.EthCallRequest{
+		Args:    argsBytes,
+		GasCap:  uint64(1000000),
+		ChainId: ChainID,
+	}
 
-    // Call EthCall function
-    res, err := k.EthCall(ctx, req)
-    if err != nil {
-        log.Println("Failed to call EthCall:", err)
-        return false, err
-    }
+	// Call EthCall function
+	res, err := k.EthCall(ctx, req)
+	if err != nil {
+		log.Println("Failed to call EthCall:", err)
+		return false, err
+	}
 
-    // Parse the response: (LockStatus, lockValue, lockCode)
-    if len(res.Ret) < 96 {
-        log.Println("Invalid response length")
-        return false, fmt.Errorf("Invalid response length")
-    }
+	// Parse the response: (LockStatus, lockValue, lockCode)
+	if len(res.Ret) < 96 {
+		log.Println("Invalid response length")
+		return false, fmt.Errorf("Invalid response length")
+	}
 	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
 
-    // lockStatus := new(big.Int).SetBytes(res.Ret[:32])   // Extracting lock status
+	// lockStatus := new(big.Int).SetBytes(res.Ret[:32])   // Extracting lock status
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
-    lockValue := new(big.Int).SetBytes(res.Ret[32:64])  // Extracting lock value
-    lockCode := new(big.Int).SetBytes(res.Ret[64:96])   // Extracting lock code
+	lockValue := new(big.Int).SetBytes(res.Ret[32:64])               // Extracting lock value
+	lockCode := new(big.Int).SetBytes(res.Ret[64:96])                // Extracting lock code
 
-    log.Println("Lock Status Retrieved:", lockStatus)
-    log.Println("Lock Value Retrieved:", lockValue.Int64())
-    log.Println("Lock Code Retrieved:", lockCode.Int64())
+	log.Println("Lock Status Retrieved:", lockStatus)
+	log.Println("Lock Value Retrieved:", lockValue.Int64())
+	log.Println("Lock Code Retrieved:", lockCode.Int64())
 
-    // Check lock status and enforce restrictions
-    switch lockStatus {
-    case 0: // No_Lock
-        log.Println("✅ Wallet is unlocked")
-        return true, nil
+	// Check lock status and enforce restrictions
+	switch lockStatus {
+	case 0: // No_Lock
+		log.Println("✅ Wallet is unlocked")
+		return true, nil
 
-    case 1: // Percentage_Lock
-        totalBalance := k.GetBalance(ctx, from) // Get wallet balance
-        if totalBalance.Sign() == 0 {
-            log.Println("❌ Wallet balance is zero, cannot process percentage lock")
-            return false, fmt.Errorf("Wallet balance is zero")
-        }
+	case 1: // Percentage_Lock
+		totalBalance := k.GetBalance(ctx, from) // Get wallet balance
+		log.Printf("💰 Total Balance: %s", totalBalance.String())
+		if totalBalance.Sign() == 0 {
+			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
+			return false, fmt.Errorf("Wallet balance is zero")
+		}
 
-        // Calculate max spendable amount based on percentage
-        maxAllowed := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+		// Calculate max spendable amount based on percentage
+		// maxAllowed := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+		maxAllowed := new(big.Int).Mul(totalBalance, lockValue) // Multiply first
+		maxAllowed = new(big.Int).Div(maxAllowed, big.NewInt(100)) // Divide later
 
-        // Check if the transaction amount exceeds the allowed limit
-        if txAmount.Cmp(maxAllowed) > 0 {
-            log.Println("❌ Transaction exceeds allowed percentage limit")
-            return false, fmt.Errorf("Transaction exceeds allowed percentage limit")
-        }
+		// Check if the transaction amount exceeds the allowed limit
+		if txAmount.Cmp(maxAllowed) > 0 {
+			log.Println("❌ Transaction exceeds allowed percentage limit")
+			return false, fmt.Errorf("Transaction exceeds allowed percentage limit")
+		}
 
-        log.Println("✅ Transaction allowed under percentage lock")
-        return true, nil
+		log.Println("✅ Transaction allowed under percentage lock")
+		return true, nil
 
-    case 2: // Amount_Lock
-        if txAmount.Cmp(lockValue) > 0 {
-            log.Println("❌ Transaction exceeds locked amount")
-            return false, fmt.Errorf("Transaction exceeds locked amount")
-        }
-        log.Println("✅ Transaction allowed under amount lock")
-        return true, nil
+	case 2: // Amount_Lock
+		if txAmount.Cmp(lockValue) > 0 {
+			log.Println("❌ Transaction exceeds locked amount")
+			return false, fmt.Errorf("Transaction exceeds locked amount")
+		}
+		log.Println("✅ Transaction allowed under amount lock")
+		return true, nil
 
-    case 3: // Absolute_Lock (Full lock)
-        log.Println("❌ Wallet is fully locked")
-        return false, fmt.Errorf("Wallet is fully locked")
+	case 3: // Absolute_Lock (Full lock)
+		log.Println("❌ Wallet is fully locked")
+		return false, fmt.Errorf("Wallet is fully locked")
 
-    default:
-        log.Println("❌ Unknown lock status")
-        return false, fmt.Errorf("Unknown lock status")
-    }
+	default:
+		log.Println("❌ Unknown lock status")
+		return false, fmt.Errorf("Unknown lock status")
+	}
 }
-
-
 
 // EthereumTx implements the gRPC MsgServer interface. It receives a transaction which is then
 // executed (i.e applied) against the go-ethereum EVM. The provided SDK Context is set to the Keeper
@@ -225,18 +227,18 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	log.Println("From:", from)
 	log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
 	isOpen, err := k.IsChainOpen(ctx, from)
-    if err != nil {
-        return nil, errorsmod.Wrap(err, "failed to check if chain is open")
+	if err != nil {
+		return nil, errorsmod.Wrap(err, "failed to check if chain is open")
 	}
 	if !isOpen {
 		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 	}
-    // tx := msg.AsTransaction()
-    txAmount := tx.Value() // Pass this value
+	// tx := msg.AsTransaction()
+	txAmount := tx.Value() // Pass this value
 	isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
-    if err != nil || !isUnlocked {
-        return nil, fmt.Errorf("Transaction rejected: wallet is locked")
-    }
+	if err != nil || !isUnlocked {
+		return nil, fmt.Errorf("Transaction rejected: wallet is locked")
+	}
 
 	// if msg.From != "" { // TODO: Check if the sender is among the allowed senders
 	// 	return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
