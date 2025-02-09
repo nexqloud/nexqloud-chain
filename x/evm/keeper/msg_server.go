@@ -171,8 +171,9 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 		// Calculate max spendable amount based on percentage
 		// maxAllowed := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
-		maxAllowed := new(big.Int).Mul(totalBalance, lockValue) // Multiply first
-		maxAllowed = new(big.Int).Div(maxAllowed, big.NewInt(100)) // Divide later
+		lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
+		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
 		// Check if the transaction amount exceeds the allowed limit
 		if txAmount.Cmp(maxAllowed) > 0 {
