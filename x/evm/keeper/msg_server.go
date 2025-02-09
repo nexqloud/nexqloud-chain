@@ -143,17 +143,19 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
         log.Println("Invalid response length")
         return false, fmt.Errorf("Invalid response length")
     }
+	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
 
-    lockStatus := new(big.Int).SetBytes(res.Ret[:32])   // Extracting lock status
+    // lockStatus := new(big.Int).SetBytes(res.Ret[:32])   // Extracting lock status
+	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
     lockValue := new(big.Int).SetBytes(res.Ret[32:64])  // Extracting lock value
     lockCode := new(big.Int).SetBytes(res.Ret[64:96])   // Extracting lock code
 
     log.Println("Lock Status Retrieved:", lockStatus)
-    log.Println("Lock Value Retrieved:", lockValue)
-    log.Println("Lock Code Retrieved:", lockCode)
+    log.Println("Lock Value Retrieved:", lockValue.Int64())
+    log.Println("Lock Code Retrieved:", lockCode.Int64())
 
     // Check lock status and enforce restrictions
-    switch lockStatus.Int64() {
+    switch lockStatus {
     case 0: // No_Lock
         log.Println("✅ Wallet is unlocked")
         return true, nil
