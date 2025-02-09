@@ -97,7 +97,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
     return false, nil
 }
 func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
-    log.Println("Enter IsWalletUnlocked() and checking for wallet lock status")
+    log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
 
     // Define the WalletState contract address (replace with actual deployed address)
     walletStateContract := common.HexToAddress(WalletStateContract)
@@ -141,7 +141,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
     // Parse the response: (LockStatus, lockValue, lockCode)
     if len(res.Ret) < 96 {
         log.Println("Invalid response length")
-        return false, fmt.Errorf("invalid response length")
+        return false, fmt.Errorf("Invalid response length")
     }
 
     lockStatus := new(big.Int).SetBytes(res.Ret[:32])   // Extracting lock status
@@ -155,36 +155,46 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
     // Check lock status and enforce restrictions
     switch lockStatus.Int64() {
     case 0: // No_Lock
-        log.Println("Wallet is unlocked")
+        log.Println("✅ Wallet is unlocked")
         return true, nil
 
     case 1: // Percentage_Lock
-        totalBalance := k.GetBalance(ctx, from) // Function to get wallet balance
+        totalBalance := k.GetBalance(ctx, from) // Get wallet balance
+        if totalBalance.Sign() == 0 {
+            log.Println("❌ Wallet balance is zero, cannot process percentage lock")
+            return false, fmt.Errorf("Wallet balance is zero")
+        }
+
+        // Calculate max spendable amount based on percentage
         maxAllowed := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+
+        // Check if the transaction amount exceeds the allowed limit
         if txAmount.Cmp(maxAllowed) > 0 {
-            log.Println("Transaction exceeds allowed percentage limit")
+            log.Println("❌ Transaction exceeds allowed percentage limit")
             return false, fmt.Errorf("Transaction exceeds allowed percentage limit")
         }
-        log.Println("Transaction allowed under percentage lock")
+
+        log.Println("✅ Transaction allowed under percentage lock")
         return true, nil
 
     case 2: // Amount_Lock
         if txAmount.Cmp(lockValue) > 0 {
-            log.Println("Transaction exceeds locked amount")
+            log.Println("❌ Transaction exceeds locked amount")
             return false, fmt.Errorf("Transaction exceeds locked amount")
         }
-        log.Println("Transaction allowed under amount lock")
+        log.Println("✅ Transaction allowed under amount lock")
         return true, nil
 
     case 3: // Absolute_Lock (Full lock)
-        log.Println("Wallet is fully locked")
+        log.Println("❌ Wallet is fully locked")
         return false, fmt.Errorf("Wallet is fully locked")
 
     default:
-        log.Println("Unknown lock status")
+        log.Println("❌ Unknown lock status")
         return false, fmt.Errorf("Unknown lock status")
     }
 }
+
 
 
 // EthereumTx implements the gRPC MsgServer interface. It receives a transaction which is then
