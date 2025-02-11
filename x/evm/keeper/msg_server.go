@@ -155,6 +155,16 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	log.Println("Lock Value Retrieved:", lockValue.Int64())
 	log.Println("Lock Code Retrieved:", lockCode.Int64())
 
+	// Fetch the balance of the wallet
+	balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
+		Address: from.Hex(),
+	})
+	if err != nil {
+		log.Println("Failed to fetch wallet balance:", err)
+		return false, err
+	}
+	log.Println("=============== Wallet Balance:", balanceRes.Balance)
+
 	// Check lock status and enforce restrictions
 	switch lockStatus {
 	case 0: // No_Lock
