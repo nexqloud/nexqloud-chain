@@ -204,7 +204,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		}
 
 		// Convert lockValue to wei (multiply by 10^18)
-		lockedAmount = new(big.Int).Mul(lockValue, big.NewInt(1e18))
+		lockedAmount = new(big.Int).Mul(lockedAmount, big.NewInt(1e18))
 		log.Printf("🔒 Locked Amount (Fixed, in wei): %s", lockedAmount.String())
 
 		// Ensure locked amount is not greater than total balance
