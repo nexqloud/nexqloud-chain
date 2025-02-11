@@ -150,11 +150,11 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// Extract lock status, lock value, and lock code
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
 	lockValue := new(big.Int).SetBytes(res.Ret[32:64])               // Extracting lock value
-	lockCode := new(big.Int).SetBytes(res.Ret[64:96])                // Extracting lock code
+	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])                // Extracting lock code
 
 	log.Println("Lock Status Retrieved:", lockStatus)
 	log.Println("Lock Value Retrieved:", lockValue.Int64())
-	log.Println("Lock Code Retrieved:", lockCode.Int64())
+	log.Println("Lock Code Retrieved:", lockedAmount.Int64())
 
 	// Fetch the balance using Keeper
 	balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
@@ -183,7 +183,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
 			return false, fmt.Errorf("wallet balance is zero")
 		}
-		lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+		// lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
 		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
@@ -204,7 +204,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		}
 
 		// Convert lockValue to wei (multiply by 10^18)
-		lockedAmount := new(big.Int).Mul(lockValue, big.NewInt(1e18))
+		lockedAmount = new(big.Int).Mul(lockValue, big.NewInt(1e18))
 		log.Printf("🔒 Locked Amount (Fixed, in wei): %s", lockedAmount.String())
 
 		// Ensure locked amount is not greater than total balance
