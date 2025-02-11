@@ -1,5 +1,13 @@
 # Nexqloud Chain
 
+## Seed Nodes
+
+This dns mapping can be used to replace with the actual IP address of the seed node. The seed node is used to bootstrap the network and is used by the new nodes to connect to the network.
+You can set this values in the environment variables while deploying the node.
+
+- Testing Seed Node - `dev-node.nexqloud.net`
+- Staging Seed Node - `stage-node.nexqloud.net`
+
 ## Deployment
 
 - Clone the repository and switch to the upgrade branch
