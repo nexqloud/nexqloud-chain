@@ -283,7 +283,10 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		log.Println("Failed to convert balance to *big.Int")
 		return false, fmt.Errorf("failed to convert balance to *big.Int")
 	}
-
+		// Calculate locked amount and allowed amount
+	lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+	maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
+	log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 	// Check lock status and enforce restrictions
 	switch lockStatus {
 	case 0: // No_Lock
@@ -296,9 +299,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			return false, fmt.Errorf("wallet balance is zero")
 		}
 
-		// Calculate locked amount and allowed amount
-		lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
-		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
+	
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
 		// Check if the transaction amount exceeds the allowed limit
@@ -311,7 +312,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		return true, nil
 
 	case 2: // Amount_Lock
-		if txAmount.Cmp(lockValue) > 0 {
+		if txAmount.Cmp(maxAllowed) > 0 {
 			log.Println("❌ Transaction exceeds locked amount")
 			return false, fmt.Errorf("transaction exceeds locked amount")
 		}
