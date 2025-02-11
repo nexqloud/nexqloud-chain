@@ -326,11 +326,11 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			log.Println("❌ Locked amount exceeds wallet balance, blocking transaction")
 			return false, fmt.Errorf("locked amount exceeds wallet balance")
 		}
-	
+
 		// Correctly subtract locked amount
 		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
-	
+
 		// Ensure transaction amount does not exceed max allowed transfer
 		if txAmount.Cmp(maxAllowed) > 0 {
 			log.Println("❌ Transaction exceeds allowed fixed amount limit")
