@@ -97,6 +97,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	log.Println("Chain is closed")
 	return false, nil
 }
+
 // func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
 // 	log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
 
@@ -206,11 +207,11 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 // 		log.Println("❌ Wallet is fully locked")
 // 		return false, fmt.Errorf("Wallet is fully locked")
 
-// 	default:
-// 		log.Println("❌ Unknown lock status")
-// 		return false, fmt.Errorf("Unknown lock status")
-// 	}
-// }
+//		default:
+//			log.Println("❌ Unknown lock status")
+//			return false, fmt.Errorf("Unknown lock status")
+//		}
+//	}
 func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
 	log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
 
@@ -283,10 +284,8 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		log.Println("Failed to convert balance to *big.Int")
 		return false, fmt.Errorf("failed to convert balance to *big.Int")
 	}
-		// Calculate locked amount and allowed amount
-	lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
-	maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
-	log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
+	// Calculate locked amount and allowed amount
+
 	// Check lock status and enforce restrictions
 	switch lockStatus {
 	case 0: // No_Lock
@@ -298,8 +297,8 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
 			return false, fmt.Errorf("wallet balance is zero")
 		}
-
-	
+		lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
 		// Check if the transaction amount exceeds the allowed limit
@@ -312,10 +311,20 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		return true, nil
 
 	case 2: // Amount_Lock
-		if txAmount.Cmp(maxAllowed) > 0 {
-			log.Println("❌ Transaction exceeds locked amount")
-			return false, fmt.Errorf("transaction exceeds locked amount")
+		// Ensure locked amount is not greater than total balance
+		if totalBalance.Cmp(lockValue) < 0 {
+			log.Println("❌ Locked amount exceeds wallet balance, blocking transaction")
+			return false, fmt.Errorf("locked amount exceeds wallet balance")
 		}
+
+		maxAllowed := new(big.Int).Sub(totalBalance, lockValue) // Amount user can transfer
+		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
+
+		if txAmount.Cmp(maxAllowed) > 0 {
+			log.Println("❌ Transaction exceeds allowed fixed amount limit")
+			return false, fmt.Errorf("transaction exceeds allowed fixed amount limit")
+		}
+
 		log.Println("✅ Transaction allowed under amount lock")
 		return true, nil
 
@@ -328,7 +337,6 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		return false, fmt.Errorf("unknown lock status")
 	}
 }
-
 
 // EthereumTx implements the gRPC MsgServer interface. It receives a transaction which is then
 // executed (i.e applied) against the go-ethereum EVM. The provided SDK Context is set to the Keeper
