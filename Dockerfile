@@ -31,9 +31,6 @@ RUN apk add --no-cache jq curl bash vim lz4 rclone
 EXPOSE 26656 26657 1317 9090 8545 8546
 HEALTHCHECK CMD curl --fail http://localhost:26657 || exit 1
 
-ENV SEED_NODE_IP
-ENV MONIKER
-
 COPY peer_node.sh .
 
 RUN sh peer_node.sh init
