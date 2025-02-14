@@ -1,0 +1,10 @@
+version: 0.2
+phases:
+  build: # Build Docker image and tag it with the commit sha
+    commands:
+      - echo ${BRANCH}
+      - docker build -t 815483408161.dkr.ecr.us-east-1.amazonaws.com/${REPO_NAME}:${BRANCH}.${CODEBUILD_BUILD_NUMBER} --no-cache --pull .
+  post_build: # Push the Docker image to the ECR
+    commands:
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 815483408161.dkr.ecr.us-east-1.amazonaws.com
+      - docker push 815483408161.dkr.ecr.us-east-1.amazonaws.com/${REPO_NAME}:${BRANCH}.${CODEBUILD_BUILD_NUMBER}

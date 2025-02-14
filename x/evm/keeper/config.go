@@ -19,7 +19,7 @@ const (
 	PrivateKeyHex   = "E9B1D63E8ACD7FE676ACB43AFB390D4B0202DAB61ABEC9CF2A561E4BECB147DE"
 	ChainID         = 6000                                         
 	OnlineServerCountContract = "0xF8c4AbD2d2573eBDA51cc886A9b6882E435C80A2" 
-	WalletStateContract = "0x8fDd518356e570D72f426Bc4d1485d46c60b74Cd"
+	WalletStateContract = "0xDe787eEe6b9608aB3d01145519884c99250c99C8"
 )
 
 // EVMConfig creates the EVMConfig based on current state
