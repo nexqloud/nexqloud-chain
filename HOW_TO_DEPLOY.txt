@@ -1,0 +1,1 @@
+helm upgrade --install -n stage-validator validator  oci://815483408161.dkr.ecr.us-east-1.amazonaws.com/nexqloud -f values.yaml -f stage.yaml --set-literal image.tag=<<TAG>>
