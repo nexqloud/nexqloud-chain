@@ -7,7 +7,7 @@ WORKDIR /go/src/github.com/evmos/evmos
 
 COPY go.mod go.sum ./
 
-RUN set -eux; apk add --no-cache ca-certificates=20240705-r0 build-base=0.5-r3 git=2.45.2-r0 linux-headers=6.6-r0 bash=5.2.26-r0
+RUN set -eux; apk add --no-cache ca-certificates=20240705-r0 build-base=0.5-r3 git linux-headers=6.6-r0 bash=5.2.26-r0
 
 RUN go mod download
 
@@ -30,9 +30,6 @@ RUN apk add --no-cache jq curl bash vim lz4 rclone
 
 EXPOSE 26656 26657 1317 9090 8545 8546
 HEALTHCHECK CMD curl --fail http://localhost:26657 || exit 1
-
-ENV SEED_NODE_IP="seed-node.quantumbees.in"
-ENV MONIKER="peer-node-docker"
 
 COPY peer_node.sh .
 

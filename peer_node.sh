@@ -7,6 +7,10 @@ if [ -z "$MONIKER" ]; then
 	MONIKER="NexQloudPeer"
 fi
 
+if [ -z "$SEED_NODE_IP" ]; then
+    SEED_NODE_IP="stage-node.nexqloud.net"
+fi
+
 KEYRING="test"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
