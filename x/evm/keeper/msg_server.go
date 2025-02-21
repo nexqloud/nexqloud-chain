@@ -286,7 +286,7 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	if !isOpen {
 		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 	}
-	tx = msg.AsTransaction()
+	// tx = msg.AsTransaction()
 	txAmount := tx.Value() // Pass this value
 	isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
 	if err != nil || !isUnlocked {
