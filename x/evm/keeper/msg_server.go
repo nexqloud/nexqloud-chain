@@ -47,7 +47,7 @@ func getFunctionSelector(signature string) []byte {
 }
 
 // Helper function to make EthCall
-func (k *Keeper) makeEthCall(ctx sdk.Context, from common.Address, to common.Address, data hexutil.Bytes) (*types.EthCallResponse, error) {
+func (k *Keeper) makeEthCall(ctx sdk.Context, from common.Address, to common.Address, data hexutil.Bytes) (*types.MsgEthereumTxResponse, error) {
 	args := types.TransactionArgs{
 		From: &from,
 		To:   &to,
