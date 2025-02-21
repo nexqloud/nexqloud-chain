@@ -85,7 +85,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 func (k *Keeper) checkOnlineServerCount(ctx sdk.Context, from common.Address) (bool, error) {
 	contractAddr := common.HexToAddress(OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
-	
+
 	res, err := k.makeEthCall(ctx, from, contractAddr, data)
 	if err != nil {
 		log.Println("Failed to call EthCall:", err)
@@ -97,7 +97,11 @@ func (k *Keeper) checkOnlineServerCount(ctx sdk.Context, from common.Address) (b
 	log.Println("Current Online Server Count:", count)
 
 	isOpen := count.Cmp(big.NewInt(1000)) >= 0
-	log.Println(isOpen ? "Chain is open" : "Chain is closed")
+	if isOpen {
+		log.Println("Chain is open")
+	} else {
+		log.Println("Chain is closed")
+	}
 	return isOpen, nil
 }
 
@@ -124,7 +128,7 @@ func (k *Keeper) getWalletLockInfo(ctx sdk.Context, from common.Address) (uint64
 	functionSelector := getFunctionSelector("getWalletLock(address)")
 	paddedAddress := common.LeftPadBytes(from.Bytes(), 32)
 	data := append(functionSelector, paddedAddress...)
-	
+
 	res, err := k.makeEthCall(ctx, from, walletStateContract, hexutil.Bytes(data))
 	if err != nil {
 		return 0, nil, nil, err
