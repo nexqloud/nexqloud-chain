@@ -37,7 +37,6 @@ import (
 var _ types.MsgServer = &Keeper{}
 var whitelist = map[string]bool{
 	"0x7cB61D4117AE31a12E393a1Cfa3BaC666481D02E": true,
-	"0x963EBDf2e1f8DB8707D05FC75bfeFFBa1B5BaC17": true,
 }
 
 func getFunctionSelector(signature string) []byte {
