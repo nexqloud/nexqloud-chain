@@ -207,16 +207,18 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		lockedAmount := new(big.Int)
 		maxAllowed := new(big.Int)
 
-		// Calculate locked amount: (totalBalance * lockValue) / 100
-		lockedAmount.Mul(totalBalance, lockValue)
-		lockedAmount.Div(lockedAmount, big.NewInt(100))
+		// Convert total balance to NXQ (divide by 10^18)
+		nxqBalance := new(big.Int).Div(totalBalance, big.NewInt(1e18))
 
-		// Add a small buffer for rounding (0.0001 NXQ in wei)
-		buffer := new(big.Int).SetString("100000000000000", 10) // 0.0001 NXQ in wei
+		// Calculate locked amount in NXQ: (nxqBalance * lockValue) / 100
+		lockedNXQ := new(big.Int).Mul(nxqBalance, lockValue)
+		lockedNXQ = new(big.Int).Div(lockedNXQ, big.NewInt(100))
 
-		// Calculate max allowed: totalBalance - lockedAmount + buffer
+		// Convert locked amount back to wei
+		lockedAmount = new(big.Int).Mul(lockedNXQ, big.NewInt(1e18))
+
+		// Calculate max allowed: totalBalance - lockedAmount
 		maxAllowed.Sub(totalBalance, lockedAmount)
-		maxAllowed.Add(maxAllowed, buffer)
 
 		log.Printf("🔒 Locked Amount (Percentage): %s", lockedAmount.String())
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
