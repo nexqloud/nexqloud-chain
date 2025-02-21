@@ -204,17 +204,21 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		}
 
 		// Calculate locked amount based on percentage
-		// Create new big.Int instances to avoid modifying the original values
 		lockedAmount := new(big.Int)
 		maxAllowed := new(big.Int)
 
 		// Calculate locked amount: (totalBalance * lockValue) / 100
 		lockedAmount.Mul(totalBalance, lockValue)
 		lockedAmount.Div(lockedAmount, big.NewInt(100))
-		log.Printf("🔒 Locked Amount (Percentage): %s", lockedAmount.String())
 
-		// Calculate max allowed: totalBalance - lockedAmount
+		// Add a small buffer for rounding (0.0001 NXQ in wei)
+		buffer := new(big.Int).SetString("100000000000000", 10) // 0.0001 NXQ in wei
+
+		// Calculate max allowed: totalBalance - lockedAmount + buffer
 		maxAllowed.Sub(totalBalance, lockedAmount)
+		maxAllowed.Add(maxAllowed, buffer)
+
+		log.Printf("🔒 Locked Amount (Percentage): %s", lockedAmount.String())
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 		log.Printf("🔄 Attempted Transfer Amount: %s", txAmount.String())
 
@@ -223,6 +227,11 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			log.Printf("❌ Transaction exceeds allowed percentage limit (Trying to send: %s, Max allowed: %s)",
 				txAmount.String(), maxAllowed.String())
 			return false, fmt.Errorf("transaction exceeds allowed percentage limit")
+		}
+
+		// Additional check to ensure we don't exceed total balance
+		if txAmount.Cmp(totalBalance) > 0 {
+			return false, fmt.Errorf("transaction amount exceeds total balance")
 		}
 
 		log.Println("✅ Transaction allowed under percentage lock")
