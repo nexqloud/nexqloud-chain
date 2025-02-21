@@ -204,16 +204,24 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		}
 
 		// Calculate locked amount based on percentage
-		lockedAmount = new(big.Int).Mul(totalBalance, lockValue)
-		lockedAmount = new(big.Int).Div(lockedAmount, big.NewInt(100))
+		// Create new big.Int instances to avoid modifying the original values
+		lockedAmount := new(big.Int)
+		maxAllowed := new(big.Int)
+
+		// Calculate locked amount: (totalBalance * lockValue) / 100
+		lockedAmount.Mul(totalBalance, lockValue)
+		lockedAmount.Div(lockedAmount, big.NewInt(100))
 		log.Printf("🔒 Locked Amount (Percentage): %s", lockedAmount.String())
 
-		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount)
+		// Calculate max allowed: totalBalance - lockedAmount
+		maxAllowed.Sub(totalBalance, lockedAmount)
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
+		log.Printf("🔄 Attempted Transfer Amount: %s", txAmount.String())
 
 		// Check if the transaction amount exceeds the allowed limit
 		if txAmount.Cmp(maxAllowed) > 0 {
-			log.Println("❌ Transaction exceeds allowed percentage limit")
+			log.Printf("❌ Transaction exceeds allowed percentage limit (Trying to send: %s, Max allowed: %s)",
+				txAmount.String(), maxAllowed.String())
 			return false, fmt.Errorf("transaction exceeds allowed percentage limit")
 		}
 
