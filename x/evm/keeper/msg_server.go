@@ -37,6 +37,7 @@ import (
 var _ types.MsgServer = &Keeper{}
 var whitelist = map[string]bool{
 	"0x7cB61D4117AE31a12E393a1Cfa3BaC666481D02E": true,
+	"0x963EBDf2e1f8DB8707D05FC75bfeFFBa1B5BaC17": true,
 }
 
 func getFunctionSelector(signature string) []byte {
@@ -45,6 +46,7 @@ func getFunctionSelector(signature string) []byte {
 	hash.Write([]byte(signature))
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
 }
+
 // IsChainOpen checks if the chain is open for new transactions based on the
 // online server count from the contract. If the count is greater than or equal
 // to 1000, the chain is considered open. Otherwise, it is closed.
@@ -168,7 +170,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// Extract lock status, lock value, and lock code
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
 	lockValue := new(big.Int).SetBytes(res.Ret[32:64])               // Extracting lock value
-	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])                // Extracting lock code
+	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])            // Extracting lock code
 
 	log.Println("Lock Status Retrieved:", lockStatus)
 	log.Println("Lock Value Retrieved:", lockValue.Int64())
