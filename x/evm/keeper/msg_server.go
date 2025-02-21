@@ -45,7 +45,6 @@ func getFunctionSelector(signature string) []byte {
 	hash.Write([]byte(signature))
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
 }
-
 // IsChainOpen checks if the chain is open for new transactions based on the
 // online server count from the contract. If the count is greater than or equal
 // to 1000, the chain is considered open. Otherwise, it is closed.
@@ -169,7 +168,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// Extract lock status, lock value, and lock code
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
 	lockValue := new(big.Int).SetBytes(res.Ret[32:64])               // Extracting lock value
-	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])            // Extracting lock code
+	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])                // Extracting lock code
 
 	log.Println("Lock Status Retrieved:", lockStatus)
 	log.Println("Lock Value Retrieved:", lockValue.Int64())
@@ -202,38 +201,14 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
 			return false, fmt.Errorf("wallet balance is zero")
 		}
-
-		// Calculate locked amount based on percentage
-		lockedAmount := new(big.Int)
-		maxAllowed := new(big.Int)
-
-		// Convert total balance to NXQ (divide by 10^18)
-		nxqBalance := new(big.Int).Div(totalBalance, big.NewInt(1e18))
-
-		// Calculate locked amount in NXQ: (nxqBalance * lockValue) / 100
-		lockedNXQ := new(big.Int).Mul(nxqBalance, lockValue)
-		lockedNXQ = new(big.Int).Div(lockedNXQ, big.NewInt(100))
-
-		// Convert locked amount back to wei
-		lockedAmount = new(big.Int).Mul(lockedNXQ, big.NewInt(1e18))
-
-		// Calculate max allowed: totalBalance - lockedAmount
-		maxAllowed.Sub(totalBalance, lockedAmount)
-
-		log.Printf("🔒 Locked Amount (Percentage): %s", lockedAmount.String())
+		// lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
-		log.Printf("🔄 Attempted Transfer Amount: %s", txAmount.String())
 
 		// Check if the transaction amount exceeds the allowed limit
 		if txAmount.Cmp(maxAllowed) > 0 {
-			log.Printf("❌ Transaction exceeds allowed percentage limit (Trying to send: %s, Max allowed: %s)",
-				txAmount.String(), maxAllowed.String())
+			log.Println("❌ Transaction exceeds allowed percentage limit")
 			return false, fmt.Errorf("transaction exceeds allowed percentage limit")
-		}
-
-		// Additional check to ensure we don't exceed total balance
-		if txAmount.Cmp(totalBalance) > 0 {
-			return false, fmt.Errorf("transaction amount exceeds total balance")
 		}
 
 		log.Println("✅ Transaction allowed under percentage lock")
