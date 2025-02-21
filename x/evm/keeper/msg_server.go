@@ -287,16 +287,16 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	if !isOpen {
 		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 	}
-	// tx := msg.AsTransaction()
-	// txAmount := tx.Value() // Pass this value
-	// isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
-	// if err != nil || !isUnlocked {
-	// 	return nil, fmt.Errorf("transaction rejected: wallet is locked")
-	// }
+	tx = msg.AsTransaction()
+	txAmount := tx.Value() // Pass this value
+	isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
+	if err != nil || !isUnlocked {
+		return nil, fmt.Errorf("transaction rejected: wallet is locked")
+	}
 
-	// if msg.From != "" { // TODO: Check if the sender is among the allowed senders
-	// 	return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-	// }
+	if msg.From != "" { // TODO: Check if the sender is among the allowed senders
+		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
+	}
 
 	labels := []metrics.Label{
 		telemetry.NewLabel("tx_type", fmt.Sprintf("%d", tx.Type())),
