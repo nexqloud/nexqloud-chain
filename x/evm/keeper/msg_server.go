@@ -45,6 +45,7 @@ func getFunctionSelector(signature string) []byte {
 	hash.Write([]byte(signature))
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
 }
+
 // IsChainOpen checks if the chain is open for new transactions based on the
 // online server count from the contract. If the count is greater than or equal
 // to 1000, the chain is considered open. Otherwise, it is closed.
@@ -168,7 +169,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// Extract lock status, lock value, and lock code
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
 	lockValue := new(big.Int).SetBytes(res.Ret[32:64])               // Extracting lock value
-	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])                // Extracting lock code
+	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])            // Extracting lock code
 
 	log.Println("Lock Status Retrieved:", lockStatus)
 	log.Println("Lock Value Retrieved:", lockValue.Int64())
@@ -201,8 +202,17 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
 			return false, fmt.Errorf("wallet balance is zero")
 		}
-		// lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+
 		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
+
+		// Ceil maxAllowed to nearest NXQ (1e18 wei)
+		oneNXQ := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+		remainder := new(big.Int).Mod(maxAllowed, oneNXQ)
+		if remainder.Cmp(big.NewInt(0)) > 0 {
+			maxAllowed.Sub(maxAllowed, remainder)
+			maxAllowed.Add(maxAllowed, oneNXQ)
+		}
+
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
 		// Check if the transaction amount exceeds the allowed limit
