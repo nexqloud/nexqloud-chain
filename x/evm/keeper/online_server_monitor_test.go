@@ -16,7 +16,7 @@ func TestGetOnlineServerCount(t *testing.T) {
 		log.Fatal("Failed to connect to Ethereum node:", err)
 	}
 
-	contract, err := NewOnlineServerMonitor(common.HexToAddress(ContractAddress), client)
+	contract, err := NewOnlineServerMonitor(common.HexToAddress(OnlineServerCountContract), client)
 	if err != nil {
 		log.Fatal("Failed to load contract:", err)
 	}

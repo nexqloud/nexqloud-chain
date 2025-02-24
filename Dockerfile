@@ -33,6 +33,4 @@ HEALTHCHECK CMD curl --fail http://localhost:26657 || exit 1
 
 COPY peer_node.sh .
 
-RUN sh peer_node.sh init
-
-CMD ["sh", "peer_node.sh"]
+CMD ["bash", "-c", "./peer_node.sh init && ./peer_node.sh"]
