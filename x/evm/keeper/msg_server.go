@@ -5,7 +5,7 @@ package keeper
 import (
 	"context"
 	"encoding/json"
-	// "errors"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -287,26 +287,26 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	log.Println("From:", from)
 
 	// Check if address is whitelisted first
-	// if whitelist[from.Hex()] {
-	// 	log.Println("✅ Address is whitelisted - bypassing chain open and wallet lock checks")
-	// } else {
-	// 	// Only perform checks for non-whitelisted addresses
-	// 	log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
-	// 	isOpen, err := k.IsChainOpen(ctx, from)
-	// 	if err != nil {
-	// 		return nil, errorsmod.Wrap(err, "failed to check if chain is open")
-	// 	}
-	// 	if !isOpen {
-	// 		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-	// 	}
+	if whitelist[from.Hex()] {
+		log.Println("✅ Address is whitelisted - bypassing chain open and wallet lock checks")
+	} else {
+		// Only perform checks for non-whitelisted addresses
+		log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
+		isOpen, err := k.IsChainOpen(ctx, from)
+		if err != nil {
+			return nil, errorsmod.Wrap(err, "failed to check if chain is open")
+		}
+		if !isOpen {
+			return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
+		}
 
-	// 	// Check wallet lock status for non-whitelisted addresses
-	// 	txAmount := tx.Value()
-	// 	isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
-	// 	if err != nil || !isUnlocked {
-	// 		return nil, fmt.Errorf("transaction rejected: wallet is locked")
-	// 	}
-	// }
+		// Check wallet lock status for non-whitelisted addresses
+		txAmount := tx.Value()
+		isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
+		if err != nil || !isUnlocked {
+			return nil, fmt.Errorf("transaction rejected: wallet is locked")
+		}
+	}
 
 	labels := []metrics.Label{
 		telemetry.NewLabel("tx_type", fmt.Sprintf("%d", tx.Type())),
