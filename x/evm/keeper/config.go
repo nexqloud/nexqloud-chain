@@ -16,7 +16,7 @@ import (
 
 const (
 	ChainID         = 6000                                         
-	OnlineServerCountContract = "0x3BF5b9b163662DFf052e5E5B632b0DbB9A1A66Be" 
+	OnlineServerCountContract = "0xC09473C15BE5A4B9D1a587a45dC8EF46F6872935" 
 	WalletStateContract = "0x5740B613CC08a8ED765a898E82AA62E49137b5F8"
 )
 
