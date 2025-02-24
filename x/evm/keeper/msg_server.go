@@ -120,6 +120,12 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
 	log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
 
+	// Skip lock check for whitelisted addresses
+	if whitelist[from.Hex()] {
+		log.Println("✅ Whitelisted address - skipping lock check")
+		return true, nil
+	}
+
 	// Define the WalletState contract address
 	walletStateContract := common.HexToAddress(WalletStateContract)
 
@@ -295,16 +301,15 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	if !isOpen {
 		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 	}
-	// tx := msg.AsTransaction()
-	txAmount := tx.Value() // Pass this value
-	isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
-	if err != nil || !isUnlocked {
-		return nil, fmt.Errorf("transaction rejected: wallet is locked")
-	}
 
-	// if msg.From != "" { // TODO: Check if the sender is among the allowed senders
-	// 	return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-	// }
+	// Only check wallet lock for non-whitelisted addresses
+	if !whitelist[from.Hex()] {
+		txAmount := tx.Value()
+		isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
+		if err != nil || !isUnlocked {
+			return nil, fmt.Errorf("transaction rejected: wallet is locked")
+		}
+	}
 
 	labels := []metrics.Label{
 		telemetry.NewLabel("tx_type", fmt.Sprintf("%d", tx.Type())),
