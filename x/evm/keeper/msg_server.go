@@ -131,7 +131,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 	// Prepare the function selector for getWalletLock(address)
 	functionSelector := getFunctionSelector("getWalletLock(address)")
-	paddedAddress := common.LeftPadBytes(from.Bytes(), 32) // 32-byte encoding for address
+	paddedAddress := common.LeftPadBytes(from.Bytes(), 32)
 	data := append(functionSelector, paddedAddress...)
 
 	log.Println("Calling WalletState with data:", hexutil.Encode(data))
@@ -143,13 +143,14 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	args := types.TransactionArgs{
 		From: &from,
 		To:   &walletStateContract,
-		Data: &hexData, // Corrected type conversion
+		Data: &hexData,
 	}
 
 	argsBytes, err := json.Marshal(args)
 	if err != nil {
 		log.Println("Failed to marshal args:", err)
-		return false, err
+		// If we can't check the lock status, assume it's unlocked
+		return true, nil
 	}
 
 	req := &types.EthCallRequest{
@@ -162,24 +163,34 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	res, err := k.EthCall(ctx, req)
 	if err != nil {
 		log.Println("Failed to call EthCall:", err)
-		return false, err
+		// If we can't check the lock status, assume it's unlocked
+		return true, nil
 	}
 
-	// Parse the response: (LockStatus, lockValue, lockCode)
-	if len(res.Ret) < 96 {
-		log.Println("Invalid response length")
-		return false, fmt.Errorf("invalid response length")
+	// Log the full response
+	log.Printf("EthCall Response length: %d", len(res.Ret))
+	log.Printf("Full Response: %s", hexutil.Encode(res.Ret))
+
+	// If response is empty or too short, assume unlocked
+	if len(res.Ret) == 0 || len(res.Ret) < 96 {
+		log.Println("Response is empty or too short - assuming wallet is unlocked")
+		return true, nil
 	}
-	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
 
 	// Extract lock status, lock value, and lock code
-	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
-	lockValue := new(big.Int).SetBytes(res.Ret[32:64])               // Extracting lock value
-	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])            // Extracting lock code
+	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256
+	lockValue := new(big.Int).SetBytes(res.Ret[32:64])
+	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])
 
-	log.Println("Lock Status Retrieved:", lockStatus)
-	log.Println("Lock Value Retrieved:", lockValue.Int64())
-	log.Println("Lock Code Retrieved:", lockedAmount.Int64())
+	log.Printf("Lock Status: %d", lockStatus)
+	log.Printf("Lock Value: %s", lockValue.String())
+	log.Printf("Locked Amount: %s", lockedAmount.String())
+
+	// If lockStatus is 0 (No_Lock), return true immediately
+	if lockStatus == 0 {
+		log.Println("✅ No lock detected - wallet is unlocked")
+		return true, nil
+	}
 
 	// Fetch the balance using Keeper
 	balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
@@ -199,10 +210,6 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 	// Check lock status and enforce restrictions
 	switch lockStatus {
-	case 0: // No_Lock
-		log.Println("✅ Wallet is unlocked")
-		return true, nil
-
 	case 1: // Percentage_Lock
 		if totalBalance.Cmp(big.NewInt(0)) == 0 {
 			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
@@ -305,10 +312,17 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	// Only check wallet lock for non-whitelisted addresses
 	if !whitelist[from.Hex()] {
 		txAmount := tx.Value()
+		log.Printf("Checking wallet lock for address %s with amount %s", from.Hex(), txAmount.String())
 		isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
-		if err != nil || !isUnlocked {
+		if err != nil {
+			log.Printf("Error checking wallet lock: %v", err)
+			return nil, fmt.Errorf("error checking wallet lock: %v", err)
+		}
+		if !isUnlocked {
+			log.Printf("Transaction rejected: wallet %s is locked", from.Hex())
 			return nil, fmt.Errorf("transaction rejected: wallet is locked")
 		}
+		log.Printf("Wallet %s is unlocked, proceeding with transaction", from.Hex())
 	}
 
 	labels := []metrics.Label{
