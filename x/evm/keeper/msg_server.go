@@ -37,13 +37,6 @@ import (
 var _ types.MsgServer = &Keeper{}
 var whitelist = map[string]bool{
 	"0x7cB61D4117AE31a12E393a1Cfa3BaC666481D02E": true,
-	"0xAD7c84fb9C73e0504E853f79c085a4B394353860":true,
-	"0xc6fe5d33615a1c52c08018c47e8bc53646a0e101":true,
-	"0x963ebdf2e1f8db8707d05fc75bfeffba1b5bac17":true,
-	"0x40a0cb1C63e026A81B55EE1308586E21eec1eFa9":true,
-	"0x498B5AeC5D439b733dC2F58AB489783A23FB26dA":true,
-	"0xB751daD74273bc6e5e2b456020Ea930948fb4756":true,
-	"0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73":true,
 }
 
 func getFunctionSelector(signature string) []byte {
@@ -209,8 +202,17 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
 			return false, fmt.Errorf("wallet balance is zero")
 		}
-		// lockedAmount := new(big.Int).Div(new(big.Int).Mul(totalBalance, lockValue), big.NewInt(100))
+
 		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
+
+		// Ceil maxAllowed to nearest NXQ (1e18 wei)
+		oneNXQ := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+		remainder := new(big.Int).Mod(maxAllowed, oneNXQ)
+		if remainder.Cmp(big.NewInt(0)) > 0 {
+			maxAllowed.Sub(maxAllowed, remainder)
+			maxAllowed.Add(maxAllowed, oneNXQ)
+		}
+
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
 		// Check if the transaction amount exceeds the allowed limit
@@ -286,11 +288,9 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	from := common.HexToAddress(msg.From)
 	log.Println("From:", from)
 
-	// Check if address is whitelisted first
-	if whitelist[from.Hex()] {
-		log.Println("✅ Address is whitelisted - bypassing chain open and wallet lock checks")
-	} else {
-		// Only perform checks for non-whitelisted addresses
+	// Check whitelist first
+	if !whitelist[from.Hex()] {
+		// Only check chain status and wallet lock for non-whitelisted addresses
 		log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
 		isOpen, err := k.IsChainOpen(ctx, from)
 		if err != nil {
@@ -300,12 +300,13 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 			return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
 		}
 
-		// Check wallet lock status for non-whitelisted addresses
 		txAmount := tx.Value()
 		isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
 		if err != nil || !isUnlocked {
 			return nil, fmt.Errorf("transaction rejected: wallet is locked")
 		}
+	} else {
+		log.Println("Address is whitelisted, skipping chain open and wallet unlock checks")
 	}
 
 	labels := []metrics.Label{
