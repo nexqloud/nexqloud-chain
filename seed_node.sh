@@ -151,8 +151,8 @@ if [[ $1 == "init" ]]; then
 	sudo cp "$HOMEDIR/node-id" /usr/share/nginx/html/node-id
 
 	# Enable the RPC
-	sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/' "$APP_TOML"
-	sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/' "$APP_TOML"
+	sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
+	sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
 	
 else
 	# Start the node
