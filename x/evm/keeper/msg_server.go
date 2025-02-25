@@ -167,15 +167,16 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		return false, fmt.Errorf("invalid response length")
 	}
 	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
+	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256
+	lockedAmount := new(big.Int).SetBytes(res.Ret[32:64])  // Correct position
+	lockUntil := new(big.Int).SetBytes(res.Ret[64:96])
+	lockCode := new(big.Int).SetBytes(res.Ret[96:128])
 
-	// Extract lock status, lock value, and lock code
-	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256 // Extract only the least significant byte
-	lockValue := new(big.Int).SetBytes(res.Ret[32:64])               // Extracting lock value
-	lockedAmount := new(big.Int).SetBytes(res.Ret[64:96])            // Extracting lock code
+	log.Println("Lock Status:", lockStatus)
+	log.Println("Locked Amount (wei):", lockedAmount)
+	log.Println("Lock Until:", lockUntil)
+	log.Println("Lock Code:", lockCode)
 
-	log.Println("Lock Status Retrieved:", lockStatus)
-	log.Println("Lock Value Retrieved:", lockValue.Int64())
-	log.Println("Lock Code Retrieved:", lockedAmount.Int64())
 
 	// Fetch the balance using Keeper
 	balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
@@ -194,76 +195,93 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// Calculate locked amount and allowed amount
 
 	// Check lock status and enforce restrictions
+	// switch lockStatus {
+	// case 0: // No_Lock
+	// 	log.Println("✅ Wallet is unlocked")
+	// 	return true, nil
+
+	// case 1: // Percentage_Lock
+	// 	if totalBalance.Cmp(big.NewInt(0)) == 0 {
+	// 		log.Println("❌ Wallet balance is zero, cannot process percentage lock")
+	// 		return false, fmt.Errorf("wallet balance is zero")
+	// 	}
+
+	// 	// Calculate max allowed with 6 decimal precision
+	// 	precision := new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil) // 10^6 for 6 decimals
+	// 	scaledPercentage := new(big.Int).Mul(lockedAmount, precision)        // lockValue * 10^6
+
+	// 	// Calculate locked amount: (totalBalance * scaledPercentage) / (100 * 10^6)
+	// 	lockedAmount := new(big.Int).Mul(totalBalance, scaledPercentage)
+	// 	lockedAmount.Div(lockedAmount, new(big.Int).Mul(big.NewInt(100), precision))
+
+	// 	// Calculate max allowed: totalBalance - lockedAmount
+	// 	maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount)
+
+	// 	log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
+
+	// 	// Check if the transaction amount exceeds the allowed limit
+	// 	if txAmount.Cmp(maxAllowed) > 0 {
+	// 		log.Printf("❌ Transaction amount %s exceeds max allowed %s", txAmount.String(), maxAllowed.String())
+	// 		return false, fmt.Errorf("transaction exceeds allowed percentage limit")
+	// 	}
+
+	// 	log.Println("✅ Transaction allowed under percentage lock")
+	// 	return true, nil
+
+	// case 2: // Amount_Lock
+	// 	// Ensure locked amount is not greater than total balance
+	// 	if totalBalance.Cmp(lockedAmount) < 0 {
+	// 		log.Println("❌ Locked amount exceeds wallet balance, blocking transaction")
+	// 		return false, fmt.Errorf("locked amount exceeds wallet balance")
+	// 	}
+
+	// 	if totalBalance.Cmp(lockedAmount) < 0 {
+	// 		log.Println("❌ Locked amount exceeds balance")
+	// 		return false, fmt.Errorf("locked amount exceeds balance")
+	// 	}
+	// 	maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount)
+	// 	if txAmount.Cmp(maxAllowed) > 0 {
+	// 		log.Printf("❌ Tx %s > Allowed %s", txAmount, maxAllowed)
+	// 		return false, fmt.Errorf("exceeds limit")
+	// 	}
+	// 	log.Println("✅ Transaction allowed under amount lock")
+	// 	return true, nil
+
+	// case 3: // Absolute_Lock (Full lock)
+	// 	log.Println("❌ Wallet is fully locked")
+	// 	return false, fmt.Errorf("wallet is fully locked")
+
+	// default:
+	// 	log.Println("❌ Unknown lock status")
+	// 	return false, fmt.Errorf("unknown lock status")
+	// }
 	switch lockStatus {
-	case 0: // No_Lock
-		log.Println("✅ Wallet is unlocked")
-		return true, nil
-
-	case 1: // Percentage_Lock
-		if totalBalance.Cmp(big.NewInt(0)) == 0 {
-			log.Println("❌ Wallet balance is zero, cannot process percentage lock")
-			return false, fmt.Errorf("wallet balance is zero")
+		case 0: // No_Lock
+			log.Println("✅ Wallet is unlocked")
+			return true, nil
+		
+		case 1: // Amount_Lock (corrected from Percentage_Lock)
+			// Ensure locked amount is not greater than total balance
+			if totalBalance.Cmp(lockedAmount) < 0 {
+				log.Println("❌ Locked amount exceeds wallet balance")
+				return false, fmt.Errorf("locked amount exceeds wallet balance")
+			}
+			maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount)
+			if txAmount.Cmp(maxAllowed) > 0 {
+				log.Printf("❌ Tx %s > Allowed %s", txAmount, maxAllowed)
+				return false, fmt.Errorf("exceeds limit")
+			}
+			log.Println("✅ Transaction allowed under amount lock")
+			return true, nil
+		
+		case 2: // Absolute_Lock
+			log.Println("❌ Wallet is fully locked")
+			return false, fmt.Errorf("wallet is fully locked")
+		
+		default:
+			log.Println("❌ Unknown lock status")
+			return false, fmt.Errorf("unknown lock status")
 		}
-
-		// Calculate max allowed with 6 decimal precision
-		precision := new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil) // 10^6 for 6 decimals
-		scaledPercentage := new(big.Int).Mul(lockValue, precision)        // lockValue * 10^6
-
-		// Calculate locked amount: (totalBalance * scaledPercentage) / (100 * 10^6)
-		lockedAmount := new(big.Int).Mul(totalBalance, scaledPercentage)
-		lockedAmount.Div(lockedAmount, new(big.Int).Mul(big.NewInt(100), precision))
-
-		// Calculate max allowed: totalBalance - lockedAmount
-		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount)
-
-		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
-
-		// Check if the transaction amount exceeds the allowed limit
-		if txAmount.Cmp(maxAllowed) > 0 {
-			log.Printf("❌ Transaction amount %s exceeds max allowed %s", txAmount.String(), maxAllowed.String())
-			return false, fmt.Errorf("transaction exceeds allowed percentage limit")
-		}
-
-		log.Println("✅ Transaction allowed under percentage lock")
-		return true, nil
-
-	case 2: // Amount_Lock
-		// Ensure locked amount is not greater than total balance
-		if totalBalance.Cmp(lockValue) < 0 {
-			log.Println("❌ Locked amount exceeds wallet balance, blocking transaction")
-			return false, fmt.Errorf("locked amount exceeds wallet balance")
-		}
-
-		// Convert lockValue to wei (multiply by 10^18)
-		lockedAmount = new(big.Int).Mul(lockedAmount, big.NewInt(1e18))
-		log.Printf("🔒 Locked Amount (Fixed, in wei): %s", lockedAmount.String())
-
-		// Ensure locked amount is not greater than total balance
-		if totalBalance.Cmp(lockedAmount) < 0 {
-			log.Println("❌ Locked amount exceeds wallet balance, blocking transaction")
-			return false, fmt.Errorf("locked amount exceeds wallet balance")
-		}
-
-		// Correctly subtract locked amount
-		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount) // Amount user can transfer
-		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
-
-		// Ensure transaction amount does not exceed max allowed transfer
-		if txAmount.Cmp(maxAllowed) > 0 {
-			log.Println("❌ Transaction exceeds allowed fixed amount limit")
-			return false, fmt.Errorf("transaction exceeds allowed fixed amount limit")
-		}
-		log.Println("✅ Transaction allowed under amount lock")
-		return true, nil
-
-	case 3: // Absolute_Lock (Full lock)
-		log.Println("❌ Wallet is fully locked")
-		return false, fmt.Errorf("wallet is fully locked")
-
-	default:
-		log.Println("❌ Unknown lock status")
-		return false, fmt.Errorf("unknown lock status")
-	}
 }
 
 // EthereumTx implements the gRPC MsgServer interface. It receives a transaction which is then
