@@ -168,7 +168,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	}
 	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256
-	lockedAmount := new(big.Int).SetBytes(res.Ret[32:64])  // Correct position
+	lockedAmount := new(big.Int).SetBytes(res.Ret[32:64]) // Correct position
 	lockUntil := new(big.Int).SetBytes(res.Ret[64:96])
 	lockCode := new(big.Int).SetBytes(res.Ret[96:128])
 
@@ -176,7 +176,6 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	log.Println("Locked Amount (wei):", lockedAmount)
 	log.Println("Lock Until:", lockUntil)
 	log.Println("Lock Code:", lockCode)
-
 
 	// Fetch the balance using Keeper
 	balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
@@ -256,32 +255,47 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// 	return false, fmt.Errorf("unknown lock status")
 	// }
 	switch lockStatus {
-		case 0: // No_Lock
-			log.Println("✅ Wallet is unlocked")
-			return true, nil
-		
-		case 1: // Amount_Lock (corrected from Percentage_Lock)
-			// Ensure locked amount is not greater than total balance
-			if totalBalance.Cmp(lockedAmount) < 0 {
-				log.Println("❌ Locked amount exceeds wallet balance")
-				return false, fmt.Errorf("locked amount exceeds wallet balance")
-			}
-			maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount)
-			if txAmount.Cmp(maxAllowed) > 0 {
-				log.Printf("❌ Tx %s > Allowed %s", txAmount, maxAllowed)
-				return false, fmt.Errorf("exceeds limit")
-			}
-			log.Println("✅ Transaction allowed under amount lock")
-			return true, nil
-		
-		case 2: // Absolute_Lock
-			log.Println("❌ Wallet is fully locked")
-			return false, fmt.Errorf("wallet is fully locked")
-		
-		default:
-			log.Println("❌ Unknown lock status")
-			return false, fmt.Errorf("unknown lock status")
+	case 0: // No_Lock
+		log.Println("✅ Wallet is unlocked")
+		return true, nil
+
+	case 1: // Amount_Lock
+		// Ensure locked amount is not greater than total balance
+		if totalBalance.Cmp(lockedAmount) < 0 {
+			log.Println("❌ Locked amount exceeds wallet balance")
+			return false, fmt.Errorf("locked amount exceeds wallet balance")
 		}
+
+		// Apply 6-decimal precision scaling
+		precision := new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil) // 10^6
+		scaledLockedAmount := new(big.Int).Mul(lockedAmount, precision)   // lockedAmount * 10^6
+
+		// Compute final locked amount: (totalBalance * scaledLockedAmount) / (1 * 10^6)
+		lockedAmountFinal := new(big.Int).Mul(totalBalance, scaledLockedAmount)
+		lockedAmountFinal.Div(lockedAmountFinal, precision)
+
+		// Compute max allowed: totalBalance - lockedAmountFinal
+		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmountFinal)
+
+		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
+
+		// Check if the transaction amount exceeds the allowed limit
+		if txAmount.Cmp(maxAllowed) > 0 {
+			log.Printf("❌ Tx %s > Allowed %s", txAmount.String(), maxAllowed.String())
+			return false, fmt.Errorf("exceeds limit")
+		}
+
+		log.Println("✅ Transaction allowed under amount lock")
+		return true, nil
+
+	case 2: // Absolute_Lock
+		log.Println("❌ Wallet is fully locked")
+		return false, fmt.Errorf("wallet is fully locked")
+
+	default:
+		log.Println("❌ Unknown lock status")
+		return false, fmt.Errorf("unknown lock status")
+	}
 }
 
 // EthereumTx implements the gRPC MsgServer interface. It receives a transaction which is then
