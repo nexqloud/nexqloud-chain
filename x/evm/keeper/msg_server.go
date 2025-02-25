@@ -271,9 +271,21 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
-		// Check if the transaction amount exceeds the allowed limit
+		// Create tolerance of 0.0001 NXQ (10^14 wei)
+		tolerance := new(big.Int).Exp(big.NewInt(10), big.NewInt(14), nil)
+
+		// Calculate difference between tx amount and max allowed
+		diff := new(big.Int)
 		if txAmount.Cmp(maxAllowed) > 0 {
-			log.Printf("❌ Tx %s > Allowed %s", txAmount.String(), maxAllowed.String())
+			diff.Sub(txAmount, maxAllowed)
+
+			// If difference is within tolerance, allow the transaction
+			if diff.Cmp(tolerance) <= 0 {
+				log.Printf("✅ Transaction within tolerance (diff: %s wei)", diff.String())
+				return true, nil
+			}
+
+			log.Printf("❌ Tx %s > Allowed %s (diff: %s)", txAmount.String(), maxAllowed.String(), diff.String())
 			return false, fmt.Errorf("exceeds limit")
 		}
 
