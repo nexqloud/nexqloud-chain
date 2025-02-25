@@ -40,6 +40,7 @@ var whitelist = map[string]bool{
 	"0xAD7c84fb9C73e0504E853f79c085a4B394353860": true,
 	"0xEF6F981F41C309305070eb357Ba4f5Cee4cE389f": true,
 	"0xC6Fe5D33615a1C52c08018c47E8Bc53646A0E101": true,
+	"0xc9007551dF2108e452632F4620C936B27bf00ee9": true,
 }
 
 func getFunctionSelector(signature string) []byte {
