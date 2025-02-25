@@ -266,16 +266,8 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			return false, fmt.Errorf("locked amount exceeds wallet balance")
 		}
 
-		// Apply 6-decimal precision scaling
-		precision := new(big.Int).Exp(big.NewInt(10), big.NewInt(6), nil) // 10^6
-		scaledLockedAmount := new(big.Int).Mul(lockedAmount, precision)   // lockedAmount * 10^6
-
-		// Compute final locked amount: (totalBalance * scaledLockedAmount) / (1 * 10^6)
-		lockedAmountFinal := new(big.Int).Mul(totalBalance, scaledLockedAmount)
-		lockedAmountFinal.Div(lockedAmountFinal, precision)
-
-		// Compute max allowed: totalBalance - lockedAmountFinal
-		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmountFinal)
+		// Compute max allowed transfer
+		maxAllowed := new(big.Int).Sub(totalBalance, lockedAmount)
 
 		log.Printf("✅ Max Allowed Transfer: %s", maxAllowed.String())
 
