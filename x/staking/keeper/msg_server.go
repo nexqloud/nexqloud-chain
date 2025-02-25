@@ -6,6 +6,7 @@ package keeper
 import (
 	"context"
 	"log"
+	"math/big"
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
@@ -14,13 +15,22 @@ import (
 	sdkstakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/cosmos/cosmos-sdk/x/staking/types"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 	vestingtypes "github.com/evmos/evmos/v19/x/vesting/types"
 )
+
+// EVMKeeper is the interface for the EVM keeper
+type EVMKeeper interface {
+	CallEVM(ctx sdk.Context, msg ethereum.CallMsg, commit bool) (*evmtypes.MsgEthereumTxResponse, error)
+}
 
 // msgServer is a wrapper around the Cosmos SDK message server.
 type msgServer struct {
 	types.MsgServer
 	*Keeper
+	evmKeeper EVMKeeper
 }
 
 var _ types.MsgServer = msgServer{}
@@ -29,7 +39,11 @@ var _ types.MsgServer = msgServer{}
 // for the provided Keeper.
 func NewMsgServerImpl(keeper *Keeper) types.MsgServer {
 	baseMsgServer := sdkstakingkeeper.NewMsgServerImpl(keeper.Keeper)
-	return &msgServer{baseMsgServer, keeper}
+	return &msgServer{
+		baseMsgServer,
+		keeper,
+		keeper.evmKeeper,
+	}
 }
 
 // Delegate defines a method for performing a delegation of coins from a delegator to a validator.
@@ -47,8 +61,39 @@ func (k msgServer) Delegate(goCtx context.Context, msg *types.MsgDelegate) (*typ
 // sender of the tx is a clawback vesting account and then relay the message to the Cosmos SDK staking
 // method.
 func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateValidator) (*types.MsgCreateValidatorResponse, error) {
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	// First check for unvested tokens
 	if err := k.validateDelegationAmountNotUnvested(goCtx, msg.DelegatorAddress, msg.Value.Amount); err != nil {
 		return nil, err
+	}
+
+	// Convert Cosmos address to Ethereum address
+	delegatorAddr, err := sdk.AccAddressFromBech32(msg.DelegatorAddress)
+	if err != nil {
+		return nil, errorsmod.Wrapf(errortypes.ErrInvalidAddress, "invalid delegator address: %s", err)
+	}
+	ethAddr := common.BytesToAddress(delegatorAddr.Bytes())
+
+	// Create EVM call for NFT balance check
+	nftContract := common.HexToAddress("0x5a44ecd89b94d6A506F7b2e3956dA782A323b723")
+	data := common.FromHex("0x70a08231000000000000000000000000" + ethAddr.Hex()[2:])
+
+	res, err := k.evmKeeper.CallEVM(ctx, ethereum.CallMsg{
+		To:   &nftContract,
+		Data: data,
+	}, true)
+	if err != nil {
+		return nil, errorsmod.Wrapf(errortypes.ErrInvalidRequest, "failed to query NFT balance: %s", err)
+	}
+
+	balance := new(big.Int).SetBytes(res.Ret)
+	if balance.Cmp(big.NewInt(5)) < 0 {
+		return nil, errorsmod.Wrapf(
+			errortypes.ErrInvalidRequest,
+			"validator must own at least 5 NXQ_NFTs, current balance: %s",
+			balance.String(),
+		)
 	}
 
 	return k.MsgServer.CreateValidator(goCtx, msg)
