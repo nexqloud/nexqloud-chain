@@ -15,7 +15,6 @@ type Keeper struct {
 	*stakingkeeper.Keeper
 	ak types.AccountKeeper
 	bk types.BankKeeper
-	evmKeeper EVMKeeper
 }
 
 // NewKeeper creates a new staking Keeper wrapper instance.
@@ -25,12 +24,10 @@ func NewKeeper(
 	ak types.AccountKeeper,
 	bk types.BankKeeper,
 	authority string,
-	evmKeeper EVMKeeper,
 ) *Keeper {
 	return &Keeper{
 		stakingkeeper.NewKeeper(cdc, key, ak, bk, authority),
 		ak,
 		bk,
-		evmKeeper,
 	}
 }
