@@ -13,11 +13,14 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 
 	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
 	reflectionv1 "cosmossdk.io/api/cosmos/reflection/v1"
 	"cosmossdk.io/math"
 	runtimeservices "github.com/cosmos/cosmos-sdk/runtime/services"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/gorilla/mux"
 	"github.com/rakyll/statik/fs"
@@ -267,6 +270,29 @@ var (
 	_ runtime.AppI            = (*Evmos)(nil)
 )
 
+// evmKeeperAdapter is an adapter for EVM keeper to match the EVMKeeper interface
+type evmKeeperAdapter struct {
+	evmKeeper *evmkeeper.Keeper
+}
+
+// CallEVM implements the EVMKeeper interface
+func (a evmKeeperAdapter) CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (evmtypes.MsgEthereumTxResponse, error) {
+	parsed, err := abi.JSON(strings.NewReader(abiJSON))
+	if err != nil {
+		return evmtypes.MsgEthereumTxResponse{}, err
+	}
+
+	// Use zero address for read-only calls
+	fromAddr := common.Address{}
+
+	respPtr, err := a.evmKeeper.CallEVM(ctx, parsed, fromAddr, contract, true, method, args...)
+	if err != nil {
+		return evmtypes.MsgEthereumTxResponse{}, err
+	}
+
+	return *respPtr, nil
+}
+
 // Evmos implements an extended ABCI application. It is an application
 // that may process transactions through Ethereum's EVM running atop of
 // Tendermint consensus.
@@ -422,8 +448,12 @@ func NewEvmos(
 	app.BankKeeper = bankkeeper.NewBaseKeeper(
 		appCodec, keys[banktypes.StoreKey], app.AccountKeeper, app.BlockedAddrs(), authAddr,
 	)
+
+	// Create an adapter that implements the EVMKeeper interface
+	evmAdapter := evmKeeperAdapter{evmKeeper: app.EvmKeeper}
+
 	stakingKeeper := stakingkeeper.NewKeeper(
-		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, app.EvmKeeper,
+		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, authAddr, evmAdapter,
 	)
 	app.DistrKeeper = distrkeeper.NewKeeper(
 		appCodec, keys[distrtypes.StoreKey], app.AccountKeeper, app.BankKeeper,
@@ -686,7 +716,6 @@ func NewEvmos(
 		paramstypes.ModuleName,
 		vestingtypes.ModuleName,
 		inflationtypes.ModuleName,
-		erc20types.ModuleName,
 		consensusparamtypes.ModuleName,
 		ratelimittypes.ModuleName,
 	)
