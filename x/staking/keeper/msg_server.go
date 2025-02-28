@@ -52,19 +52,26 @@ func (k msgServer) Delegate(goCtx context.Context, msg *types.MsgDelegate) (*typ
 func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateValidator) (*types.MsgCreateValidatorResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
+	log.Println("========= NFT Validation Start =========")
+	log.Println("Validator address (bech32): ", msg.ValidatorAddress)
+
 	// NFT Contract Check
 	nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
+	log.Println("NFT Contract address: ", nftContract.Hex())
 
 	// Convert validator address from Bech32 to Ethereum address
 	valAddr, err := sdk.ValAddressFromBech32(msg.ValidatorAddress)
 	if err != nil {
+		log.Println("ERROR: Failed to convert validator address:", err)
 		return nil, errorsmod.Wrap(err, "invalid validator address")
 	}
 	valAccAddr := sdk.AccAddress(valAddr)
 	valEvmAddr := common.BytesToAddress(valAccAddr)
+	log.Println("Validator Ethereum address: ", valEvmAddr.Hex())
 
 	abiJSON := `[{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
 
+	log.Println("Calling NFT contract balanceOf method...")
 	res, err := k.evmKeeper.CallEVM(
 		ctx,
 		abiJSON,
@@ -73,14 +80,22 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		valEvmAddr,
 	)
 	if err != nil {
+		log.Println("ERROR: NFT balance check failed:", err)
 		return nil, errorsmod.Wrap(err, "NFT balance check failed")
 	}
 
-	if new(big.Int).SetBytes(res.Ret).Cmp(big.NewInt(1)) < 0 {
+	nftBalance := new(big.Int).SetBytes(res.Ret)
+	log.Println("NFT Balance: ", nftBalance.String())
+
+	if nftBalance.Cmp(big.NewInt(1)) < 0 {
+		log.Println("ERROR: Validator does not own any NXQNFT")
 		return nil, errorsmod.Wrap(errortypes.ErrUnauthorized, "must own ≥1 NXQNFT")
 	}
+	log.Println("✅ NFT validation passed successfully")
+	log.Println("========= NFT Validation End =========")
 
 	if err := k.validateDelegationAmountNotUnvested(goCtx, msg.DelegatorAddress, msg.Value.Amount); err != nil {
+		log.Println("ERROR: Delegation validation failed:", err)
 		return nil, err
 	}
 
