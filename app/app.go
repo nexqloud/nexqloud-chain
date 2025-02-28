@@ -272,11 +272,16 @@ var (
 
 // evmKeeperAdapter is an adapter for EVM keeper to match the EVMKeeper interface
 type evmKeeperAdapter struct {
-	evmKeeper *evmkeeper.Keeper
+	app *Evmos // Store reference to the app instead of the keeper directly
 }
 
 // CallEVM implements the EVMKeeper interface
 func (a evmKeeperAdapter) CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (evmtypes.MsgEthereumTxResponse, error) {
+	// Check if EVM keeper is available
+	if a.app.EvmKeeper == nil {
+		return evmtypes.MsgEthereumTxResponse{}, fmt.Errorf("EVM keeper is not initialized")
+	}
+
 	parsed, err := abi.JSON(strings.NewReader(abiJSON))
 	if err != nil {
 		return evmtypes.MsgEthereumTxResponse{}, err
@@ -285,7 +290,7 @@ func (a evmKeeperAdapter) CallEVM(ctx sdk.Context, abiJSON string, method string
 	// Use zero address for read-only calls
 	fromAddr := common.Address{}
 
-	respPtr, err := a.evmKeeper.CallEVM(ctx, parsed, fromAddr, contract, true, method, args...)
+	respPtr, err := a.app.EvmKeeper.CallEVM(ctx, parsed, fromAddr, contract, true, method, args...)
 	if err != nil {
 		return evmtypes.MsgEthereumTxResponse{}, err
 	}
@@ -450,7 +455,7 @@ func NewEvmos(
 	)
 
 	// Create an adapter that implements the EVMKeeper interface
-	evmAdapter := evmKeeperAdapter{evmKeeper: app.EvmKeeper}
+	evmAdapter := evmKeeperAdapter{app: app}
 
 	stakingKeeper := stakingkeeper.NewKeeper(
 		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, authAddr, evmAdapter,
@@ -716,7 +721,6 @@ func NewEvmos(
 		paramstypes.ModuleName,
 		vestingtypes.ModuleName,
 		inflationtypes.ModuleName,
-		erc20types.ModuleName,  
 		consensusparamtypes.ModuleName,
 		ratelimittypes.ModuleName,
 	)
