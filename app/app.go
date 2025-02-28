@@ -716,6 +716,7 @@ func NewEvmos(
 		paramstypes.ModuleName,
 		vestingtypes.ModuleName,
 		inflationtypes.ModuleName,
+		erc20types.ModuleName,  
 		consensusparamtypes.ModuleName,
 		ratelimittypes.ModuleName,
 	)
