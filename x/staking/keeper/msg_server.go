@@ -53,8 +53,8 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	log.Println("========= NFT Validation Start =========")
-	log.Println("Validator address (bech32): ", msg.ValidatorAddress)
-	log.Println("Delegator address (bech32): ", msg.DelegatorAddress)
+	log.Printf("Validator address (bech32): %s", msg.ValidatorAddress)
+	log.Printf("Delegator address (bech32): %s", msg.DelegatorAddress)
 
 	// Check if EVM Keeper is initialized
 	if k.evmKeeper == nil {
@@ -67,21 +67,26 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 
 	// NFT Contract Check
 	nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
-	log.Println("NFT Contract address: ", nftContract.Hex())
+	log.Printf("NFT Contract address: %s", nftContract.Hex())
 
 	// Convert validator address to correct account format
 	valAddr, err := sdk.ValAddressFromBech32(msg.ValidatorAddress)
 	if err != nil {
-		log.Println("ERROR: Invalid validator operator address:", err)
+		log.Printf("ERROR: Invalid validator operator address: %v", err)
 		return nil, errorsmod.Wrap(err, "invalid validator address")
 	}
 	valAccAddr := sdk.AccAddress(valAddr.Bytes())
 	valEvmAddr := common.BytesToAddress(valAccAddr)
-	log.Println("Validator Ethereum address:", valEvmAddr.Hex())
+	log.Printf("Validator Address conversion: %s (bech32) -> %s (Ethereum)", msg.ValidatorAddress, valEvmAddr.Hex())
+
+	// Also try with delegator address
+	delAddr, _ := sdk.AccAddressFromBech32(msg.DelegatorAddress)
+	delEvmAddr := common.BytesToAddress(delAddr)
+	log.Printf("Delegator Address conversion: %s (bech32) -> %s (Ethereum)", msg.DelegatorAddress, delEvmAddr.Hex())
 
 	// Standard ERC721/ERC1155 balanceOf ABI
 	abiJSON := `[{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
-	log.Println("Calling NFT contract balanceOf method...")
+	log.Printf("Calling NFT contract balanceOf method for address: %s", valEvmAddr.Hex())
 
 	// Try to call the contract - handle errors by assuming zero balance
 	var nftBalance *big.Int
@@ -101,11 +106,35 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		nftBalance = big.NewInt(0)
 	} else {
 		nftBalance = new(big.Int).SetBytes(res.Ret)
+		log.Printf("Raw RPC result: %x", res.Ret)
 	}
 
-	log.Println("NFT Balance:", nftBalance.String())
+	log.Printf("NFT Balance for %s: %s", valEvmAddr.Hex(), nftBalance.String())
+
+	// Also check delegator's NFT balance if different from validator
+	if msg.DelegatorAddress != msg.ValidatorAddress {
+		log.Println("Delegator is different from validator, checking delegator NFT balance...")
+		delRes, delErr := k.evmKeeper.CallEVM(
+			ctx,
+			abiJSON,
+			"balanceOf",
+			nftContract,
+			delEvmAddr,
+		)
+
+		var delNftBalance *big.Int
+		if delErr != nil {
+			log.Printf("ERROR: Delegator NFT balance check failed: %v", delErr)
+			delNftBalance = big.NewInt(0)
+		} else {
+			delNftBalance = new(big.Int).SetBytes(delRes.Ret)
+			log.Printf("Raw RPC result for delegator: %x", delRes.Ret)
+		}
+		log.Printf("Delegator NFT Balance for %s: %s", delEvmAddr.Hex(), delNftBalance.String())
+	}
+
 	if nftBalance.Cmp(big.NewInt(1)) < 0 {
-		log.Println("ERROR: Validator does not own any NXQNFT")
+		log.Printf("ERROR: Validator does not own any NXQNFT. Required: ≥1, Found: %s", nftBalance.String())
 		return nil, errorsmod.Wrap(errortypes.ErrUnauthorized, "must own ≥1 NXQNFT")
 	}
 
@@ -113,13 +142,13 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	log.Println("========= NFT Validation End =========")
 
 	if err := k.validateDelegationAmountNotUnvested(goCtx, msg.DelegatorAddress, msg.Value.Amount); err != nil {
-		log.Println("ERROR: Delegation validation failed:", err)
+		log.Printf("ERROR: Delegation validation failed: %v", err)
 		return nil, err
 	}
 
 	log.Println("========= Create Validator =========")
-	log.Println("Delegator address: ", msg.DelegatorAddress)
-	log.Println("Value: ", msg.Value)
+	log.Printf("Delegator address: %s", msg.DelegatorAddress)
+	log.Printf("Value: %s", msg.Value)
 	log.Println("====================================")
 
 	return k.MsgServer.CreateValidator(goCtx, msg)
