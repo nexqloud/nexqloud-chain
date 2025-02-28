@@ -55,6 +55,14 @@ type Erc20Keeper interface {
 	GetERC20PrecompileInstance(ctx sdk.Context, address common.Address) (contract vm.PrecompiledContract, found bool, err error)
 }
 
+// EVMKeeper defines the expected EVM keeper interface
+type EVMKeeper interface {
+	// ... existing methods
+
+	// CallEVM performs a smart contract method call using given parameters
+	CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (MsgEthereumTxResponse, error)
+}
+
 type (
 	LegacyParams = paramtypes.ParamSet
 	// Subspace defines an interface that implements the legacy Cosmos SDK x/params Subspace type.

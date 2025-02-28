@@ -8,13 +8,15 @@ import (
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/cosmos/cosmos-sdk/x/staking/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 // Keeper is a wrapper around the Cosmos SDK staking keeper.
 type Keeper struct {
 	*stakingkeeper.Keeper
-	ak types.AccountKeeper
-	bk types.BankKeeper
+	ak        types.AccountKeeper
+	bk        types.BankKeeper
+	evmKeeper evmtypes.EVMKeeper
 }
 
 // NewKeeper creates a new staking Keeper wrapper instance.
@@ -24,10 +26,12 @@ func NewKeeper(
 	ak types.AccountKeeper,
 	bk types.BankKeeper,
 	authority string,
+	evmKeeper evmtypes.EVMKeeper,
 ) *Keeper {
 	return &Keeper{
 		stakingkeeper.NewKeeper(cdc, key, ak, bk, authority),
 		ak,
 		bk,
+		evmKeeper,
 	}
 }
