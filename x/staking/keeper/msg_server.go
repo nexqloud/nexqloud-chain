@@ -56,45 +56,54 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	log.Println("Validator address (bech32): ", msg.ValidatorAddress)
 	log.Println("Delegator address (bech32): ", msg.DelegatorAddress)
 
+	// Check if EVM Keeper is initialized
+	if k.evmKeeper == nil {
+		log.Println("FATAL: EVM Keeper not initialized")
+		return nil, errorsmod.Wrap(
+			errortypes.ErrInvalidRequest, 
+			"EVM module not configured",
+		)
+	}
+
 	// NFT Contract Check
 	nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
 	log.Println("NFT Contract address: ", nftContract.Hex())
 
-	// Convert delegator address to Ethereum address for NFT check
-	delAddr, err := sdk.AccAddressFromBech32(msg.DelegatorAddress)
+	// Convert VALIDATOR OPERATOR address to Ethereum address
+	valAddr, err := sdk.ValAddressFromBech32(msg.ValidatorAddress)
 	if err != nil {
-		log.Println("ERROR: Failed to convert delegator address:", err)
-		return nil, errorsmod.Wrap(err, "invalid delegator address")
+		log.Println("ERROR: Invalid validator operator address:", err)
+		return nil, errorsmod.Wrap(err, "invalid validator address")
 	}
-	delEvmAddr := common.BytesToAddress(delAddr)
-	log.Println("Delegator Ethereum address: ", delEvmAddr.Hex())
+
+	valAccAddr := sdk.AccAddress(valAddr)
+	valEvmAddr := common.BytesToAddress(valAccAddr)
+	log.Println("Validator Ethereum address: ", valEvmAddr.Hex())
 
 	// Standard ERC721/ERC1155 balanceOf ABI
 	abiJSON := `[{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
 
 	log.Println("Calling NFT contract balanceOf method...")
 
-	// Try to call the contract - handle errors gracefully
+	// Try to call the contract with VALIDATOR address
 	res, err := k.evmKeeper.CallEVM(
 		ctx,
 		abiJSON,
 		"balanceOf",
 		nftContract,
-		delEvmAddr,
+		valEvmAddr,
 	)
 
 	if err != nil {
-		// Detailed logging for troubleshooting
 		log.Printf("ERROR: NFT balance check failed: %v", err)
 		log.Printf("Parameters: contract=%s, method=balanceOf, owner=%s",
-			nftContract.Hex(), delEvmAddr.Hex())
-
-		// Option 1: Return error (production mode)
-		return nil, errorsmod.Wrap(err, "NFT balance check failed")
-
-		// Option 2: For testing - uncomment to bypass the check
-		// log.Println("⚠️ WARNING: Bypassing NFT check for testing purposes")
-		// return k.MsgServer.CreateValidator(goCtx, msg)
+			nftContract.Hex(), valEvmAddr.Hex())
+		
+		return nil, errorsmod.Wrapf(
+			errortypes.ErrInvalidRequest,
+			"failed NFT check for validator %s: %v", 
+			msg.ValidatorAddress, err,
+		)
 	}
 
 	// Process the balance result
