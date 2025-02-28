@@ -60,7 +60,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	if k.evmKeeper == nil {
 		log.Println("FATAL: EVM Keeper not initialized")
 		return nil, errorsmod.Wrap(
-			errortypes.ErrInvalidRequest, 
+			errortypes.ErrInvalidRequest,
 			"EVM module not configured",
 		)
 	}
@@ -69,23 +69,23 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
 	log.Println("NFT Contract address: ", nftContract.Hex())
 
-	// Convert VALIDATOR OPERATOR address to Ethereum address
+	// Convert validator address to correct account format
 	valAddr, err := sdk.ValAddressFromBech32(msg.ValidatorAddress)
 	if err != nil {
 		log.Println("ERROR: Invalid validator operator address:", err)
 		return nil, errorsmod.Wrap(err, "invalid validator address")
 	}
-
-	valAccAddr := sdk.AccAddress(valAddr)
+	valAccAddr := sdk.AccAddress(valAddr.Bytes())
 	valEvmAddr := common.BytesToAddress(valAccAddr)
-	log.Println("Validator Ethereum address: ", valEvmAddr.Hex())
+	log.Println("Validator Ethereum address:", valEvmAddr.Hex())
 
 	// Standard ERC721/ERC1155 balanceOf ABI
 	abiJSON := `[{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
-
 	log.Println("Calling NFT contract balanceOf method...")
 
-	// Try to call the contract with VALIDATOR address
+	// Try to call the contract - handle errors by assuming zero balance
+	var nftBalance *big.Int
+
 	res, err := k.evmKeeper.CallEVM(
 		ctx,
 		abiJSON,
@@ -95,21 +95,15 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	)
 
 	if err != nil {
+		// If call fails, assume zero balance (account probably doesn't exist)
 		log.Printf("ERROR: NFT balance check failed: %v", err)
-		log.Printf("Parameters: contract=%s, method=balanceOf, owner=%s",
-			nftContract.Hex(), valEvmAddr.Hex())
-		
-		return nil, errorsmod.Wrapf(
-			errortypes.ErrInvalidRequest,
-			"failed NFT check for validator %s: %v", 
-			msg.ValidatorAddress, err,
-		)
+		log.Println("Assuming zero NFT balance")
+		nftBalance = big.NewInt(0)
+	} else {
+		nftBalance = new(big.Int).SetBytes(res.Ret)
 	}
 
-	// Process the balance result
-	nftBalance := new(big.Int).SetBytes(res.Ret)
-	log.Println("NFT Balance: ", nftBalance.String())
-
+	log.Println("NFT Balance:", nftBalance.String())
 	if nftBalance.Cmp(big.NewInt(1)) < 0 {
 		log.Println("ERROR: Validator does not own any NXQNFT")
 		return nil, errorsmod.Wrap(errortypes.ErrUnauthorized, "must own ≥1 NXQNFT")

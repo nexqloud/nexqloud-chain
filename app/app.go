@@ -125,6 +125,7 @@ import (
 	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
 
 	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
 
 	// unnamed import of statik for swagger UI support
 	_ "github.com/evmos/evmos/v19/client/docs/statik"
@@ -296,6 +297,14 @@ func (a evmKeeperAdapter) CallEVM(ctx sdk.Context, abiJSON string, method string
 	}
 
 	return *respPtr, nil
+}
+
+// GetAccount implements the EVMKeeper interface
+func (a evmKeeperAdapter) GetAccount(ctx sdk.Context, addr common.Address) *statedb.Account {
+	if a.app.EvmKeeper == nil {
+		return nil
+	}
+	return a.app.EvmKeeper.GetAccount(ctx, addr)
 }
 
 // Evmos implements an extended ABCI application. It is an application
