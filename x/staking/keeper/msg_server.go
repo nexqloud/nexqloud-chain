@@ -5,9 +5,9 @@ package keeper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
-	"strings"
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
@@ -19,6 +19,8 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 	vestingtypes "github.com/evmos/evmos/v19/x/vesting/types"
 )
 
@@ -68,7 +70,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	}
 
 	// NFT Contract Check
-	nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
+	nftContract := common.HexToAddress("0x5FbDB2315678afecb367f032d93F642f64180aa3")
 	log.Printf("NFT Contract address: %s", nftContract.Hex())
 
 	// Convert validator address to correct account format
@@ -86,61 +88,17 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	delEvmAddr := common.BytesToAddress(delAddr)
 	log.Printf("Delegator Address conversion: %s (bech32) -> %s (Ethereum)", msg.DelegatorAddress, delEvmAddr.Hex())
 
-	// Standard ERC721/ERC1155 balanceOf ABI
-	abiJSON := `[{"constant":true,"inputs":[{"name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
-
-	// Try to query NFT balance using CallEVM
-	log.Printf("Querying NFT balance for address: %s", valEvmAddr.Hex())
-
-	// Call the EVM to get the NFT balance
-	res, err := k.evmKeeper.CallEVM(
-		ctx,
-		abiJSON,
-		"balanceOf",
-		nftContract,
-		valEvmAddr,
-	)
-
-	// Use reliable RPC to get the NFT balance when CallEVM fails
-	var nftBalance *big.Int
-
-	// Special case: if we get the exact error with "account nxq1qqqq... does not exist"
-	// then we know this is the account lookup issue
-	if err != nil && strings.Contains(err.Error(), "account nxq1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqyd39cu does not exist") {
-		log.Printf("Known issue detected: account lookup failure in CallEVM. Error: %v", err)
-
-		// Instead of using a hardcoded value or bypass, we'll use the information
-		// we previously verified via external RPC to make a better decision
-
-		// Get the NFT balance for the validated account
-		externallyVerifiedAddresses := map[string]int64{
-			"0xC6Fe5D33615a1C52c08018c47E8Bc53646A0E101": 1,
-			// Add other verified address balances here as they're confirmed
-		}
-
-		if balance, found := externallyVerifiedAddresses[valEvmAddr.Hex()]; found {
-			log.Printf("Using externally verified NFT balance data for %s: %d", valEvmAddr.Hex(), balance)
-			nftBalance = big.NewInt(balance)
-		} else {
-			// We genuinely don't know the balance - return an error explaining the situation
-			log.Printf("ERROR: Cannot determine NFT balance for address %s", valEvmAddr.Hex())
-			log.Printf("Please manually verify NFT balance and add to verified addresses list")
-			return nil, errorsmod.Wrap(
-				errortypes.ErrInvalidRequest,
-				"cannot verify NFT ownership due to EVM lookup issues; manual validation required",
-			)
-		}
-	} else if err != nil {
-		// Some other error occurred - handle it appropriately
-		log.Printf("ERROR: NFT balance check failed with unexpected error: %v", err)
+	// Get the NFT balance using direct EthCall approach
+	nftBalance, err := k.getNFTBalance(ctx, nftContract, valEvmAddr)
+	if err != nil {
+		// Instead of falling back to a hardcoded verification mechanism,
+		// provide a clear error message about the NFT requirement
+		log.Printf("ERROR: Failed to query NFT balance: %v", err)
 		return nil, errorsmod.Wrap(
-			errortypes.ErrInvalidRequest,
-			fmt.Sprintf("unable to verify NFT ownership: %v", err),
+			errortypes.ErrUnauthorized,
+			fmt.Sprintf("unable to verify NFT ownership: %v - please ensure you own an NFT at contract %s",
+				err, nftContract.Hex()),
 		)
-	} else {
-		// No error - parse the balance from the response
-		nftBalance = new(big.Int).SetBytes(res.Ret)
-		log.Printf("CallEVM raw result: %x", res.Ret)
 	}
 
 	log.Printf("NFT Balance for %s: %s", valEvmAddr.Hex(), nftBalance.String())
@@ -228,4 +186,69 @@ func (k msgServer) validateDelegationAmountNotUnvested(goCtx context.Context, de
 	log.Println("===========================================")
 
 	return nil
+}
+
+// getNFTBalance queries the NFT balance using direct EthCall approach
+// This is the proper way to query EVM contracts without hardcoded values
+func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common.Address) (*big.Int, error) {
+	log.Printf("Querying NFT balance using EthCall for address: %s", ownerAddr.Hex())
+
+	// balanceOf function signature (0x70a08231)
+	// followed by the address parameter
+	callData := append([]byte{0x70, 0xa0, 0x82, 0x31}, common.LeftPadBytes(ownerAddr.Bytes(), 32)...)
+
+	// Convert to hexutil.Bytes for the TransactionArgs
+	hexData := hexutil.Bytes(callData)
+
+	// Construct the TransactionArgs struct
+	args := evmtypes.TransactionArgs{
+		To:   &contractAddr,
+		Data: &hexData,
+	}
+
+	// Marshal the TransactionArgs to JSON
+	argsJSON, err := json.Marshal(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal transaction args: %w", err)
+	}
+
+	// Create the EthCallRequest with the correct args field
+	ethCallRequest := &evmtypes.EthCallRequest{
+		Args: argsJSON,
+		// Set a reasonable gas cap to prevent DoS
+		GasCap: 25000,
+	}
+
+	// Make the direct call using EthCall
+	log.Printf("Making direct EthCall to contract %s", contractAddr.Hex())
+
+	// Check if evmKeeper has EthCall method
+	ethCaller, ok := k.evmKeeper.(EvmEthCaller)
+	if !ok {
+		return nil, fmt.Errorf("evmKeeper doesn't implement EthCall")
+	}
+
+	// Make the EthCall
+	response, err := ethCaller.EthCall(ctx, ethCallRequest)
+	if err != nil {
+		// Log the specific error but don't return hardcoded values
+		log.Printf("ERROR: EthCall failed: %v", err)
+		return nil, err
+	}
+
+	// Parse the response
+	if response == nil || len(response.Ret) == 0 {
+		return nil, fmt.Errorf("empty response from contract")
+	}
+
+	// The response.Ret contains the balance as a 32-byte big-endian integer
+	balance := new(big.Int).SetBytes(response.Ret)
+	log.Printf("NFT balance retrieved successfully: %s", balance.String())
+
+	return balance, nil
+}
+
+// EvmEthCaller interface for EthCall
+type EvmEthCaller interface {
+	EthCall(ctx sdk.Context, req *evmtypes.EthCallRequest) (*evmtypes.MsgEthereumTxResponse, error)
 }
