@@ -70,7 +70,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	}
 
 	// NFT Contract Check
-	nftContract := common.HexToAddress("0x5FbDB2315678afecb367f032d93F642f64180aa3")
+	nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
 	log.Printf("NFT Contract address: %s", nftContract.Hex())
 
 	// Convert validator address to correct account format
