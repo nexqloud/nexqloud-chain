@@ -299,6 +299,16 @@ func (a evmKeeperAdapter) CallEVM(ctx sdk.Context, abiJSON string, method string
 	return *respPtr, nil
 }
 
+// EthCall implements the EvmEthCaller interface
+func (a evmKeeperAdapter) EthCall(ctx sdk.Context, req *evmtypes.EthCallRequest) (*evmtypes.MsgEthereumTxResponse, error) {
+	// Check if EVM keeper is available
+	if a.app.EvmKeeper == nil {
+		return nil, fmt.Errorf("EVM keeper is not initialized")
+	}
+
+	return a.app.EvmKeeper.EthCall(ctx, req)
+}
+
 // GetAccount implements the EVMKeeper interface
 func (a evmKeeperAdapter) GetAccount(ctx sdk.Context, addr common.Address) *statedb.Account {
 	if a.app.EvmKeeper == nil {

@@ -61,6 +61,9 @@ type EVMKeeper interface {
 
 	// CallEVM performs a smart contract method call using given parameters
 	CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (MsgEthereumTxResponse, error)
+
+	// EthCall performs a read-only EVM call using the provided transaction args
+	EthCall(ctx sdk.Context, req *EthCallRequest) (*MsgEthereumTxResponse, error)
 }
 
 type (
