@@ -282,7 +282,7 @@ else
 	@echo "solcjs already installed; skipping..."
 endif
 
-tools: tools-stamp
+tools: tools-stamp validator-check
 tools-stamp: contract-tools docs-tools statik runsim
 	# Create dummy file to satisfy dependency and avoid
 	# rebuilding when this Makefile target is hit twice
@@ -293,7 +293,7 @@ tools-clean:
 	rm -f $(RUNSIM)
 	rm -f tools-stamp
 
-.PHONY: runsim statik tools contract-tools tools-stamp tools-clean
+.PHONY: runsim statik tools contract-tools tools-stamp tools-clean validator-check
 
 go.sum: go.mod
 	echo "Ensure dependencies have not been modified ..." >&2
@@ -599,3 +599,17 @@ check-changelog:
 fix-changelog:
 	@echo "Fixing changelog..."
 	@python3 scripts/changelog_checker/check_changelog.py ./CHANGELOG.md --fix
+
+###############################################################################
+###                                Tools                                    ###
+###############################################################################
+
+.PHONY: tools
+tools: validator-check
+
+.PHONY: validator-check
+validator-check:
+	@echo "Building validator-check tool..."
+	@go build -o build/validator-check ./cmd/validator-check
+	@echo "Binary built at build/validator-check"
+	@echo "Example usage: ./build/validator-check --address=0xYourAddressHere"

@@ -88,10 +88,22 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	delEvmAddr := common.BytesToAddress(delAddr)
 	log.Printf("Delegator Address conversion: %s (bech32) -> %s (Ethereum)", msg.DelegatorAddress, delEvmAddr.Hex())
 
+	// Fetch validator requirements from the WalletState contract
+	walletStateContract := common.HexToAddress("0xA912e0631f97e52e5fb8435e20f7B4c7755F7de3")
+	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, walletStateContract)
+	if err != nil {
+		log.Printf("ERROR: Failed to get validator requirements: %v", err)
+		log.Println("Using default values: 5 NXQ tokens, 1 NXQNFT")
+		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
+		requiredNXQNFTs = big.NewInt(1)                          // Default: 1 NFT
+	} else {
+		log.Printf("Fetched validator requirements: %s NXQ tokens, %s NXQNFT", 
+			requiredNXQTokens.String(), requiredNXQNFTs.String())
+	}
+
 	// Get the NFT balance using direct EthCall approach
 	nftBalance, err := k.getNFTBalance(ctx, nftContract, valEvmAddr)
 	if err != nil {
-		// Instead of falling back to a hardcoded verification mechanism,
 		// provide a clear error message about the NFT requirement
 		log.Printf("ERROR: Failed to query NFT balance: %v", err)
 		return nil, errorsmod.Wrap(
@@ -104,13 +116,34 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	log.Printf("NFT Balance for %s: %s", valEvmAddr.Hex(), nftBalance.String())
 
 	// Check if the NFT balance meets the requirement
-	if nftBalance.Cmp(big.NewInt(1)) < 0 {
-		log.Printf("ERROR: Validator does not own any NXQNFT. Required: ≥1, Found: %s", nftBalance.String())
-		return nil, errorsmod.Wrap(errortypes.ErrUnauthorized, "must own ≥1 NXQNFT")
+	if nftBalance.Cmp(requiredNXQNFTs) < 0 {
+		log.Printf("ERROR: Validator does not have enough NXQNFT. Required: ≥%s, Found: %s", 
+			requiredNXQNFTs.String(), nftBalance.String())
+		return nil, errorsmod.Wrap(
+			errortypes.ErrUnauthorized, 
+			fmt.Sprintf("must own ≥%s NXQNFT, found %s", 
+				requiredNXQNFTs.String(), nftBalance.String()),
+		)
 	}
 
 	log.Println("✅ NFT validation passed successfully")
 	log.Println("========= NFT Validation End =========")
+
+	// Convert required NXQ tokens from big.Int to sdk.Int for comparison
+	requiredMinSelfDelegation := sdk.NewIntFromBigInt(requiredNXQTokens)
+	
+	// Ensure minimum self delegation meets the requirement
+	if msg.MinSelfDelegation.LT(requiredMinSelfDelegation) {
+		log.Printf("ERROR: Minimum self delegation too low. Required: ≥%s NXQ, Found: %s", 
+			requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String())
+		return nil, errorsmod.Wrap(
+			errortypes.ErrInvalidRequest,
+			fmt.Sprintf("minimum self delegation must be at least %s NXQ, got %s", 
+				requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String()),
+		)
+	}
+	log.Printf("✅ Minimum self delegation requirement met: %s ≥ %s", 
+		msg.MinSelfDelegation.String(), requiredMinSelfDelegation.String())
 
 	if err := k.validateDelegationAmountNotUnvested(goCtx, msg.DelegatorAddress, msg.Value.Amount); err != nil {
 		log.Printf("ERROR: Delegation validation failed: %v", err)
@@ -188,8 +221,72 @@ func (k msgServer) validateDelegationAmountNotUnvested(goCtx context.Context, de
 	return nil
 }
 
+// getValidatorRequirements queries the WalletState contract to get the required number of
+// NXQ tokens and NXQNFT's to become a validator
+func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common.Address) (*big.Int, *big.Int, error) {
+	log.Printf("Querying validator requirements from contract: %s", contractAddr.Hex())
+
+	// Function selector for getValidatorRequirements()
+	// This is the first 4 bytes of keccak256("getValidatorRequirements()")
+	callData := []byte{0x63, 0xd2, 0xc7, 0x33}
+	hexData := hexutil.Bytes(callData)
+
+	// Construct the TransactionArgs struct
+	args := evmtypes.TransactionArgs{
+		To:   &contractAddr,
+		Data: &hexData,
+	}
+
+	// Marshal the TransactionArgs to JSON
+	argsJSON, err := json.Marshal(args)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal transaction args: %w", err)
+	}
+
+	// Create the EthCallRequest
+	ethCallRequest := &evmtypes.EthCallRequest{
+		Args:   argsJSON,
+		GasCap: 25000,
+	}
+
+	// Make the EthCall
+	log.Printf("Making direct EthCall to WalletState contract %s", contractAddr.Hex())
+
+	// Check if evmKeeper has EthCall method
+	ethCaller, ok := k.evmKeeper.(EvmEthCaller)
+	if !ok {
+		return nil, nil, fmt.Errorf("evmKeeper doesn't implement EthCall")
+	}
+
+	// Execute the EthCall
+	response, err := ethCaller.EthCall(ctx, ethCallRequest)
+	if err != nil {
+		log.Printf("ERROR: EthCall to WalletState contract failed: %v", err)
+		return nil, nil, err
+	}
+
+	// Parse the response
+	if response == nil || len(response.Ret) == 0 {
+		return nil, nil, fmt.Errorf("empty response from WalletState contract")
+	}
+
+	// The response contains two uint256 values packed together (each 32 bytes)
+	if len(response.Ret) < 64 {
+		return nil, nil, fmt.Errorf("invalid response length from WalletState contract: %d", len(response.Ret))
+	}
+
+	// Extract the two uint256 values
+	requiredNXQTokens := new(big.Int).SetBytes(response.Ret[:32])
+	requiredNXQNFTs := new(big.Int).SetBytes(response.Ret[32:64])
+
+	log.Printf("Retrieved validator requirements: %s NXQ tokens, %s NXQNFT",
+		requiredNXQTokens.String(), requiredNXQNFTs.String())
+
+	return requiredNXQTokens, requiredNXQNFTs, nil
+}
+
 // getNFTBalance queries the NFT balance using direct EthCall approach
-// This is the proper way to query EVM contracts without hardcoded values
+// This is the proper way to query EVM contracts 
 func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common.Address) (*big.Int, error) {
 	log.Printf("Querying NFT balance using EthCall for address: %s", ownerAddr.Hex())
 
