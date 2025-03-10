@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
@@ -71,7 +72,6 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	}
 
 	// NFT Contract Check
-	// nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
 	nftContract := common.HexToAddress(NFTContractAddress)
 	log.Printf("NFT Contract address: %s", nftContract.Hex())
 
@@ -81,8 +81,31 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		log.Printf("ERROR: Invalid validator operator address: %v", err)
 		return nil, errorsmod.Wrap(err, "invalid validator address")
 	}
+	
+	// Check if the validator is on the approved list
 	valAccAddr := sdk.AccAddress(valAddr.Bytes())
 	valEvmAddr := common.BytesToAddress(valAccAddr)
+	isApproved, err := k.isApprovedValidator(ctx, valEvmAddr)
+	if err != nil {
+		// Only fail if it's not an 'execution reverted' error (which could mean the function isn't implemented yet)
+		if !strings.Contains(err.Error(), "execution reverted") {
+			log.Printf("ERROR: Failed to check if validator is approved: %v", err)
+			return nil, errorsmod.Wrap(
+				errortypes.ErrUnauthorized,
+				fmt.Sprintf("failed to check if validator is approved: %v", err),
+			)
+		}
+		log.Printf("WARNING: Could not check validator approval status (function may not be implemented yet): %v", err)
+	} else if !isApproved {
+		log.Printf("ERROR: Validator %s is not on the approved list", valEvmAddr.Hex())
+		return nil, errorsmod.Wrap(
+			errortypes.ErrUnauthorized,
+			fmt.Sprintf("validator %s is not on the approved list", valEvmAddr.Hex()),
+		)
+	} else {
+		log.Printf("✅ Validator %s is approved", valEvmAddr.Hex())
+	}
+
 	log.Printf("Validator Address conversion: %s (bech32) -> %s (Ethereum)", msg.ValidatorAddress, valEvmAddr.Hex())
 
 	// Also convert delegator address
@@ -361,4 +384,58 @@ func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common
 // EvmEthCaller interface for EthCall
 type EvmEthCaller interface {
 	EthCall(ctx sdk.Context, req *evmtypes.EthCallRequest) (*evmtypes.MsgEthereumTxResponse, error)
+}
+
+// isApprovedValidator checks if an address is on the approved validators list
+func (k msgServer) isApprovedValidator(ctx sdk.Context, validatorAddr common.Address) (bool, error) {
+	log.Printf("Checking if validator %s is approved", validatorAddr.Hex())
+	
+	// Get WalletState contract address
+	walletStateContract := common.HexToAddress(WalletStateContractAddress)
+	
+	// Calculate the function selector for isApprovedValidator(address)
+	functionSignature := "isApprovedValidator(address)"
+	callData := getFunctionSelector(functionSignature)
+	
+	// Encode the address parameter (padded to 32 bytes)
+	addressParam := common.LeftPadBytes(validatorAddr.Bytes(), 32)
+	callData = append(callData, addressParam...)
+	
+	// Prepare the transaction arguments
+	hexData := hexutil.Bytes(callData)
+	args := evmtypes.TransactionArgs{
+		To:   &walletStateContract,
+		Data: &hexData,
+	}
+	
+	// Marshal the transaction arguments to JSON
+	argsJSON, err := json.Marshal(args)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal transaction args: %w", err)
+	}
+	
+	// Prepare the EthCall request
+	req := &evmtypes.EthCallRequest{Args: argsJSON}
+	
+	// Make the call to the contract
+	resp, err := k.evmKeeper.EthCall(ctx, req)
+	if err != nil {
+		return false, fmt.Errorf("failed to call isApprovedValidator: %w", err)
+	}
+	
+	// Parse the result
+	if len(resp.Ret) < 32 {
+		return false, fmt.Errorf("unexpected result length: got %d bytes, want 32", len(resp.Ret))
+	}
+	
+	// Check if the result is true (any non-zero byte means true for Solidity bool)
+	for _, b := range resp.Ret {
+		if b != 0 {
+			log.Printf("Validator %s is approved", validatorAddr.Hex())
+			return true, nil
+		}
+	}
+	
+	log.Printf("Validator %s is NOT approved", validatorAddr.Hex())
+	return false, nil
 }
