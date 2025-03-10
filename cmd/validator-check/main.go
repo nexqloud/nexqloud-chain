@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	
+	"golang.org/x/crypto/sha3"
 )
 
 // ContractConfig defines configuration for smart contract addresses used in staking module
@@ -79,8 +81,10 @@ func main() {
 	fmt.Printf("\n=== Fetching Validator Requirements ===\n")
 	requiredNXQTokens, requiredNXQNFTs, err := getValidatorRequirements(client, walletStateContractAddr)
 	if err != nil {
-		fmt.Printf("Error getting validator requirements: %v\n", err)
-		os.Exit(1)
+		fmt.Printf("Warning: Failed to get validator requirements: %v\n", err)
+		fmt.Println("Using default values: 5 NXQ tokens, 5 NXQNFT")
+		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
+		requiredNXQNFTs = big.NewInt(5)                          // Default: 5 NFT (as per current contract setting)
 	}
 
 	fmt.Printf("Current validator requirements:\n")
@@ -92,8 +96,9 @@ func main() {
 	fmt.Printf("Address to check: %s\n", checkAddr.Hex())
 	nftBalance, err := getNFTBalance(client, nftContractAddr, checkAddr)
 	if err != nil {
-		fmt.Printf("Error checking NFT balance: %v\n", err)
-		os.Exit(1)
+		fmt.Printf("Warning: Failed to check NFT balance: %v\n", err)
+		fmt.Println("Using default value: 0 NXQNFT")
+		nftBalance = big.NewInt(0)
 	}
 
 	fmt.Printf("NFT balance: %s\n", nftBalance.String())
@@ -115,11 +120,19 @@ func main() {
 	fmt.Printf("    nxqd query bank balances <your-address>\n")
 }
 
+// getFunctionSelector calculates the 4-byte function selector for a Solidity function signature
+// This matches Ethereum's implementation exactly
+func getFunctionSelector(signature string) []byte {
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write([]byte(signature))
+	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
+}
+
 // getValidatorRequirements queries the WalletState contract
 func getValidatorRequirements(client *ethclient.Client, contractAddr common.Address) (*big.Int, *big.Int, error) {
-	// Function selector for getValidatorRequirements()
-	// This is the first 4 bytes of keccak256("getValidatorRequirements()")
-	callData := common.FromHex("0x63d2c733")
+	// Calculate the function selector properly
+	functionSignature := "getValidatorRequirements()"
+	callData := getFunctionSelector(functionSignature)
 
 	// Create the call message
 	msg := ethereum.CallMsg{

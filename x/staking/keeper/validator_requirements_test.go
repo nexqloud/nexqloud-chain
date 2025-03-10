@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/sha3"
 )
 
 // ContractConfig defines configuration for smart contract addresses used in staking module
@@ -114,7 +115,7 @@ func TestNFTBalanceCheck(t *testing.T) {
 	if err != nil {
 		t.Logf("Error getting validator requirements: %v. Using default values.", err)
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // 5 NXQ with 18 decimals
-		requiredNXQNFTs = big.NewInt(1)
+		requiredNXQNFTs = big.NewInt(5)                          // Default: 5 NFT (as per current contract setting)
 	}
 	
 	t.Logf("Required NXQ Tokens: %s", requiredNXQTokens.String())
@@ -129,11 +130,19 @@ func TestNFTBalanceCheck(t *testing.T) {
 		requiredNXQNFTs.String())
 }
 
+// getFunctionSelector calculates the 4-byte function selector for a Solidity function signature
+// This matches Ethereum's implementation exactly
+func getFunctionSelector(signature string) []byte {
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write([]byte(signature))
+	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
+}
+
 // getValidatorRequirements queries the WalletState contract to get validator requirements
 func getValidatorRequirements(client *ethclient.Client, contractAddr common.Address) (*big.Int, *big.Int, error) {
-	// Function selector for getValidatorRequirements()
-	// This is the first 4 bytes of keccak256("getValidatorRequirements()")
-	callData := common.FromHex("0x63d2c733")
+	// Calculate the function selector properly
+	functionSignature := "getValidatorRequirements()"
+	callData := getFunctionSelector(functionSignature)
 
 	// Create the call message
 	msg := ethereum.CallMsg{

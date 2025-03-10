@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 	vestingtypes "github.com/evmos/evmos/v19/x/vesting/types"
+	"golang.org/x/crypto/sha3"
 )
 
 // msgServer is a wrapper around the Cosmos SDK message server.
@@ -70,7 +71,8 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	}
 
 	// NFT Contract Check
-	nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
+	// nftContract := common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099")
+	nftContract := common.HexToAddress(NFTContractAddress)
 	log.Printf("NFT Contract address: %s", nftContract.Hex())
 
 	// Convert validator address to correct account format
@@ -89,13 +91,13 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	log.Printf("Delegator Address conversion: %s (bech32) -> %s (Ethereum)", msg.DelegatorAddress, delEvmAddr.Hex())
 
 	// Fetch validator requirements from the WalletState contract
-	walletStateContract := common.HexToAddress("0xA912e0631f97e52e5fb8435e20f7B4c7755F7de3")
+	walletStateContract := common.HexToAddress(WalletStateContractAddress)
 	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, walletStateContract)
 	if err != nil {
 		log.Printf("ERROR: Failed to get validator requirements: %v", err)
-		log.Println("Using default values: 5 NXQ tokens, 1 NXQNFT")
+		log.Println("Using default values: 5 NXQ tokens, 5 NXQNFT")
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
-		requiredNXQNFTs = big.NewInt(1)                          // Default: 1 NFT
+		requiredNXQNFTs = big.NewInt(5)                          // Default: 5 NFT (as per current contract setting)
 	} else {
 		log.Printf("Fetched validator requirements: %s NXQ tokens, %s NXQNFT", 
 			requiredNXQTokens.String(), requiredNXQNFTs.String())
@@ -221,14 +223,25 @@ func (k msgServer) validateDelegationAmountNotUnvested(goCtx context.Context, de
 	return nil
 }
 
+// getFunctionSelector calculates the 4-byte function selector for a Solidity function signature
+// This matches Ethereum's implementation exactly
+func getFunctionSelector(signature string) []byte {
+	log.Printf("Calculating function selector for: %s", signature)
+	hash := sha3.NewLegacyKeccak256()
+	hash.Write([]byte(signature))
+	selector := hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
+	log.Printf("Calculated selector: 0x%x", selector)
+	return selector
+}
+
 // getValidatorRequirements queries the WalletState contract to get the required number of
 // NXQ tokens and NXQNFT's to become a validator
 func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common.Address) (*big.Int, *big.Int, error) {
 	log.Printf("Querying validator requirements from contract: %s", contractAddr.Hex())
 
-	// Function selector for getValidatorRequirements()
-	// This is the first 4 bytes of keccak256("getValidatorRequirements()")
-	callData := []byte{0x63, 0xd2, 0xc7, 0x33}
+	// Calculate the function selector using the getFunctionSelector function
+	functionSignature := "getValidatorRequirements()"
+	callData := getFunctionSelector(functionSignature)
 	hexData := hexutil.Bytes(callData)
 
 	// Construct the TransactionArgs struct
