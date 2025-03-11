@@ -166,7 +166,7 @@ setup_genesis_accounts() {
     # Define key names and their initial balances
     # We use simple arrays for better compatibility
     KEY_NAMES=("mykey" "dev0" "dev1" "dev2" "dev3")
-    KEY_BALANCES=("100000000000000000000000000unxq" "100000000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq")
+    KEY_BALANCES=("1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq")
     KEY_ROLES=("Validator" "Potential second validator" "User account" "User account" "User account")
     
     # Add genesis accounts with balances
@@ -180,6 +180,26 @@ setup_genesis_accounts() {
         $NXQD_BIN add-genesis-account "$address" "$balance" --keyring-backend "$KEYRING" --home "$HOMEDIR"
         print_success "Added genesis account $key with balance $balance"
     done
+    
+    # Add vault and maintenance keys
+    print_info "Generating vault and maintenance keys"
+    
+    # Generate vault keys
+    for i in {1..5}; do
+        print_info "Generating vault key $i"
+        local vault_key="vault$i"
+        generate_key "$vault_key"
+        local address=$($NXQD_BIN keys show "$vault_key" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
+        $NXQD_BIN add-genesis-account "$address" "2100000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+        print_success "Added vault $i with address $address"
+    done
+    
+    # Generate maintenance wallet key
+    print_info "Generating maintenance wallet key"
+    generate_key "maintenance"
+    local maint_address=$($NXQD_BIN keys show "maintenance" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
+    $NXQD_BIN add-genesis-account "$maint_address" "10499000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+    print_success "Added maintenance wallet with address $maint_address"
     
     print_info "Creating genesis transaction with validator key (mykey)"
     # Sign genesis transaction with the validator key
