@@ -10,10 +10,10 @@ HOMEDIR="$HOME/.nxqd"
 KEYBACKUP_DIR="$HOME/.nxqd_keys_backup"
 
 #for local testing
-# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-NXQD_BIN="/usr/local/bin/nxqd"
+# NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
@@ -165,9 +165,9 @@ setup_genesis_accounts() {
     
     # Define key names and their initial balances
     # We use simple arrays for better compatibility
-    KEY_NAMES=("mykey" "dev0" "dev1" "dev2" "dev3")
-    KEY_BALANCES=("1200000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq")
-    KEY_ROLES=("Validator" "Potential second validator" "User account" "User account" "User account")
+    KEY_NAMES=("mykey")
+    KEY_BALANCES=("1000000000000000000000unxq")
+    KEY_ROLES=("Validator")
     
     # Add genesis accounts with balances
     for i in "${!KEY_NAMES[@]}"; do
@@ -270,10 +270,6 @@ initialize_blockchain() {
     print_info "You will need to enter a password for the keyring"
     
     generate_key "mykey"
-    generate_key "dev0"
-    generate_key "dev1"
-    generate_key "dev2"
-    generate_key "dev3"
     
     # Initialize the chain
     print_section "Chain Initialization"
