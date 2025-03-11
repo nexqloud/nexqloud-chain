@@ -3,7 +3,7 @@ set -e
 
 # Node configuration
 CHAINID="nxqd_6000-1"
-MONIKER="localtestnet"
+MONIKER="NexqloudSeedNode1"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
 HOMEDIR="$HOME/.nxqd"
