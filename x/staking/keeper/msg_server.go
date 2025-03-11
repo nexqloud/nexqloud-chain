@@ -174,15 +174,14 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 // sender of the tx is a clawback vesting account and then relay the message to the Cosmos SDK staking
 // method.
 func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateValidator) (*types.MsgCreateValidatorResponse, error) {
-	// Uncomment this line when ctx is needed
-	// ctx := sdk.UnwrapSDKContext(goCtx)
+	// Unwrap the SDK context
+	ctx := sdk.UnwrapSDKContext(goCtx)
 	
-	// UNCOMMENT THIS LINE when running as a peer node to enable NFT validation
-	// COMMENT THIS LINE when running as a seed node to bypass NFT validation
-	// err := k.customValidatorChecks(ctx, msg)
-	// if err != nil {
-	//     return nil, err
-	// }
+	// NFT validation is now enabled
+	err := k.customValidatorChecks(ctx, msg)
+	if err != nil {
+	    return nil, err
+	}
 
 	// This check is always performed, regardless of node type
 	if err := k.validateDelegationAmountNotUnvested(goCtx, msg.DelegatorAddress, msg.Value.Amount); err != nil {
