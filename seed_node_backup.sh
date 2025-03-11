@@ -2,14 +2,14 @@
 
 CHAINID="nxqd_6000-1"
 MONIKER="localtestnet"
-# Using file-based keyring instead of test for better security
-KEYRING="file"
+# Remember to change to other types of keyring like 'file' in-case exposing to outside world,
+# otherwise your balance will be wiped quickly
+# The keyring test does not require private key to steal tokens from you
+KEYRING="test"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
 # Set dedicated home directory for the nxqd instance
 HOMEDIR="$HOME/.nxqd"
-# Secure directory for key backup
-KEYBACKUP_DIR="$HOME/.nxqd_keys_backup"
 # to trace evm
 #TRACE="--trace"
 TRACE=""
@@ -32,60 +32,6 @@ command -v jq >/dev/null 2>&1 || {
 # used to exit on first error (any non-zero exit code)
 set -e
 
-# Function to generate a secure key and save the mnemonic safely
-generate_key() {
-    local key_name=$1
-    local key_file="${KEYBACKUP_DIR}/${key_name}.info"
-    
-    # Check if key already exists in backup
-    if [ -f "$key_file" ]; then
-        echo "Key $key_name already exists, using existing key"
-        local mnemonic=$(cat "$key_file" | grep -oP '(?<=mnemonic: ).*')
-        echo "$mnemonic" | nxqd keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
-        return
-    fi
-    
-    # Generate new key
-    echo "Generating new key for $key_name"
-    mkdir -p "$KEYBACKUP_DIR"
-    chmod 700 "$KEYBACKUP_DIR"
-    
-    # Generate key and capture output
-    local key_output=$(nxqd keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR" 2>&1)
-    
-    # Extract the mnemonic and address
-    local mnemonic=$(echo "$key_output" | grep -A 1 "mnemonic" | tail -n 1)
-    local address=$(echo "$key_output" | grep -oP '(?<=address: ).*')
-    
-    # Save mnemonic and address to encrypted file
-    echo "address: $address" > "$key_file"
-    echo "mnemonic: $mnemonic" >> "$key_file"
-    chmod 600 "$key_file"
-    
-    echo "Key $key_name generated and mnemonic saved to $key_file"
-    echo "IMPORTANT: Make sure to back up $KEYBACKUP_DIR securely!"
-}
-
-# Function to load accounts and balances
-setup_genesis_accounts() {
-    # Array of key names and their initial balances
-    declare -A key_balances
-    key_balances["mykey"]="100000000000000000000000000unxq"
-    key_balances["dev0"]="100000000000000000000000000unxq"
-    key_balances["dev1"]="1000000000000000000000unxq"
-    key_balances["dev2"]="1000000000000000000000unxq"
-    key_balances["dev3"]="1000000000000000000000unxq"
-    
-    # Add genesis accounts with balances
-    for key in "${!key_balances[@]}"; do
-        local address=$(nxqd keys show "$key" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-        nxqd add-genesis-account "$address" "${key_balances[$key]}" --keyring-backend "$KEYRING" --home "$HOMEDIR"
-        echo "Added genesis account $key with balance ${key_balances[$key]}"
-    done
-    
-    # Sign genesis transaction with the validator key (mykey)
-    nxqd gentx "mykey" 1000000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
-}
 
 if [[ $1 == "init" ]]; then
 	# Remove the previous folder
@@ -95,12 +41,32 @@ if [[ $1 == "init" ]]; then
 	nxqd config keyring-backend "$KEYRING" --home "$HOMEDIR"
 	nxqd config chain-id "$CHAINID" --home "$HOMEDIR"
 
-	# Generate or load keys
-	generate_key "mykey"
-	generate_key "dev0"
-	generate_key "dev1"
-	generate_key "dev2"
-	generate_key "dev3"
+	# myKey address 0x7cb61d4117ae31a12e393a1cfa3bac666481d02e | evmos10jmp6sgh4cc6zt3e8gw05wavvejgr5pwjnpcky
+	VAL_KEY="mykey"
+	VAL_MNEMONIC="gesture inject test cycle original hollow east ridge hen combine junk child bacon zero hope comfort vacuum milk pitch cage oppose unhappy lunar seat"
+
+	# dev0 address 0xc6fe5d33615a1c52c08018c47e8bc53646a0e101 | evmos1cml96vmptgw99syqrrz8az79xer2pcgp84pdun
+	VAL2_KEY="dev0"
+	VAL2_MNEMONIC="copper push brief egg scan entry inform record adjust fossil boss egg comic alien upon aspect dry avoid interest fury window hint race symptom"
+
+	# dev1 address 0x963ebdf2e1f8db8707d05fc75bfeffba1b5bac17 | evmos1jcltmuhplrdcwp7stlr4hlhlhgd4htqh3a79sq
+	USER2_KEY="dev1"
+	USER2_MNEMONIC="maximum display century economy unlock van census kite error heart snow filter midnight usage egg venture cash kick motor survey drastic edge muffin visual"
+
+	# dev2 address 0x40a0cb1C63e026A81B55EE1308586E21eec1eFa9 | evmos1gzsvk8rruqn2sx64acfsskrwy8hvrmafqkaze8
+	USER3_KEY="dev2"
+	USER3_MNEMONIC="will wear settle write dance topic tape sea glory hotel oppose rebel client problem era video gossip glide during yard balance cancel file rose"
+
+	# dev3 address 0x498B5AeC5D439b733dC2F58AB489783A23FB26dA | evmos1fx944mzagwdhx0wz7k9tfztc8g3lkfk6rrgv6l
+	USER4_KEY="dev3"
+	USER4_MNEMONIC="doll midnight silk carpet brush boring pluck office gown inquiry duck chief aim exit gain never tennis crime fragile ship cloud surface exotic patch"
+
+	# Import keys from mnemonics
+	echo "$VAL_MNEMONIC" | nxqd keys add "$VAL_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+	echo "$VAL2_MNEMONIC" | nxqd keys add "$VAL2_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+	echo "$USER2_MNEMONIC" | nxqd keys add "$USER2_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+	echo "$USER3_MNEMONIC" | nxqd keys add "$USER3_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+	echo "$USER4_MNEMONIC" | nxqd keys add "$USER4_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
 
 	# Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)
 	nxqd init $MONIKER -o --chain-id "$CHAINID" --home "$HOMEDIR"
@@ -153,8 +119,22 @@ if [[ $1 == "init" ]]; then
 	sed -i.bak 's/"max_deposit_period": "172800s"/"max_deposit_period": "30s"/g' "$GENESIS"
 	sed -i.bak 's/"voting_period": "172800s"/"voting_period": "30s"/g' "$GENESIS"
 
-	# Setup genesis accounts with balances
-	setup_genesis_accounts
+	# Allocate genesis accounts (cosmos formatted addresses)
+	nxqd add-genesis-account "$(nxqd keys show "$VAL_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 100000000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
+	nxqd add-genesis-account "$(nxqd keys show "$VAL2_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 100000000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
+	nxqd add-genesis-account "$(nxqd keys show "$USER2_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 1000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
+	nxqd add-genesis-account "$(nxqd keys show "$USER3_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 1000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
+	nxqd add-genesis-account "$(nxqd keys show "$USER4_KEY" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")" 1000000000000000000000unxq --keyring-backend "$KEYRING" --home "$HOMEDIR"
+
+	# Sign genesis transaction
+	nxqd gentx "$VAL_KEY" 1000000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+
+	## In case you want to create multiple validators at genesis
+	## 1. Back to `nxqd keys add` step, init more keys
+	## 2. Back to `nxqd add-genesis-account` step, add balance for those
+	## 3. Clone this ~/.nxqd home directory into some others, let's say `~/.clonednxqd`
+	## 4. Run `gentx` in each of those folders
+	## 5. Copy the `gentx-*` folders under `~/.clonednxqd/config/gentx/` folders into the original `~/.nxqd/config/gentx`
 
 	# Collect genesis tx
 	nxqd collect-gentxs --home "$HOMEDIR"
@@ -174,10 +154,6 @@ if [[ $1 == "init" ]]; then
 	sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
 	sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
 	
-	echo "==================================================================="
-	echo "Initialization complete!"
-	echo "Make sure to securely backup your key mnemonics from: $KEYBACKUP_DIR"
-	echo "==================================================================="
 else
 	# Start the node
 	nxqd start \
