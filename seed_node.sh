@@ -10,10 +10,10 @@ HOMEDIR="$HOME/.nxqd"
 KEYBACKUP_DIR="$HOME/.nxqd_keys_backup"
 
 #for local testing
-# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-NXQD_BIN="/usr/local/bin/nxqd"
+# NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
@@ -206,43 +206,6 @@ setup_genesis_accounts() {
     $NXQD_BIN gentx "mykey" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
 }
 
-# Function to set up NFT validation bypass
-setup_nft_validation_bypass() {
-    print_section "Setting Up NFT Validation Bypass"
-    
-    # Get validator addresses for mykey and dev0
-    local val1_addr=$(jq -r '.app_state.genutil.gen_txs[0].body.messages[0].validator_address' "$GENESIS")
-    local val1_eth_addr=$(jq -r '.app_state.genutil.gen_txs[0].body.messages[0].delegator_address' "$GENESIS" | $NXQD_BIN debug addr --home "$HOMEDIR" | grep "eth" | cut -d' ' -f3)
-    
-    print_info "Validator Address: $val1_addr"
-    print_info "Validator ETH Address: $val1_eth_addr"
-    
-    # Create NFT allowlist file
-    local nft_config="$HOMEDIR/config/nft_allowlist.json"
-    cat > "$nft_config" << EOF
-{
-  "approved_validators": [
-    "$val1_eth_addr"
-  ],
-  "nft_contract_address": "0x816644F8bc4633D268842628EB10ffC0AdcB6099",
-  "bypass_validation": true
-}
-EOF
-    
-    print_success "Created NFT validation bypass config at $nft_config"
-    
-    # Update app.toml to point to this file
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/nft_config = ""/nft_config = "config\/nft_allowlist.json"/g' "$APP_TOML" 2>/dev/null || \
-        echo 'nft_config = "config/nft_allowlist.json"' >> "$APP_TOML"
-    else
-        sed -i 's/nft_config = ""/nft_config = "config\/nft_allowlist.json"/g' "$APP_TOML" 2>/dev/null || \
-        echo 'nft_config = "config/nft_allowlist.json"' >> "$APP_TOML"
-    fi
-    
-    print_success "Updated app.toml to use NFT allowlist"
-}
-
 # Initialize the blockchain
 initialize_blockchain() {
     print_section "Initializing Blockchain"
@@ -332,9 +295,6 @@ initialize_blockchain() {
 
     # Setup genesis accounts
     setup_genesis_accounts
-    
-    # Setup NFT validation bypass
-    setup_nft_validation_bypass
     
     # Collect and validate genesis transactions
     print_info "Collecting genesis transactions"
