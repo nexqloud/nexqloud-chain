@@ -52,12 +52,9 @@ func (k msgServer) Delegate(goCtx context.Context, msg *types.MsgDelegate) (*typ
 	return k.MsgServer.Delegate(goCtx, msg)
 }
 
-// CreateValidator defines a method to create a validator. The method performs some checks if the
-// sender of the tx is a clawback vesting account and then relay the message to the Cosmos SDK staking
-// method.
-func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateValidator) (*types.MsgCreateValidatorResponse, error) {
-	ctx := sdk.UnwrapSDKContext(goCtx)
-
+// customValidatorChecks performs custom validation checks for validators
+// This includes NFT ownership validation and minimum self-delegation requirements
+func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateValidator) error {
 	log.Println("========= NFT Validation Start =========")
 	log.Printf("Validator address (bech32): %s", msg.ValidatorAddress)
 	log.Printf("Delegator address (bech32): %s", msg.DelegatorAddress)
@@ -65,7 +62,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	// Check if EVM Keeper is initialized
 	if k.evmKeeper == nil {
 		log.Println("FATAL: EVM Keeper not initialized")
-		return nil, errorsmod.Wrap(
+		return errorsmod.Wrap(
 			errortypes.ErrInvalidRequest,
 			"EVM module not configured",
 		)
@@ -79,7 +76,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	valAddr, err := sdk.ValAddressFromBech32(msg.ValidatorAddress)
 	if err != nil {
 		log.Printf("ERROR: Invalid validator operator address: %v", err)
-		return nil, errorsmod.Wrap(err, "invalid validator address")
+		return errorsmod.Wrap(err, "invalid validator address")
 	}
 	
 	// Check if the validator is on the approved list
@@ -90,7 +87,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		// Only fail if it's not an 'execution reverted' error (which could mean the function isn't implemented yet)
 		if !strings.Contains(err.Error(), "execution reverted") {
 			log.Printf("ERROR: Failed to check if validator is approved: %v", err)
-			return nil, errorsmod.Wrap(
+			return errorsmod.Wrap(
 				errortypes.ErrUnauthorized,
 				fmt.Sprintf("failed to check if validator is approved: %v", err),
 			)
@@ -98,7 +95,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		log.Printf("WARNING: Could not check validator approval status (function may not be implemented yet): %v", err)
 	} else if !isApproved {
 		log.Printf("ERROR: Validator %s is not on the approved list", valEvmAddr.Hex())
-		return nil, errorsmod.Wrap(
+		return errorsmod.Wrap(
 			errortypes.ErrUnauthorized,
 			fmt.Sprintf("validator %s is not on the approved list", valEvmAddr.Hex()),
 		)
@@ -131,7 +128,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	if err != nil {
 		// provide a clear error message about the NFT requirement
 		log.Printf("ERROR: Failed to query NFT balance: %v", err)
-		return nil, errorsmod.Wrap(
+		return errorsmod.Wrap(
 			errortypes.ErrUnauthorized,
 			fmt.Sprintf("unable to verify NFT ownership: %v - please ensure you own an NFT at contract %s",
 				err, nftContract.Hex()),
@@ -144,7 +141,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	if nftBalance.Cmp(requiredNXQNFTs) < 0 {
 		log.Printf("ERROR: Validator does not have enough NXQNFT. Required: ≥%s, Found: %s", 
 			requiredNXQNFTs.String(), nftBalance.String())
-		return nil, errorsmod.Wrap(
+		return errorsmod.Wrap(
 			errortypes.ErrUnauthorized, 
 			fmt.Sprintf("must own ≥%s NXQNFT, found %s", 
 				requiredNXQNFTs.String(), nftBalance.String()),
@@ -161,7 +158,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	if msg.MinSelfDelegation.LT(requiredMinSelfDelegation) {
 		log.Printf("ERROR: Minimum self delegation too low. Required: ≥%s NXQ, Found: %s", 
 			requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String())
-		return nil, errorsmod.Wrap(
+		return errorsmod.Wrap(
 			errortypes.ErrInvalidRequest,
 			fmt.Sprintf("minimum self delegation must be at least %s NXQ, got %s", 
 				requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String()),
@@ -170,6 +167,24 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	log.Printf("✅ Minimum self delegation requirement met: %s ≥ %s", 
 		msg.MinSelfDelegation.String(), requiredMinSelfDelegation.String())
 
+	return nil
+}
+
+// CreateValidator defines a method to create a validator. The method performs some checks if the
+// sender of the tx is a clawback vesting account and then relay the message to the Cosmos SDK staking
+// method.
+func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateValidator) (*types.MsgCreateValidatorResponse, error) {
+	// Uncomment this line when ctx is needed
+	// ctx := sdk.UnwrapSDKContext(goCtx)
+	
+	// UNCOMMENT THIS LINE when running as a peer node to enable NFT validation
+	// COMMENT THIS LINE when running as a seed node to bypass NFT validation
+	// err := k.customValidatorChecks(ctx, msg)
+	// if err != nil {
+	//     return nil, err
+	// }
+
+	// This check is always performed, regardless of node type
 	if err := k.validateDelegationAmountNotUnvested(goCtx, msg.DelegatorAddress, msg.Value.Amount); err != nil {
 		log.Printf("ERROR: Delegation validation failed: %v", err)
 		return nil, err
