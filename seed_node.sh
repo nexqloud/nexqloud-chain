@@ -233,6 +233,12 @@ initialize_blockchain() {
         rm -rf "$HOMEDIR"
     fi
     
+    # Also remove key backup directory to prevent invalid mnemonic errors
+    if [ -d "$KEYBACKUP_DIR" ]; then
+        print_warning "Removing existing key backup directory: $KEYBACKUP_DIR"
+        rm -rf "$KEYBACKUP_DIR"
+    fi
+    
     # Set client config
     print_info "Configuring client"
     $NXQD_BIN config keyring-backend "$KEYRING" --home "$HOMEDIR"
