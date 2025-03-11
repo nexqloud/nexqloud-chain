@@ -10,10 +10,10 @@ HOMEDIR="$HOME/.nxqd"
 KEYBACKUP_DIR="$HOME/.nxqd_keys_backup"
 
 #for local testing
-# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-NXQD_BIN="/usr/local/bin/nxqd"
+# NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
@@ -166,7 +166,7 @@ setup_genesis_accounts() {
     # Define key names and their initial balances
     # We use simple arrays for better compatibility
     KEY_NAMES=("mykey" "dev0" "dev1" "dev2" "dev3")
-    KEY_BALANCES=("1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq")
+    KEY_BALANCES=("1200000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq" "1000000000000000000000unxq")
     KEY_ROLES=("Validator" "Potential second validator" "User account" "User account" "User account")
     
     # Add genesis accounts with balances
@@ -203,7 +203,7 @@ setup_genesis_accounts() {
     
     print_info "Creating genesis transaction with validator key (mykey)"
     # Sign genesis transaction with the validator key
-    $NXQD_BIN gentx "mykey" 1000000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+    $NXQD_BIN gentx "mykey" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
 }
 
 # Function to set up NFT validation bypass
