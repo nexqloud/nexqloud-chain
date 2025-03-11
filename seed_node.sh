@@ -87,7 +87,7 @@ usage() {
     echo "  KEYRING_PASSWORD=xyz $0 init  # Initialize with password from environment"
     echo "  $0 start                  # Start the node"
     echo "  $0 test                   # Start in test mode (bypasses NFT validation)"
-    exit 1
+	exit 1
 }
 
 # Check dependencies
@@ -282,58 +282,58 @@ initialize_blockchain() {
     
     # Customize genesis settings
     print_info "Customizing genesis parameters"
-    jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["gov"]["deposit_params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["gov"]["deposit_params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
     
     # Disable NFT validation for validator approval (for testing only)
     print_info "Disabling NFT validation for local testing"
-    
-    # Set gas limit in genesis
-    jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    
-    # Set base fee in genesis
-    jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    
+
+	# Set gas limit in genesis
+	jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
+	# Set base fee in genesis
+	jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
     # Adjust timeout settings for pending mode
-    if [[ $1 == "pending" ]]; then
+	if [[ $1 == "pending" ]]; then
         print_info "Setting up for pending mode"
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
-            sed -i '' 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
-            sed -i '' 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
-            sed -i '' 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
-            sed -i '' 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
-            sed -i '' 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
-            sed -i '' 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
-            sed -i '' 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
-        else
-            sed -i 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
-            sed -i 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
-            sed -i 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
-            sed -i 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
-            sed -i 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
-            sed -i 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
-            sed -i 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
-            sed -i 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
-        fi
-    fi
-    
+		if [[ "$OSTYPE" == "darwin"* ]]; then
+			sed -i '' 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
+			sed -i '' 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
+			sed -i '' 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
+			sed -i '' 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
+			sed -i '' 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
+			sed -i '' 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
+			sed -i '' 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
+			sed -i '' 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
+		else
+			sed -i 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
+			sed -i 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
+			sed -i 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
+			sed -i 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
+			sed -i 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
+			sed -i 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
+			sed -i 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
+			sed -i 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
+		fi
+	fi
+
     # Enable prometheus and API services
     print_info "Enabling Prometheus metrics and APIs"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
-    else
-        sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
-    fi
-    
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
+	else
+		sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
+	fi
+
     # Adjust governance parameters for faster testing
     print_info "Setting up shortened proposal periods for testing"
-    sed -i.bak 's/"max_deposit_period": "172800s"/"max_deposit_period": "30s"/g' "$GENESIS"
-    sed -i.bak 's/"voting_period": "172800s"/"voting_period": "30s"/g' "$GENESIS"
-    
+	sed -i.bak 's/"max_deposit_period": "172800s"/"max_deposit_period": "30s"/g' "$GENESIS"
+	sed -i.bak 's/"voting_period": "172800s"/"voting_period": "30s"/g' "$GENESIS"
+
     # Setup genesis accounts
     setup_genesis_accounts
     
@@ -354,8 +354,8 @@ initialize_blockchain() {
     # Copy files for sharing (if nginx is available)
     if [ -d "/usr/share/nginx/html" ]; then
         print_info "Copying genesis and node-id for sharing via nginx"
-        sudo cp $GENESIS /usr/share/nginx/html/
-        sudo cp "$HOMEDIR/node-id" /usr/share/nginx/html/node-id
+	sudo cp $GENESIS /usr/share/nginx/html/
+	sudo cp "$HOMEDIR/node-id" /usr/share/nginx/html/node-id
     else
         print_warning "Nginx directory not found, skipping file copying"
     fi
@@ -366,8 +366,8 @@ initialize_blockchain() {
         sed -i '' 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
         sed -i '' 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
     else
-        sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-        sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
+	sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
+	sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
     fi
     
     print_section "Initialization Complete"
@@ -390,12 +390,12 @@ start_node() {
     print_warning "You will need to enter your keyring password"
     
     $NXQD_BIN start \
-        --metrics "$TRACE" \
-        --log_level $LOGLEVEL \
-        --minimum-gas-prices=0.0001nxq \
-        --json-rpc.api eth,txpool,personal,net,debug,web3 \
-        --home "$HOMEDIR" \
-        --chain-id "$CHAINID"
+		--metrics "$TRACE" \
+		--log_level $LOGLEVEL \
+		--minimum-gas-prices=0.0001nxq \
+		--json-rpc.api eth,txpool,personal,net,debug,web3 \
+		--home "$HOMEDIR" \
+		--chain-id "$CHAINID"
 }
 
 # Main function
