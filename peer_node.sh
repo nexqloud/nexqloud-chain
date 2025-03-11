@@ -95,10 +95,20 @@ if [[ $1 == "init" ]]; then
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
         sed -i '' 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
+        sed -i '' 's|enable = false|enable = true|g' "$APP_TOML"
+        sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
     else
         sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
         sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
+        sed -i 's|enable = false|enable = true|g' "$APP_TOML"
+        sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
     fi
+
+    # Verify the changes were applied
+    echo "Verifying Tendermint RPC configuration:"
+    grep "laddr = \"tcp:" "$CONFIG"
+    echo "Verifying JSON-RPC configuration:"
+    grep "enable = true" "$APP_TOML"
 
     # set seed node info
     echo "Configuring seed node: $SEED_NODE_IP"
@@ -132,6 +142,48 @@ if [[ $1 == "init" ]]; then
 else
     # Start the node
     echo "Starting peer node with chain-id: $CHAINID"
+    
+    # Make sure RPC endpoints are properly configured before starting
+    echo "Ensuring Ethereum RPC and Tendermint RPC endpoints are exposed"
+    echo "Config file path: $CONFIG"
+    echo "App toml path: $APP_TOML"
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
+        sed -i '' 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
+        sed -i '' 's|enable = false|enable = true|g' "$APP_TOML"
+        sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+    else
+        sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
+        sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
+        sed -i 's|enable = false|enable = true|g' "$APP_TOML"
+        sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+    fi
+    
+    # Verify the changes were applied
+    echo "Verifying Tendermint RPC configuration:"
+    grep "laddr = \"tcp:" "$CONFIG"
+    echo "Verifying JSON-RPC configuration:"
+    grep "enable = true" "$APP_TOML"
+    
+    echo "RPC endpoints available at:"
+    echo "- Ethereum JSON-RPC: http://$(hostname -I | awk '{print $1}'):8545"
+    echo "- Tendermint RPC: http://$(hostname -I | awk '{print $1}'):26657"
+    
+    # Final check for Tendermint RPC configuration
+    echo "Final check for Tendermint RPC configuration"
+    if grep -q 'laddr = "tcp://127.0.0.1:26657"' "$CONFIG"; then
+        echo "WARNING: Tendermint RPC still bound to localhost, forcing update"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        else
+            sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        fi
+        echo "Updated Tendermint RPC binding"
+    else
+        echo "SUCCESS: Tendermint RPC correctly configured to be exposed"
+    fi
+    
     $NXQD_BIN start \
         --metrics "$TRACE" \
         --log_level $LOGLEVEL \

@@ -7,13 +7,12 @@ MONIKER="NexqloudSeedNode1"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
 HOMEDIR="$HOME/.nxqd"
-KEYBACKUP_DIR="$HOME/.nxqd_keys_backup"
 
 #for local testing
-# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-NXQD_BIN="/usr/local/bin/nxqd"
+# NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
@@ -107,56 +106,23 @@ check_dependencies() {
     print_success "All dependencies found"
 }
 
-# Secure function to generate a key and save mnemonic in a protected file
+# Simplified function to generate a key
 generate_key() {
     local key_name=$1
-    local key_file="${KEYBACKUP_DIR}/${key_name}.info"
     
     print_info "Processing key: $key_name"
     
-    # Check if key already exists in backup
-    if [ -f "$key_file" ]; then
-        print_info "Key $key_name already exists, using existing key"
-        
-        # Security check for file permissions
-        local file_perms=$(stat -c "%a" "$key_file" 2>/dev/null || stat -f "%Lp" "$key_file" 2>/dev/null)
-        if [[ "$file_perms" != "600" ]]; then
-            print_warning "Key file permissions are not secure! Setting to 600."
-            chmod 600 "$key_file"
-        fi
-        
-        # Get the mnemonic and import it - using grep and cut for better compatibility
-        local mnemonic=$(cat "$key_file" | grep "mnemonic:" | cut -d':' -f2- | xargs)
-        echo "$mnemonic" | $NXQD_BIN keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
-        return
-    fi
+    print_info "Generating key for $key_name"
     
-    # Create secure directory if it doesn't exist
-    mkdir -p "$KEYBACKUP_DIR"
-    chmod 700 "$KEYBACKUP_DIR"
-    
-    print_info "Generating new key for $key_name"
     # Instructive message about password
     print_warning "You will be prompted to create a password for your keyring."
     print_warning "This password protects all your keys. Remember it well!"
     
-    # Generate key with visible output for user
-    $NXQD_BIN keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR" | tee /tmp/key_output.tmp
+    # Generate key
+    $NXQD_BIN keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
     
-    # Extract mnemonic and address from the output - using grep and sed for better compatibility
-    local mnemonic=$(grep -A 1 "mnemonic" /tmp/key_output.tmp | tail -n 1 | xargs)
-    local address=$(grep "address:" /tmp/key_output.tmp | cut -d':' -f2 | xargs)
-    
-    # Create the backup file with secure permissions
-    echo "address: $address" > "$key_file"
-    echo "mnemonic: $mnemonic" >> "$key_file"
-    chmod 600 "$key_file"
-    
-    # Remove the temporary file securely
-    rm -f /tmp/key_output.tmp
-    
-    print_success "Key $key_name generated and mnemonic saved to $key_file"
-    print_warning "IMPORTANT: Securely back up $KEYBACKUP_DIR directory!"
+    print_success "Key $key_name generated"
+    print_warning "IMPORTANT: Make sure to securely write down the mnemonic phrase shown above!"
 }
 
 # Setup genesis accounts with proper balances
@@ -216,12 +182,6 @@ initialize_blockchain() {
         rm -rf "$HOMEDIR"
     fi
     
-    # Also remove key backup directory to prevent invalid mnemonic errors
-    if [ -d "$KEYBACKUP_DIR" ]; then
-        print_warning "Removing existing key backup directory: $KEYBACKUP_DIR"
-        rm -rf "$KEYBACKUP_DIR"
-    fi
-    
     # Set client config
     print_info "Configuring client"
     $NXQD_BIN config keyring-backend "$KEYRING" --home "$HOMEDIR"
@@ -229,8 +189,9 @@ initialize_blockchain() {
     
     # Generate or load keys
     print_section "Key Management"
-    print_info "This process will create secure keys and store mnemonics in $KEYBACKUP_DIR"
+    print_info "This process will create keys for the blockchain"
     print_info "You will need to enter a password for the keyring"
+    print_warning "IMPORTANT: Make sure to securely write down all mnemonic phrases when displayed!"
     
     generate_key "mykey"
     
@@ -318,22 +279,64 @@ initialize_blockchain() {
     
     # Configure RPC access
     print_info "Enabling RPC services"
+    print_info "Config file path: $CONFIG"
+    print_info "App toml path: $APP_TOML"
+    
+    # Check file permissions
+    print_info "Checking file permissions:"
+    ls -la "$CONFIG"
+    ls -la "$APP_TOML"
+    
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-        sed -i '' 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
+        sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        sed -i '' 's|address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        sed -i '' 's|ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
+        sed -i '' 's|enable = false|enable = true|g' "$APP_TOML"
     else
-	sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-	sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
+        sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        sed -i 's|address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        sed -i 's|ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
+        sed -i 's|enable = false|enable = true|g' "$APP_TOML"
     fi
+    
+    # Verify the changes were applied
+    print_info "Verifying Tendermint RPC configuration:"
+    grep "laddr = \"tcp:" "$CONFIG"
+    print_info "Verifying JSON-RPC configuration:"
+    grep "enable = true" "$APP_TOML"
+    
+    # Configure Tendermint RPC access (needed for validator creation)
+    print_info "Enabling Tendermint RPC services"
+    print_info "Config file path: $CONFIG"
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+    else
+        sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+    fi
+    
+    # Verify the change was applied
+    print_info "Verifying Tendermint RPC configuration:"
+    grep "laddr = \"tcp:" "$CONFIG"
     
     print_section "Initialization Complete"
     print_success "Node has been successfully initialized!"
-    print_warning "IMPORTANT: Make sure to securely back up your key mnemonics from: $KEYBACKUP_DIR"
     print_info "To start the node, run: $0 start"
     
-    # Add reminder about manual modification
-    print_warning "IMPORTANT: Remember to manually comment/uncomment NFT validation in the code as needed."
-    print_info "NFT validation is controlled in x/staking/keeper/msg_server.go in the CreateValidator function."
+   
+    # Final check to ensure Tendermint RPC is exposed
+    print_info "Final check for Tendermint RPC configuration"
+    if grep -q 'laddr = "tcp://127.0.0.1:26657"' "$CONFIG"; then
+        print_warning "Tendermint RPC still bound to localhost, forcing update"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        else
+            sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        fi
+        print_info "Updated Tendermint RPC binding"
+    else
+        print_success "Tendermint RPC correctly configured to be exposed"
+    fi
 }
 
 # Start the blockchain node
@@ -344,6 +347,47 @@ start_node() {
     print_info "Log Level: $LOGLEVEL"
     
     print_warning "You will need to enter your keyring password"
+    
+    # Ensure RPC endpoints are exposed before starting
+    print_info "Ensuring Ethereum RPC and Tendermint RPC endpoints are exposed"
+    print_info "Config file path: $CONFIG"
+    print_info "App toml path: $APP_TOML"
+    
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        sed -i '' 's|address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        sed -i '' 's|ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
+        sed -i '' 's|enable = false|enable = true|g' "$APP_TOML"
+    else
+        sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        sed -i 's|address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        sed -i 's|ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
+        sed -i 's|enable = false|enable = true|g' "$APP_TOML"
+    fi
+    
+    # Verify the changes were applied
+    print_info "Verifying Tendermint RPC configuration:"
+    grep "laddr = \"tcp:" "$CONFIG"
+    print_info "Verifying JSON-RPC configuration:"
+    grep "enable = true" "$APP_TOML"
+    
+    print_info "RPC endpoints available at:"
+    print_info "- Ethereum JSON-RPC: http://$(hostname -I | awk '{print $1}'):8545"
+    print_info "- Tendermint RPC: http://$(hostname -I | awk '{print $1}'):26657"
+    
+    # Final check to ensure Tendermint RPC is exposed
+    print_info "Final check for Tendermint RPC configuration"
+    if grep -q 'laddr = "tcp://127.0.0.1:26657"' "$CONFIG"; then
+        print_warning "Tendermint RPC still bound to localhost, forcing update"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        else
+            sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        fi
+        print_info "Updated Tendermint RPC binding"
+    else
+        print_success "Tendermint RPC correctly configured to be exposed"
+    fi
     
     $NXQD_BIN start \
 		--metrics "$TRACE" \
