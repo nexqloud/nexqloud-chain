@@ -288,22 +288,26 @@ initialize_blockchain() {
     ls -la "$APP_TOML"
     
     if [[ "$OSTYPE" == "darwin"* ]]; then
+        # Update Tendermint RPC binding
         sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        # Update JSON-RPC settings
+        sed -i '' '/^\[json-rpc\]/,/^\[/ s|enable = false|enable = true|' "$APP_TOML"
         sed -i '' 's|address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
         sed -i '' 's|ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
-        sed -i '' 's|enable = false|enable = true|g' "$APP_TOML"
     else
+        # Update Tendermint RPC binding
         sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        # Update JSON-RPC settings
+        sed -i '/^\[json-rpc\]/,/^\[/ s|enable = false|enable = true|' "$APP_TOML"
         sed -i 's|address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
         sed -i 's|ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
-        sed -i 's|enable = false|enable = true|g' "$APP_TOML"
     fi
     
     # Verify the changes were applied
     print_info "Verifying Tendermint RPC configuration:"
     grep "laddr = \"tcp:" "$CONFIG"
     print_info "Verifying JSON-RPC configuration:"
-    grep "enable = true" "$APP_TOML"
+    grep -A 3 "\[json-rpc\]" "$APP_TOML"
     
     # Configure Tendermint RPC access (needed for validator creation)
     print_info "Enabling Tendermint RPC services"
