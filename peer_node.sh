@@ -8,7 +8,7 @@ if [ -z "$MONIKER" ]; then
 fi
 
 if [ -z "$SEED_NODE_IP" ]; then
-    SEED_NODE_IP="stage-node.nexqloud.net"
+    SEED_NODE_IP="dev-node.nexqloud.net"
 fi
 
 KEYRING="test"
