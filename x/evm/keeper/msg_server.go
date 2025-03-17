@@ -5,6 +5,7 @@ package keeper
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -35,8 +36,8 @@ import (
 // }
 var _ types.MsgServer = &Keeper{}
 var whitelist = map[string]bool{
-	"0x3477144C5e054a96A4172e9b5cb4DA2b36cB38D5": true,
-	"0x9eF0A31c9EC830860DC3ACFcA48442665B14aa07": true,
+	"0x79699b8BC33c888d5bc65910247121681410ADd1": true,
+	"0x716062c5126dae2cCD58D184305d3919Fae2Df2A": true,
 }
 
 func getFunctionSelector(signature string) []byte {
@@ -263,25 +264,25 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	log.Println("From:", from)
 
 	// Check whitelist first
-	// if !whitelist[from.Hex()] {
-	// 	// Only check chain status and wallet lock for non-whitelisted addresses
-	// 	log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
-	// 	isOpen, err := k.IsChainOpen(ctx, from)
-	// 	if err != nil {
-	// 		return nil, errorsmod.Wrap(err, "failed to check if chain is open")
-	// 	}
-	// 	if !isOpen {
-	// 		return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-	// 	}
+	if !whitelist[from.Hex()] {
+		// Only check chain status and wallet lock for non-whitelisted addresses
+		log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
+		isOpen, err := k.IsChainOpen(ctx, from)
+		if err != nil {
+			return nil, errorsmod.Wrap(err, "failed to check if chain is open")
+		}
+		if !isOpen {
+			return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
+		}
 
-	// 	txAmount := tx.Value()
-	// 	isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
-	// 	if err != nil || !isUnlocked {
-	// 		return nil, fmt.Errorf("transaction rejected: wallet is locked")
-	// 	}
-	// } else {
-	// 	log.Println("Address is whitelisted, skipping chain open and wallet unlock checks")
-	// }
+		txAmount := tx.Value()
+		isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
+		if err != nil || !isUnlocked {
+			return nil, fmt.Errorf("transaction rejected: wallet is locked")
+		}
+	} else {
+		log.Println("Address is whitelisted, skipping chain open and wallet unlock checks")
+	}
 
 	labels := []metrics.Label{
 		telemetry.NewLabel("tx_type", fmt.Sprintf("%d", tx.Type())),
