@@ -5,7 +5,6 @@ package keeper
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"math/big"
