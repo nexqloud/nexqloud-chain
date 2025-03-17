@@ -9,10 +9,10 @@ LOGLEVEL="info"
 HOMEDIR="$HOME/.nxqd"
 
 #for local testing
-NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-# NXQD_BIN="/usr/local/bin/nxqd"
+NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
