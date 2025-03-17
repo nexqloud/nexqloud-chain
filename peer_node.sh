@@ -8,7 +8,7 @@ if [ -z "$MONIKER" ]; then
 fi
 
 if [ -z "$SEED_NODE_IP" ]; then
-    SEED_NODE_IP="dev-node.nexqloud.net"
+    SEED_NODE_IP="stage-node.nexqloud.net"
 fi
 
 KEYRING="test"
@@ -19,17 +19,6 @@ HOMEDIR="$HOME/.nxqd"
 # to trace evm
 #TRACE="--trace"
 TRACE=""
-
-# Use system-wide nxqd binary 
-NXQD_BIN="$(which nxqd)"
-# If not found, try using local binary
-if [ -z "$NXQD_BIN" ]; then
-    NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
-    if [ ! -f "$NXQD_BIN" ]; then
-        echo "Error: nxqd binary not found. Please build it first with: cd cmd/nxqd && go build"
-        exit 1
-    fi
-fi
 
 # feemarket params basefee
 BASEFEE=1000000000
@@ -55,12 +44,16 @@ if [[ $1 == "init" ]]; then
     rm -rf "$HOMEDIR"
 
     # Set client config
-    $NXQD_BIN config keyring-backend "$KEYRING" --home "$HOMEDIR"
-    $NXQD_BIN config chain-id "$CHAINID" --home "$HOMEDIR"
+    nxqd config keyring-backend "$KEYRING" --home "$HOMEDIR"
+    nxqd config chain-id "$CHAINID" --home "$HOMEDIR"
 
-    # Initialize the node (as non-validator)
-    echo "Initializing peer node with moniker: $MONIKER and chain-id: $CHAINID"
-    $NXQD_BIN init $MONIKER -o --chain-id "$CHAINID" --home "$HOMEDIR"
+    VAL_KEY="mykey"
+
+    # Import keys from mnemonics
+    echo "$VAL_MNEMONIC" | nxqd keys add "$VAL_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+
+    # Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)
+    nxqd init $MONIKER -o --chain-id "$CHAINID" --home "$HOMEDIR"
 
     if [[ $1 == "pending" ]]; then
         if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -92,99 +85,23 @@ if [[ $1 == "init" ]]; then
     fi
 
     # Enable the RPC
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-        sed -i '' 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
-        sed -i '' 's|enable = false|enable = true|g' "$APP_TOML"
-        sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-    else
-        sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-        sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
-        sed -i 's|enable = false|enable = true|g' "$APP_TOML"
-        sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-    fi
-
-    # Verify the changes were applied
-    echo "Verifying Tendermint RPC configuration:"
-    grep "laddr = \"tcp:" "$CONFIG"
-    echo "Verifying JSON-RPC configuration:"
-    grep "enable = true" "$APP_TOML"
+	sed -i '/^\[json-rpc\]/,/^\[/ s|enable = false|enable = true|' "$APP_TOML"
+	sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
+	sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
 
     # set seed node info
-    echo "Configuring seed node: $SEED_NODE_IP"
-    SEED_NODE_ID="`wget -qO-  http://$SEED_NODE_IP/node-id 2>/dev/null || curl -s http://$SEED_NODE_IP/node-id`"
+    SEED_NODE_ID="`wget -qO-  http://$SEED_NODE_IP/node-id`"
     echo "SEED_NODE_ID=$SEED_NODE_ID"
-    
-    if [ -z "$SEED_NODE_ID" ]; then
-        echo "WARNING: Failed to fetch seed node ID, trying to proceed anyway"
-        SEED_NODE_ID="UNKNOWN_ID"
-    fi
-    
     SEEDS="$SEED_NODE_ID@$SEED_NODE_IP:26656"
-    
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
-    else
-        sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
-    fi
+    sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
 
-    # Download genesis file
-    echo "Downloading genesis file from: http://$SEED_NODE_IP/genesis.json"
-    wget -qO- "http://$SEED_NODE_IP/genesis.json" > "$GENESIS" 2>/dev/null || \
-    curl -s "http://$SEED_NODE_IP/genesis.json" > "$GENESIS"
-    
-    # Validate genesis
-    echo "Validating genesis file"
-    $NXQD_BIN validate-genesis --home "$HOMEDIR" || echo "WARNING: Genesis validation had issues but proceeding anyway"
-    
-    echo "Initialization complete! To start the node, run: $0 start"
+    wget -qO- "http://$SEED_NODE_IP/genesis.json" > "$GENESIS"
+
+    nxqd validate-genesis --home "$HOMEDIR"
 
 else
     # Start the node
-    echo "Starting peer node with chain-id: $CHAINID"
-    
-    # Make sure RPC endpoints are properly configured before starting
-    echo "Ensuring Ethereum RPC and Tendermint RPC endpoints are exposed"
-    echo "Config file path: $CONFIG"
-    echo "App toml path: $APP_TOML"
-    
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-        sed -i '' 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
-        sed -i '' 's|enable = false|enable = true|g' "$APP_TOML"
-        sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-    else
-        sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-        sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
-        sed -i 's|enable = false|enable = true|g' "$APP_TOML"
-        sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-    fi
-    
-    # Verify the changes were applied
-    echo "Verifying Tendermint RPC configuration:"
-    grep "laddr = \"tcp:" "$CONFIG"
-    echo "Verifying JSON-RPC configuration:"
-    grep "enable = true" "$APP_TOML"
-    
-    echo "RPC endpoints available at:"
-    echo "- Ethereum JSON-RPC: http://$(hostname -I | awk '{print $1}'):8545"
-    echo "- Tendermint RPC: http://$(hostname -I | awk '{print $1}'):26657"
-    
-    # Final check for Tendermint RPC configuration
-    echo "Final check for Tendermint RPC configuration"
-    if grep -q 'laddr = "tcp://127.0.0.1:26657"' "$CONFIG"; then
-        echo "WARNING: Tendermint RPC still bound to localhost, forcing update"
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-        else
-            sed -i 's|laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-        fi
-        echo "Updated Tendermint RPC binding"
-    else
-        echo "SUCCESS: Tendermint RPC correctly configured to be exposed"
-    fi
-    
-    $NXQD_BIN start \
+    nxqd start \
         --metrics "$TRACE" \
         --log_level $LOGLEVEL \
         --minimum-gas-prices=0.0001nxq \
