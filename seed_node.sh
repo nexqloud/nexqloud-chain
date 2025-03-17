@@ -9,10 +9,10 @@ LOGLEVEL="info"
 HOMEDIR="$HOME/.nxqd"
 
 #for local testing
-#NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-NXQD_BIN="/usr/local/bin/nxqd"
+# NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
@@ -125,53 +125,6 @@ generate_key() {
     print_warning "IMPORTANT: Make sure to securely write down the mnemonic phrase shown above!"
 }
 
-# Setup genesis accounts with proper balances
-setup_genesis_accounts() {
-    print_section "Setting Up Genesis Accounts"
-    
-    # Define key names and their initial balances
-    # We use simple arrays for better compatibility
-    KEY_NAMES=("mykey")
-    KEY_BALANCES=("1000000000000000000000unxq")
-    KEY_ROLES=("Validator")
-    
-    # Add genesis accounts with balances
-    for i in "${!KEY_NAMES[@]}"; do
-        local key=${KEY_NAMES[$i]}
-        local balance=${KEY_BALANCES[$i]}
-        local role=${KEY_ROLES[$i]}
-        
-        print_info "Adding $role: $key with balance $balance"
-        local address=$($NXQD_BIN keys show "$key" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-        $NXQD_BIN add-genesis-account "$address" "$balance" --keyring-backend "$KEYRING" --home "$HOMEDIR"
-        print_success "Added genesis account $key with balance $balance"
-    done
-    
-    # Add vault and maintenance keys
-    print_info "Generating vault and maintenance keys"
-    
-    # Generate vault keys
-    for i in {1..5}; do
-        print_info "Generating vault key $i"
-        local vault_key="vault$i"
-        generate_key "$vault_key"
-        local address=$($NXQD_BIN keys show "$vault_key" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-        $NXQD_BIN add-genesis-account "$address" "2100000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
-        print_success "Added vault $i with address $address"
-    done
-    
-    # Generate maintenance wallet key
-    print_info "Generating maintenance wallet key"
-    generate_key "maintenance"
-    local maint_address=$($NXQD_BIN keys show "maintenance" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-    $NXQD_BIN add-genesis-account "$maint_address" "10499000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
-    print_success "Added maintenance wallet with address $maint_address"
-    
-    print_info "Creating genesis transaction with validator key (mykey)"
-    # Sign genesis transaction with the validator key
-    $NXQD_BIN gentx "mykey" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
-}
-
 # Initialize the blockchain
 initialize_blockchain() {
     print_section "Initializing Blockchain"
@@ -192,8 +145,10 @@ initialize_blockchain() {
     print_info "This process will create keys for the blockchain"
     print_info "You will need to enter a password for the keyring"
     print_warning "IMPORTANT: Make sure to securely write down all mnemonic phrases when displayed!"
-    
-    generate_key "mykey"
+
+    # Generate a single primary key
+    print_info "Processing key: primary"
+    generate_key "primary"
     
     # Initialize the chain
     print_section "Chain Initialization"
@@ -202,60 +157,46 @@ initialize_blockchain() {
     
     # Customize genesis settings
     print_info "Customizing genesis parameters"
-	jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-	jq '.app_state["gov"]["deposit_params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-	jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-	jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-	jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    
-    # Disable NFT validation for validator approval (for testing only)
     print_info "Disabling NFT validation for local testing"
-
-	# Set gas limit in genesis
-	jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-
-	# Set base fee in genesis
-	jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-
-    # Adjust timeout settings for pending mode
-	if [[ $1 == "pending" ]]; then
-        print_info "Setting up for pending mode"
-		if [[ "$OSTYPE" == "darwin"* ]]; then
-			sed -i '' 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
-			sed -i '' 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
-			sed -i '' 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
-			sed -i '' 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
-			sed -i '' 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
-			sed -i '' 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
-			sed -i '' 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
-			sed -i '' 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
-		else
-			sed -i 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
-			sed -i 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
-			sed -i 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
-			sed -i 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
-			sed -i 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
-			sed -i 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
-			sed -i 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
-			sed -i 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
-		fi
-	fi
-
-    # Enable prometheus and API services
+    
+    # Change parameter token denominations to nxq
+    jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+    jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+    jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+    jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+    
+    # Prometheus
     print_info "Enabling Prometheus metrics and APIs"
-	if [[ "$OSTYPE" == "darwin"* ]]; then
-		sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
-	else
-		sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
-	fi
-
-    # Adjust governance parameters for faster testing
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
+        sed -i '' 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
+        sed -i '' 's/enabled = false/enabled = true/' "$APP_TOML"
+    else
+        sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
+        sed -i 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
+        sed -i 's/enabled = false/enabled = true/' "$APP_TOML"
+    fi
+    
+    # Change proposal periods
     print_info "Setting up shortened proposal periods for testing"
-	sed -i.bak 's/"max_deposit_period": "172800s"/"max_deposit_period": "30s"/g' "$GENESIS"
-	sed -i.bak 's/"voting_period": "172800s"/"voting_period": "30s"/g' "$GENESIS"
-
-    # Setup genesis accounts
-    setup_genesis_accounts
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
+        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+    else
+        sed -i 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
+        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+    fi
+    
+    print_section "Setting Up Genesis Accounts"
+    # Add the primary key as a genesis account with the full token supply
+    print_info "Adding genesis account with all tokens"
+    local address=$($NXQD_BIN keys show "primary" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
+    $NXQD_BIN add-genesis-account "$address" "21000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+    print_success "Added genesis account primary with balance 21000000000000000000000000unxq"
+    
+    # Create genesis transaction with validator key
+    print_info "Creating genesis transaction with validator key (primary)"
+    $NXQD_BIN gentx "primary" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
     
     # Collect and validate genesis transactions
     print_info "Collecting genesis transactions"
