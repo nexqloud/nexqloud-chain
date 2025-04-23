@@ -17,7 +17,7 @@ var ParamsKey = []byte("Params")
 
 var (
 	DefaultInflationDenom         = evm.DefaultEVMDenom
-	DefaultInflation              = true
+	DefaultInflation              = false //convert to true for inflation
 	DefaultExponentialCalculation = ExponentialCalculation{
 		A:             math.LegacyNewDec(int64(300_000_000)),
 		R:             math.LegacyNewDecWithPrec(50, 2), // 50%
