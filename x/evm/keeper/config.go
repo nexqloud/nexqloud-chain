@@ -13,7 +13,14 @@ import (
 	"github.com/evmos/evmos/v19/x/evm/statedb"
 	"github.com/evmos/evmos/v19/x/evm/types"
 )
+//staging config
+// const (
+// 	ChainID         = 6000                                         
+// 	OnlineServerCountContract = "0xfcF5742fA6e8B74cDc0f9693114348a6665b271f" 
+// 	WalletStateContract = "0x7bF5d515Bd72D9a8527b651bCe12dC4b934d137f"
+// )
 
+//dev config
 const (
 	ChainID         = 6000                                         
 	OnlineServerCountContract = "0xfcF5742fA6e8B74cDc0f9693114348a6665b271f" 
