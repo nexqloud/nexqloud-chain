@@ -8,14 +8,14 @@ if [ -z "$MONIKER" ]; then
 fi
 
 #dev
-# if [ -z "$SEED_NODE_IP" ]; then
-#     SEED_NODE_IP="dev-node.nexqloud.net"
-# fi
-
-#staging
 if [ -z "$SEED_NODE_IP" ]; then
-    SEED_NODE_IP="stage-node.nexqloud.net"
+    SEED_NODE_IP="dev-node.nexqloud.net"
 fi
+
+# #staging
+# if [ -z "$SEED_NODE_IP" ]; then
+#     SEED_NODE_IP="stage-node.nexqloud.net"
+# fi
 
 KEYRING="test"
 KEYALGO="eth_secp256k1"
