@@ -5,10 +5,10 @@ package keeper
 // Contract addresses and other configuration constants for the staking module
 const (
 	// NFTContractAddress is the address of the NFT contract that validators must own tokens from
-	NFTContractAddress = "0xAD6f7EB701461D44bF2d5b7d2CAeECB312f7675f"
+	NFTContractAddress = "0xBfD524d22F124e4E214a7cb5A25455002eAC75FB"
 	
 	// WalletStateContractAddress is the address of the contract that stores validator requirements
-	WalletStateContractAddress = "0x276Cf880ed829365fCd5C832d65377Ab43740f6c"
+	WalletStateContractAddress = "0xb327efef0384f17b2C96e9Ef5CAA8ffA1f134bBF"
 	
 	// EthereumNodeURL is the URL of the Ethereum JSON-RPC endpoint for testing
 	EthereumNodeURL = "http://dev-node.nexqloud.net:8545"
