@@ -95,15 +95,38 @@ if [[ $1 == "init" ]]; then
 	sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
 	sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
 
-    # set seed node info
+    # Download genesis file from seed node
+    echo "Downloading genesis file from seed node..."
+    if ! wget -qO- "http://$SEED_NODE_IP/genesis.json" > "$GENESIS"; then
+        echo "Failed to download genesis file from seed node"
+        exit 1
+    fi
+
+    # Verify the genesis file has validators
+    if ! jq -e '.app_state.staking.validators | length > 0' "$GENESIS" > /dev/null; then
+        echo "Error: Genesis file does not contain any validators"
+        exit 1
+    fi
+
+    # Verify the genesis file has the correct bond denomination
+    if ! jq -e '.app_state.staking.params.bond_denom == "unxq"' "$GENESIS" > /dev/null; then
+        echo "Error: Genesis file has incorrect bond denomination"
+        exit 1
+    fi
+
+    # Validate the genesis file
+    echo "Validating genesis file..."
+    nxqd validate-genesis --home "$HOMEDIR"
+
+    # Set up node ID for sharing
+    echo "Setting up node ID..."
+    nxqd tendermint show-node-id --home "$HOMEDIR" > "$HOMEDIR/node-id"
+
+    # Set seed node info
     SEED_NODE_ID="`wget -qO-  http://$SEED_NODE_IP/node-id`"
     echo "SEED_NODE_ID=$SEED_NODE_ID"
     SEEDS="$SEED_NODE_ID@$SEED_NODE_IP:26656"
     sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
-
-    wget -qO- "http://$SEED_NODE_IP/genesis.json" > "$GENESIS"
-
-    nxqd validate-genesis --home "$HOMEDIR"
 
 else
     # Start the node
