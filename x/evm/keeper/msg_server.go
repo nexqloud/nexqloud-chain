@@ -165,7 +165,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 	// Parse the response: (LockStatus, lockValue, lockCode)
 	if len(res.Ret) < 96 {
-		log.Println("Invalid response length")
+		log.Println("Invalid response length",res.Ret)
 		return false, fmt.Errorf("invalid response length")
 	}
 	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
