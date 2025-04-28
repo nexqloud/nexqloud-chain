@@ -43,3 +43,9 @@ docker run -d --name nexqloud-chain -e MONIKER -e SEED_NODE_IP -v /path/to/local
 ```
 sudo systemctl stop chain && git reset --hard && git pull && rm -rf go.sum && make clean && make && sudo cp build/nxqd /usr/local/bin/ && sudo systemctl start chain
 ```
+
+```
+peer node
+git reset --hard && git pull && rm -rf go.sum && make clean && make && sudo cp build/nxqd /usr/local/bin/
+
+```

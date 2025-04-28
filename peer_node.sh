@@ -18,10 +18,10 @@ fi
 # fi
 
 # Set the path to the nxqd binary
-NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-# NXQD_BIN="/usr/local/bin/nxqd"
+NXQD_BIN="/usr/local/bin/nxqd"
 
 KEYRING="test"
 KEYALGO="eth_secp256k1"
