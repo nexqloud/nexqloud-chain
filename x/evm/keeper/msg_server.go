@@ -37,7 +37,7 @@ import (
 var _ types.MsgServer = &Keeper{}
 var whitelist = map[string]bool{
 	//staging config
-	"0xc20dCfa31cDE2e468eb123f07020b9275958Be05": true,
+	"0x0845ed4B7CE9c886BC801edaF4f31F5123ffE69A": true,
 
 	//dev config
 	// "0xD72273711FE3EaeE998867828c62CeD2aF1425D3": true,
