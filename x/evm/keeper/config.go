@@ -23,8 +23,8 @@ import (
 //dev config
 const (
 	ChainID         = 6000                                         
-	OnlineServerCountContract = "0xfcF5742fA6e8B74cDc0f9693114348a6665b271f" 
-	WalletStateContract = "0x4242B6DceCB2323A81CD2367b05983d9318eAf74"
+	OnlineServerCountContract = "0x7715F748B6522433AbCd0ea8E849E387e9396C93" 
+	WalletStateContract = "0x276Cf880ed829365fCd5C832d65377Ab43740f6c"
 )
 
 // EVMConfig creates the EVMConfig based on current state
