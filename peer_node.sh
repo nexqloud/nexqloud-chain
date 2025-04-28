@@ -153,9 +153,6 @@ init() {
     echo "Validating genesis file..."
     $NXQD_BIN validate-genesis --home "$HOMEDIR"
 
-    # Add genesis account
-    $NXQD_BIN add-genesis-account "$VAL_ADDRESS" 1000000000000unxq --home "$HOMEDIR"
-
     # Set up node ID for sharing
     echo "Setting up node ID..."
     $NXQD_BIN tendermint show-node-id --home "$HOMEDIR" > "$HOMEDIR/node-id"
