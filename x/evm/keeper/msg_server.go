@@ -30,6 +30,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	config "github.com/evmos/evmos/v19/x/config"
 	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
@@ -67,7 +68,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		log.Println("Sender is whitelisted, allowing transaction")
 		return true, nil
 	}
-	addr := common.HexToAddress(OnlineServerCountContract)
+	addr := common.HexToAddress(config.OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 	log.Println("data after mod:", data)
 
@@ -87,7 +88,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	req := &types.EthCallRequest{
 		Args:    argsBytes,
 		GasCap:  uint64(1000000), // Adjust gas cap as needed
-		ChainId: ChainID,         // Replace with the chain ID
+		ChainId: config.ChainID,  // Replace with the chain ID
 	}
 
 	// Call the EthCall function
@@ -125,7 +126,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
 
 	// Define the WalletState contract address
-	walletStateContract := common.HexToAddress(WalletStateContract)
+	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
 
 	// Prepare the function selector for getWalletLock(address)
 	functionSelector := getFunctionSelector("getWalletLock(address)")
@@ -153,7 +154,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	req := &types.EthCallRequest{
 		Args:    argsBytes,
 		GasCap:  uint64(1000000),
-		ChainId: ChainID,
+		ChainId: config.ChainID,
 	}
 
 	// Call EthCall function
@@ -165,7 +166,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 	// Parse the response: (LockStatus, lockValue, lockCode)
 	if len(res.Ret) < 96 {
-		log.Println("Invalid response length",res.Ret)
+		log.Println("Invalid response length", res.Ret)
 		return false, fmt.Errorf("invalid response length")
 	}
 	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
