@@ -22,37 +22,39 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	abciserver "github.com/tendermint/tendermint/abci/server"
-	tcmd "github.com/tendermint/tendermint/cmd/cometbft/commands"
-	tmos "github.com/tendermint/tendermint/libs/os"
-	"github.com/tendermint/tendermint/node"
-	"github.com/tendermint/tendermint/p2p"
-	pvm "github.com/tendermint/tendermint/privval"
-	"github.com/tendermint/tendermint/proxy"
-	"github.com/tendermint/tendermint/rpc/client/local"
-	dbm "github.com/tendermint/tm-db"
+	dbm "github.com/cometbft/cometbft-db"
+	abciserver "github.com/cometbft/cometbft/abci/server"
+	tcmd "github.com/cometbft/cometbft/cmd/cometbft/commands"
+	tmos "github.com/cometbft/cometbft/libs/os"
+	"github.com/cometbft/cometbft/node"
+	"github.com/cometbft/cometbft/p2p"
+	pvm "github.com/cometbft/cometbft/privval"
+	"github.com/cometbft/cometbft/proxy"
+	rpcclient "github.com/cometbft/cometbft/rpc/client"
+	"github.com/cometbft/cometbft/rpc/client/local"
 
-	"github.com/cosmos/cosmos-sdk/server/rosetta"
-	crgserver "github.com/cosmos/cosmos-sdk/server/rosetta/lib/server"
+	"cosmossdk.io/tools/rosetta"
+	crgserver "cosmossdk.io/tools/rosetta/lib/server"
 
 	ethmetricsexp "github.com/ethereum/go-ethereum/metrics/exp"
 
 	errorsmod "cosmossdk.io/errors"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
-	pruningtypes "github.com/cosmos/cosmos-sdk/pruning/types"
 	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
 	"github.com/cosmos/cosmos-sdk/server/types"
+	pruningtypes "github.com/cosmos/cosmos-sdk/store/pruning/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/evmos/evmos/v13/indexer"
-	ethdebug "github.com/evmos/evmos/v13/rpc/namespaces/ethereum/debug"
-	"github.com/evmos/evmos/v13/server/config"
-	srvflags "github.com/evmos/evmos/v13/server/flags"
-	evmostypes "github.com/evmos/evmos/v13/types"
+	"github.com/evmos/evmos/v19/cmd/nxqd/opendb"
+	"github.com/evmos/evmos/v19/indexer"
+	ethdebug "github.com/evmos/evmos/v19/rpc/namespaces/ethereum/debug"
+	"github.com/evmos/evmos/v19/server/config"
+	srvflags "github.com/evmos/evmos/v19/server/flags"
+	evmostypes "github.com/evmos/evmos/v19/types"
 )
 
 // DBOpener is a function to open `application.db`, potentially with customized options.
@@ -70,7 +72,7 @@ func NewDefaultStartOptions(appCreator types.AppCreator, defaultNodeHome string)
 	return StartOptions{
 		AppCreator:      appCreator,
 		DefaultNodeHome: defaultNodeHome,
-		DBOpener:        openDB,
+		DBOpener:        opendb.OpenDB,
 	}
 }
 
@@ -173,20 +175,21 @@ which accepts a path for the resulting pprof file.
 	cmd.Flags().String(srvflags.AppDBBackend, "", "The type of database for application and snapshots databases")
 
 	cmd.Flags().Bool(srvflags.GRPCOnly, false, "Start the node in gRPC query only mode without Tendermint process")
-	cmd.Flags().Bool(srvflags.GRPCEnable, true, "Define if the gRPC server should be enabled")
+	cmd.Flags().Bool(srvflags.GRPCEnable, config.DefaultGRPCEnable, "Define if the gRPC server should be enabled")
 	cmd.Flags().String(srvflags.GRPCAddress, serverconfig.DefaultGRPCAddress, "the gRPC server address to listen on")
-	cmd.Flags().Bool(srvflags.GRPCWebEnable, true, "Define if the gRPC-Web server should be enabled. (Note: gRPC must also be enabled.)")
+	cmd.Flags().Bool(srvflags.GRPCWebEnable, config.DefaultGRPCWebEnable, "Define if the gRPC-Web server should be enabled. (Note: gRPC must also be enabled.)")
 	cmd.Flags().String(srvflags.GRPCWebAddress, serverconfig.DefaultGRPCWebAddress, "The gRPC-Web server address to listen on")
 
-	cmd.Flags().Bool(srvflags.RPCEnable, false, "Defines if Cosmos-sdk REST server should be enabled")
+	cmd.Flags().Bool(srvflags.RPCEnable, config.DefaultAPIEnable, "Defines if Cosmos-sdk REST server should be enabled")
 	cmd.Flags().Bool(srvflags.EnabledUnsafeCors, false, "Defines if CORS should be enabled (unsafe - use it at your own risk)")
 
-	cmd.Flags().Bool(srvflags.JSONRPCEnable, true, "Define if the JSON-RPC server should be enabled")
+	cmd.Flags().Bool(srvflags.JSONRPCEnable, config.DefaultJSONRPCEnable, "Define if the JSON-RPC server should be enabled")
 	cmd.Flags().StringSlice(srvflags.JSONRPCAPI, config.GetDefaultAPINamespaces(), "Defines a list of JSON-RPC namespaces that should be enabled")
 	cmd.Flags().String(srvflags.JSONRPCAddress, config.DefaultJSONRPCAddress, "the JSON-RPC server address to listen on")
 	cmd.Flags().String(srvflags.JSONWsAddress, config.DefaultJSONRPCWsAddress, "the JSON-RPC WS server address to listen on")
-	cmd.Flags().Uint64(srvflags.JSONRPCGasCap, config.DefaultGasCap, "Sets a cap on gas that can be used in eth_call/estimateGas unit is aevmos (0=infinite)")     //nolint:lll
-	cmd.Flags().Float64(srvflags.JSONRPCTxFeeCap, config.DefaultTxFeeCap, "Sets a cap on transaction fee that can be sent via the RPC APIs (1 = default 1 evmos)") //nolint:lll
+	cmd.Flags().Uint64(srvflags.JSONRPCGasCap, config.DefaultGasCap, "Sets a cap on gas that can be used in eth_call/estimateGas unit is aevmos (0=infinite)")                        //nolint:lll
+	cmd.Flags().Bool(srvflags.JSONRPCAllowInsecureUnlock, config.DefaultJSONRPCAllowInsecureUnlock, "Allow insecure account unlocking when account-related RPCs are exposed by http") //nolint:lll
+	cmd.Flags().Float64(srvflags.JSONRPCTxFeeCap, config.DefaultTxFeeCap, "Sets a cap on transaction fee that can be sent via the RPC APIs (1 = default 1 evmos)")                    //nolint:lll
 	cmd.Flags().Int32(srvflags.JSONRPCFilterCap, config.DefaultFilterCap, "Sets the global cap for total number of filters that can be created")
 	cmd.Flags().Duration(srvflags.JSONRPCEVMTimeout, config.DefaultEVMTimeout, "Sets a timeout used for eth_call (0=infinite)")
 	cmd.Flags().Duration(srvflags.JSONRPCHTTPTimeout, config.DefaultHTTPTimeout, "Sets a read/write timeout for json-rpc http server (0=infinite)")
@@ -393,10 +396,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, opts StartOpt
 
 		app.RegisterTxService(clientCtx)
 		app.RegisterTendermintService(clientCtx)
-
-		if a, ok := app.(types.ApplicationQueryService); ok {
-			a.RegisterNodeService(clientCtx)
-		}
+		app.RegisterNodeService(clientCtx)
 	}
 
 	metrics, err := startTelemetry(config)
@@ -420,7 +420,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, opts StartOpt
 
 		idxLogger := ctx.Logger.With("indexer", "evm")
 		idxer = indexer.NewKVIndexer(idxDB, idxLogger, clientCtx)
-		indexerService := NewEVMIndexerService(idxer, clientCtx.Client)
+		indexerService := NewEVMIndexerService(idxer, clientCtx.Client.(rpcclient.Client))
 		indexerService.SetLogger(idxLogger)
 
 		errCh := make(chan error)
@@ -468,7 +468,7 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, opts StartOpt
 			grpcAddress := fmt.Sprintf("127.0.0.1:%s", port)
 
 			// If grpc is enabled, configure grpc client for grpc gateway and json-rpc.
-			grpcClient, err := grpc.Dial(
+			grpcClient, err := grpc.NewClient(
 				grpcAddress,
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithDefaultCallOptions(
@@ -629,11 +629,6 @@ func startInProcess(ctx *server.Context, clientCtx client.Context, opts StartOpt
 	}
 	// Wait for SIGINT or SIGTERM signal
 	return server.WaitForQuitSignals()
-}
-
-func openDB(_ types.AppOptions, rootDir string, backendType dbm.BackendType) (dbm.DB, error) {
-	dataDir := filepath.Join(rootDir, "data")
-	return dbm.NewDB("application", backendType, dataDir)
 }
 
 // OpenIndexerDB opens the custom eth indexer db, using the same db backend as the main app

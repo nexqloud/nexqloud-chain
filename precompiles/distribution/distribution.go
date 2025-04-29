@@ -4,18 +4,20 @@
 package distribution
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
 
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
 	distributionkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	stakingkeeper "github.com/evmos/evmos/v19/x/staking/keeper"
 )
+
+// PrecompileAddress of the distribution EVM extension in hex format.
+const PrecompileAddress = "0x0000000000000000000000000000000000000801"
 
 var _ vm.PrecompiledContract = &Precompile{}
 
@@ -28,25 +30,22 @@ var f embed.FS
 type Precompile struct {
 	cmn.Precompile
 	distributionKeeper distributionkeeper.Keeper
+	stakingKeeper      stakingkeeper.Keeper
 }
 
 // NewPrecompile creates a new distribution Precompile instance as a
 // PrecompiledContract interface.
 func NewPrecompile(
 	distributionKeeper distributionkeeper.Keeper,
+	stakingKeeper stakingkeeper.Keeper,
 	authzKeeper authzkeeper.Keeper,
 ) (*Precompile, error) {
-	abiBz, err := f.ReadFile("abi.json")
+	newAbi, err := cmn.LoadABI(f, "abi.json")
 	if err != nil {
 		return nil, fmt.Errorf("error loading the distribution ABI %s", err)
 	}
 
-	newAbi, err := abi.JSON(bytes.NewReader(abiBz))
-	if err != nil {
-		return nil, fmt.Errorf(cmn.ErrInvalidABI, err)
-	}
-
-	return &Precompile{
+	p := &Precompile{
 		Precompile: cmn.Precompile{
 			ABI:                  newAbi,
 			AuthzKeeper:          authzKeeper,
@@ -54,18 +53,22 @@ func NewPrecompile(
 			TransientKVGasConfig: storetypes.TransientGasConfig(),
 			ApprovalExpiration:   cmn.DefaultExpirationDuration, // should be configurable in the future.
 		},
+		stakingKeeper:      stakingKeeper,
 		distributionKeeper: distributionKeeper,
-	}, nil
-}
-
-// Address defines the address of the distribution compile contract.
-// address: 0x0000000000000000000000000000000000000801
-func (p Precompile) Address() common.Address {
-	return common.HexToAddress("0x0000000000000000000000000000000000000801")
+	}
+	// SetAddress defines the address of the distribution compile contract.
+	// address: 0x0000000000000000000000000000000000000801
+	p.SetAddress(common.HexToAddress(PrecompileAddress))
+	return p, nil
 }
 
 // RequiredGas calculates the precompiled contract's base gas rate.
 func (p Precompile) RequiredGas(input []byte) uint64 {
+	// NOTE: This check avoid panicking when trying to decode the method ID
+	if len(input) < 4 {
+		return 0
+	}
+
 	methodID := input[:4]
 
 	method, err := p.MethodById(methodID)
@@ -79,7 +82,7 @@ func (p Precompile) RequiredGas(input []byte) uint64 {
 
 // Run executes the precompiled contract distribution methods defined in the ABI.
 func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz []byte, err error) {
-	ctx, stateDB, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
+	ctx, stateDB, snapshot, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +92,9 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 	defer cmn.HandleGasError(ctx, contract, initialGas, &err)()
 
 	switch method.Name {
+	// Custom transactions
+	case ClaimRewardsMethod:
+		bz, err = p.ClaimRewards(ctx, evm.Origin, contract, stateDB, method, args)
 	// Distribution transactions
 	case SetWithdrawAddressMethod:
 		bz, err = p.SetWithdrawAddress(ctx, evm.Origin, contract, stateDB, method, args)
@@ -96,6 +102,8 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 		bz, err = p.WithdrawDelegatorRewards(ctx, evm.Origin, contract, stateDB, method, args)
 	case WithdrawValidatorCommissionMethod:
 		bz, err = p.WithdrawValidatorCommission(ctx, evm.Origin, contract, stateDB, method, args)
+	case FundCommunityPoolMethod:
+		bz, err = p.FundCommunityPool(ctx, evm.Origin, contract, stateDB, method, args)
 	// Distribution queries
 	case ValidatorDistributionInfoMethod:
 		bz, err = p.ValidatorDistributionInfo(ctx, contract, method, args)
@@ -125,20 +133,27 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 		return nil, vm.ErrOutOfGas
 	}
 
+	if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
+		return nil, err
+	}
+
 	return bz, nil
 }
 
-// IsTransaction checks if the given methodID corresponds to a transaction or query.
+// IsTransaction checks if the given method name corresponds to a transaction or query.
 //
 // Available distribution transactions are:
+//   - ClaimRewards
 //   - SetWithdrawAddress
 //   - WithdrawDelegatorRewards
 //   - WithdrawValidatorCommission
-func (Precompile) IsTransaction(methodID string) bool {
-	switch methodID {
-	case SetWithdrawAddressMethod,
+func (Precompile) IsTransaction(methodName string) bool {
+	switch methodName {
+	case ClaimRewardsMethod,
+		SetWithdrawAddressMethod,
 		WithdrawDelegatorRewardsMethod,
-		WithdrawValidatorCommissionMethod:
+		WithdrawValidatorCommissionMethod,
+		FundCommunityPoolMethod:
 		return true
 	default:
 		return false

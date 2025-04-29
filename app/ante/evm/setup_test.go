@@ -5,23 +5,24 @@ import (
 	"testing"
 	"time"
 
+	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/stretchr/testify/suite"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 
 	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/simapp"
 	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/simapp"
+	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	"github.com/cosmos/cosmos-sdk/testutil/testdata"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/evmos/evmos/v13/app"
-	ante "github.com/evmos/evmos/v13/app/ante"
-	"github.com/evmos/evmos/v13/encoding"
-	"github.com/evmos/evmos/v13/ethereum/eip712"
-	"github.com/evmos/evmos/v13/utils"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	feemarkettypes "github.com/evmos/evmos/v13/x/feemarket/types"
+	"github.com/evmos/evmos/v19/app"
+	ante "github.com/evmos/evmos/v19/app/ante"
+	"github.com/evmos/evmos/v19/encoding"
+	"github.com/evmos/evmos/v19/ethereum/eip712"
+	"github.com/evmos/evmos/v19/utils"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
+	feemarkettypes "github.com/evmos/evmos/v19/x/feemarket/types"
 )
 
 type AnteTestSuite struct {
@@ -35,7 +36,6 @@ type AnteTestSuite struct {
 	enableFeemarket          bool
 	enableLondonHF           bool
 	evmParamsOption          func(*evmtypes.Params)
-	useLegacyEIP712Extension bool
 	useLegacyEIP712TypedData bool
 }
 
@@ -74,17 +74,18 @@ func (suite *AnteTestSuite) SetupTest() {
 	})
 
 	suite.ctx = suite.app.BaseApp.NewContext(checkTx, tmproto.Header{Height: 2, ChainID: utils.TestnetChainID + "-1", Time: time.Now().UTC()})
-	suite.ctx = suite.ctx.WithMinGasPrices(sdk.NewDecCoins(sdk.NewDecCoin(evmtypes.DefaultEVMDenom, sdk.OneInt())))
-	suite.ctx = suite.ctx.WithBlockGasMeter(sdk.NewGasMeter(1000000000000000000))
-	suite.app.EvmKeeper.WithChainID(suite.ctx)
+	suite.ctx = suite.ctx.WithMinGasPrices(sdk.NewDecCoins(sdk.NewDecCoin(evmtypes.DefaultEVMDenom, sdkmath.OneInt())))
+	suite.ctx = suite.ctx.WithBlockGasMeter(storetypes.NewGasMeter(1000000000000000000))
 
 	// set staking denomination to Evmos denom
 	params := suite.app.StakingKeeper.GetParams(suite.ctx)
 	params.BondDenom = utils.BaseDenom
-	suite.app.StakingKeeper.SetParams(suite.ctx, params)
+	err := suite.app.StakingKeeper.SetParams(suite.ctx, params)
+	suite.Require().NoError(err)
 
 	infCtx := suite.ctx.WithGasMeter(sdk.NewInfiniteGasMeter())
-	suite.app.AccountKeeper.SetParams(infCtx, authtypes.DefaultParams())
+	err = suite.app.AccountKeeper.SetParams(infCtx, authtypes.DefaultParams())
+	suite.Require().NoError(err)
 
 	encodingConfig := encoding.MakeConfig(app.ModuleBasics)
 	// We're using TestMsg amino encoding in some tests, so register it here.
@@ -122,13 +123,11 @@ func TestAnteTestSuite(t *testing.T) {
 	// LegacyEIP712Extension should not be run with current TypedData encodings, since they are not compatible.
 	suite.Run(t, &AnteTestSuite{
 		enableLondonHF:           true,
-		useLegacyEIP712Extension: true,
 		useLegacyEIP712TypedData: true,
 	})
 
 	suite.Run(t, &AnteTestSuite{
 		enableLondonHF:           true,
-		useLegacyEIP712Extension: false,
 		useLegacyEIP712TypedData: true,
 	})
 }

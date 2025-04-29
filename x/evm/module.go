@@ -6,13 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
 
-	abci "github.com/tendermint/tendermint/abci/types"
+	abci "github.com/cometbft/cometbft/abci/types"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -21,14 +20,19 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	simtypes "github.com/cosmos/cosmos-sdk/types/simulation"
 
-	"github.com/evmos/evmos/v13/x/evm/client/cli"
-	"github.com/evmos/evmos/v13/x/evm/keeper"
-	"github.com/evmos/evmos/v13/x/evm/types"
+	"github.com/evmos/evmos/v19/x/evm/client/cli"
+	"github.com/evmos/evmos/v19/x/evm/keeper"
+	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
+// consensusVersion defines the current x/evm module consensus version.
+const consensusVersion = 7
+
 var (
-	_ module.AppModule      = AppModule{}
-	_ module.AppModuleBasic = AppModuleBasic{}
+	_ module.AppModule           = AppModule{}
+	_ module.AppModuleBasic      = AppModuleBasic{}
+	_ module.EndBlockAppModule   = AppModule{}
+	_ module.BeginBlockAppModule = AppModule{}
 )
 
 // AppModuleBasic defines the basic application module used by the evm module.
@@ -46,7 +50,7 @@ func (AppModuleBasic) RegisterLegacyAminoCodec(cdc *codec.LegacyAmino) {
 
 // ConsensusVersion returns the consensus state-breaking version for the module.
 func (AppModuleBasic) ConsensusVersion() uint64 {
-	return 5
+	return consensusVersion
 }
 
 // DefaultGenesis returns default genesis state as raw bytes for the evm
@@ -129,28 +133,10 @@ func (am AppModule) RegisterServices(cfg module.Configurator) {
 	types.RegisterQueryServer(cfg.QueryServer(), am.keeper)
 
 	m := keeper.NewMigrator(*am.keeper, am.legacySubspace)
-	err := cfg.RegisterMigration(types.ModuleName, 3, m.Migrate3to4)
-	if err != nil {
+
+	if err := cfg.RegisterMigration(types.ModuleName, 6, m.Migrate6to7); err != nil {
 		panic(err)
 	}
-
-	if err := cfg.RegisterMigration(types.ModuleName, 4, m.Migrate4to5); err != nil {
-		panic(err)
-	}
-}
-
-// Route returns the message routing key for the evm module.
-func (am AppModule) Route() sdk.Route {
-	return sdk.NewRoute(types.RouterKey, NewHandler(am.keeper))
-}
-
-// QuerierRoute returns the evm module's querier route name.
-func (AppModule) QuerierRoute() string { return types.RouterKey }
-
-// LegacyQuerierHandler returns nil as the evm module doesn't expose a legacy
-// Querier.
-func (am AppModule) LegacyQuerierHandler(_ *codec.LegacyAmino) sdk.Querier {
-	return nil
 }
 
 // BeginBlock returns the begin block for the evm module.
@@ -180,18 +166,8 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, cdc codec.JSONCodec) json.Raw
 	return cdc.MustMarshalJSON(gs)
 }
 
-// RandomizedParams creates randomized evm param changes for the simulator.
-func (AppModule) RandomizedParams(_ *rand.Rand) []simtypes.ParamChange {
-	return nil
-}
-
 // RegisterStoreDecoder registers a decoder for evm module's types
 func (am AppModule) RegisterStoreDecoder(_ sdk.StoreDecoderRegistry) {
-}
-
-// ProposalContents doesn't return any content functions for governance proposals.
-func (AppModule) ProposalContents(_ module.SimulationState) []simtypes.WeightedProposalContent {
-	return nil
 }
 
 // GenerateGenesisState creates a randomized GenState of the evm module.

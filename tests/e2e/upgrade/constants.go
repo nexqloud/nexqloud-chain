@@ -5,10 +5,12 @@ package upgrade
 // The constants used in the upgrade tests are defined here
 const (
 	// the defaultChainID used for testing
-	defaultChainID = "evmos_9000-1"
+	defaultChainID = "nxqd_6000-1"
 
 	// LocalVersionTag defines the docker image ImageTag when building locally
-	LocalVersionTag = "latest"
+	//
+	// NOTE: For upgrade tests we're using the PebbleDB build
+	LocalVersionTag = "latest-pebble"
 
 	// tharsisRepo is the docker hub repository that contains the Evmos images pulled during tests
 	tharsisRepo = "tharsishq/evmos"

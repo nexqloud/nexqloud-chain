@@ -4,85 +4,62 @@
 package keeper
 
 import (
-	"fmt"
-
-	"golang.org/x/exp/maps"
-
+	sdktypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-
-	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
-	distributionkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
-	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
-	channelkeeper "github.com/cosmos/ibc-go/v6/modules/core/04-channel/keeper"
-	distprecompile "github.com/evmos/evmos/v13/precompiles/distribution"
-	ics20 "github.com/evmos/evmos/v13/precompiles/ics20"
-	stakingprecompile "github.com/evmos/evmos/v13/precompiles/staking"
-	transferkeeper "github.com/evmos/evmos/v13/x/ibc/transfer/keeper"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
-// AvailablePrecompiles returns the list of all available precompiled contracts.
-// NOTE: this should only be used during initialization of the Keeper.
-func AvailablePrecompiles(
-	stakingKeeper stakingkeeper.Keeper,
-	distributionKeeper distributionkeeper.Keeper,
-	authzKeeper authzkeeper.Keeper,
-	transferKeeper transferkeeper.Keeper,
-	channelKeeper channelkeeper.Keeper,
-) map[common.Address]vm.PrecompiledContract {
-	// Clone the mapping from the latest EVM fork.
-	precompiles := maps.Clone(vm.PrecompiledContractsBerlin)
-
-	stakingPrecompile, err := stakingprecompile.NewPrecompile(stakingKeeper, authzKeeper)
-	if err != nil {
-		panic(fmt.Errorf("failed to load staking precompile: %w", err))
-	}
-
-	distributionPrecompile, err := distprecompile.NewPrecompile(distributionKeeper, authzKeeper)
-	if err != nil {
-		panic(fmt.Errorf("failed to load distribution precompile: %w", err))
-	}
-
-	ibcTransferPrecompile, err := ics20.NewPrecompile(transferKeeper, channelKeeper, authzKeeper)
-	if err != nil {
-		panic(fmt.Errorf("failed to load ICS20 precompile: %w", err))
-	}
-
-	precompiles[stakingPrecompile.Address()] = stakingPrecompile
-	precompiles[distributionPrecompile.Address()] = distributionPrecompile
-	precompiles[ibcTransferPrecompile.Address()] = ibcTransferPrecompile
-	return precompiles
+type Precompiles struct {
+	Map       map[common.Address]vm.PrecompiledContract
+	Addresses []common.Address
 }
 
-// WithPrecompiles sets the available precompiled contracts.
-func (k *Keeper) WithPrecompiles(precompiles map[common.Address]vm.PrecompiledContract) *Keeper {
-	if k.precompiles != nil {
-		panic("available precompiles map already set")
+// GetPrecompileInstance returns the address and instance of the static or dynamic precompile associated with the
+// given address, or return nil if not found.
+func (k *Keeper) GetPrecompileInstance(
+	ctx sdktypes.Context,
+	address common.Address,
+) (*Precompiles, bool, error) {
+	params := k.GetParams(ctx)
+	// Get the precompile from the static precompiles
+	if precompile, found, err := k.GetStaticPrecompileInstance(&params, address); err != nil {
+		return nil, false, err
+	} else if found {
+		addressMap := make(map[common.Address]vm.PrecompiledContract)
+		addressMap[address] = precompile
+		return &Precompiles{
+			Map:       addressMap,
+			Addresses: []common.Address{precompile.Address()},
+		}, found, nil
 	}
 
-	if len(precompiles) == 0 {
-		panic("empty precompiled contract map")
+	// Get the precompile from the dynamic precompiles
+	precompile, found, err := k.erc20Keeper.GetERC20PrecompileInstance(ctx, address)
+	if err != nil || !found {
+		return nil, false, err
 	}
-
-	k.precompiles = precompiles
-	return k
+	addressMap := make(map[common.Address]vm.PrecompiledContract)
+	addressMap[address] = precompile
+	return &Precompiles{
+		Map:       addressMap,
+		Addresses: []common.Address{precompile.Address()},
+	}, found, nil
 }
 
-// Precompiles returns the subset of the available precompiled contracts that
-// are active given the current parameters.
-func (k Keeper) Precompiles(
-	activePrecompiles ...common.Address,
-) map[common.Address]vm.PrecompiledContract {
-	activePrecompileMap := make(map[common.Address]vm.PrecompiledContract)
-
-	for _, address := range activePrecompiles {
-		precompile, ok := k.precompiles[address]
-		if !ok {
-			panic(fmt.Sprintf("precompiled contract not initialized: %s", address))
+// GetPrecompilesCallHook returns a closure that can be used to instantiate the EVM with a specific
+// precompile instance.
+func (k *Keeper) GetPrecompilesCallHook(ctx sdktypes.Context) types.CallHook {
+	return func(evm *vm.EVM, _ common.Address, recipient common.Address) error {
+		// Check if the recipient is a precompile contract and if so, load the precompile instance
+		precompiles, found, err := k.GetPrecompileInstance(ctx, recipient)
+		if err != nil {
+			return err
 		}
 
-		activePrecompileMap[address] = precompile
+		if found {
+			evm.WithPrecompiles(precompiles.Map, precompiles.Addresses)
+		}
+		return nil
 	}
-
-	return activePrecompileMap
 }

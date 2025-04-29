@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/evmos/evmos/v13/x/vesting/types"
+	"github.com/evmos/evmos/v19/x/vesting/types"
 )
 
 var _ types.QueryServer = Keeper{}
@@ -32,27 +32,17 @@ func (k Keeper) Balances(
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Get vesting account
-	acc := k.accountKeeper.GetAccount(ctx, addr)
-	if acc == nil {
-		return nil, status.Errorf(
-			codes.NotFound,
-			"account for address '%s'", req.Address,
-		)
-	}
-
-	// Check if clawback vesting account
-	clawbackAccount, isClawback := acc.(*types.ClawbackVestingAccount)
-	if !isClawback {
+	clawbackAccount, err := k.GetClawbackVestingAccount(ctx, addr)
+	if err != nil {
 		return nil, status.Errorf(
 			codes.InvalidArgument,
-			"account at address '%s' is not a vesting account ", req.Address,
+			"account at address '%s' either does not exist or is not a vesting account ", addr.String(),
 		)
 	}
 
-	locked := clawbackAccount.GetLockedOnly(ctx.BlockTime())
-	unvested := clawbackAccount.GetUnvestedOnly(ctx.BlockTime())
-	vested := clawbackAccount.GetVestedOnly(ctx.BlockTime())
+	locked := clawbackAccount.GetLockedUpCoins(ctx.BlockTime())
+	unvested := clawbackAccount.GetVestingCoins(ctx.BlockTime())
+	vested := clawbackAccount.GetVestedCoins(ctx.BlockTime())
 
 	return &types.QueryBalancesResponse{
 		Locked:   locked,

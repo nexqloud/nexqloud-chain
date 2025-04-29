@@ -4,21 +4,19 @@
 package staking
 
 import (
-	"bytes"
 	"embed"
-	"fmt"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
+	"github.com/cometbft/cometbft/libs/log"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
-	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
-	"github.com/tendermint/tendermint/libs/log"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	stakingkeeper "github.com/evmos/evmos/v19/x/staking/keeper"
 )
 
 var _ vm.PrecompiledContract = &Precompile{}
@@ -28,14 +26,55 @@ var _ vm.PrecompiledContract = &Precompile{}
 //go:embed abi.json
 var f embed.FS
 
+// PrecompileAddress defines the contract address of the staking precompile.
+const PrecompileAddress = "0x0000000000000000000000000000000000000800"
+
 // Precompile defines the precompiled contract for staking.
 type Precompile struct {
 	cmn.Precompile
 	stakingKeeper stakingkeeper.Keeper
 }
 
+// LoadABI loads the staking ABI from the embedded abi.json file
+// for the staking precompile.
+func LoadABI() (abi.ABI, error) {
+	return cmn.LoadABI(f, "abi.json")
+}
+
+// NewPrecompile creates a new staking Precompile instance as a
+// PrecompiledContract interface.
+func NewPrecompile(
+	stakingKeeper stakingkeeper.Keeper,
+	authzKeeper authzkeeper.Keeper,
+) (*Precompile, error) {
+	abi, err := LoadABI()
+	if err != nil {
+		return nil, err
+	}
+
+	p := &Precompile{
+		Precompile: cmn.Precompile{
+			ABI:                  abi,
+			AuthzKeeper:          authzKeeper,
+			KvGasConfig:          storetypes.KVGasConfig(),
+			TransientKVGasConfig: storetypes.TransientGasConfig(),
+			ApprovalExpiration:   cmn.DefaultExpirationDuration, // should be configurable in the future.
+		},
+		stakingKeeper: stakingKeeper,
+	}
+	// SetAddress defines the address of the staking compile contract.
+	// address: 0x0000000000000000000000000000000000000800
+	p.SetAddress(common.HexToAddress(PrecompileAddress))
+	return p, nil
+}
+
 // RequiredGas returns the required bare minimum gas to execute the precompile.
 func (p Precompile) RequiredGas(input []byte) uint64 {
+	// NOTE: This check avoid panicking when trying to decode the method ID
+	if len(input) < 4 {
+		return 0
+	}
+
 	methodID := input[:4]
 
 	method, err := p.MethodById(methodID)
@@ -47,43 +86,9 @@ func (p Precompile) RequiredGas(input []byte) uint64 {
 	return p.Precompile.RequiredGas(input, p.IsTransaction(method.Name))
 }
 
-// NewPrecompile creates a new staking Precompile instance as a
-// PrecompiledContract interface.
-func NewPrecompile(
-	stakingKeeper stakingkeeper.Keeper,
-	authzKeeper authzkeeper.Keeper,
-) (*Precompile, error) {
-	abiBz, err := f.ReadFile("abi.json")
-	if err != nil {
-		return nil, fmt.Errorf("error loading the staking ABI %s", err)
-	}
-
-	newAbi, err := abi.JSON(bytes.NewReader(abiBz))
-	if err != nil {
-		return nil, fmt.Errorf(cmn.ErrInvalidABI, err)
-	}
-
-	return &Precompile{
-		Precompile: cmn.Precompile{
-			ABI:                  newAbi,
-			AuthzKeeper:          authzKeeper,
-			KvGasConfig:          storetypes.KVGasConfig(),
-			TransientKVGasConfig: storetypes.TransientGasConfig(),
-			ApprovalExpiration:   cmn.DefaultExpirationDuration, // should be configurable in the future.
-		},
-		stakingKeeper: stakingKeeper,
-	}, nil
-}
-
-// Address defines the address of the staking compile contract.
-// address: 0x0000000000000000000000000000000000000800
-func (Precompile) Address() common.Address {
-	return common.HexToAddress("0x0000000000000000000000000000000000000800")
-}
-
 // Run executes the precompiled contract staking methods defined in the ABI.
 func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz []byte, err error) {
-	ctx, stateDB, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
+	ctx, stateDB, snapshot, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
 	if err != nil {
 		return nil, err
 	}
@@ -91,10 +96,6 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 	// This handles any out of gas errors that may occur during the execution of a precompile tx or query.
 	// It avoids panics and returns the out of gas error so the EVM can continue gracefully.
 	defer cmn.HandleGasError(ctx, contract, initialGas, &err)()
-
-	if err := stateDB.Commit(); err != nil {
-		return nil, err
-	}
 
 	switch method.Name {
 	// Authorization transactions
@@ -107,6 +108,10 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 	case authorization.DecreaseAllowanceMethod:
 		bz, err = p.DecreaseAllowance(ctx, evm.Origin, stateDB, method, args)
 	// Staking transactions
+	case CreateValidatorMethod:
+		bz, err = p.CreateValidator(ctx, evm.Origin, contract, stateDB, method, args)
+	case EditValidatorMethod:
+		bz, err = p.EditValidator(ctx, evm.Origin, contract, stateDB, method, args)
 	case DelegateMethod:
 		bz, err = p.Delegate(ctx, evm.Origin, contract, stateDB, method, args)
 	case UndelegateMethod:
@@ -143,12 +148,18 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 		return nil, vm.ErrOutOfGas
 	}
 
+	if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
+		return nil, err
+	}
+
 	return bz, nil
 }
 
 // IsTransaction checks if the given method name corresponds to a transaction or query.
 //
 // Available staking transactions are:
+//   - CreateValidator
+//   - EditValidator
 //   - Delegate
 //   - Undelegate
 //   - Redelegate
@@ -161,7 +172,9 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 //   - DecreaseAllowance
 func (Precompile) IsTransaction(method string) bool {
 	switch method {
-	case DelegateMethod,
+	case CreateValidatorMethod,
+		EditValidatorMethod,
+		DelegateMethod,
 		UndelegateMethod,
 		RedelegateMethod,
 		CancelUnbondingDelegationMethod,

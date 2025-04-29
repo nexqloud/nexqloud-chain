@@ -3,7 +3,6 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -20,13 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
-	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/libs/log"
-	tmrpctypes "github.com/tendermint/tendermint/rpc/core/types"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/libs/log"
+	tmrpctypes "github.com/cometbft/cometbft/rpc/core/types"
 
-	"github.com/evmos/evmos/v13/rpc/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	"github.com/tendermint/tendermint/proto/tendermint/crypto"
+	"github.com/cometbft/cometbft/proto/tendermint/crypto"
+	"github.com/evmos/evmos/v19/rpc/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 type txGasAndReward struct {
@@ -122,7 +121,11 @@ func (b *Backend) processBlock(
 	targetOneFeeHistory.BaseFee = blockBaseFee
 	cfg := b.ChainConfig()
 	if cfg.IsLondon(big.NewInt(blockHeight + 1)) {
-		targetOneFeeHistory.NextBaseFee = misc.CalcBaseFee(cfg, b.CurrentHeader())
+		header, err := b.CurrentHeader()
+		if err != nil {
+			return err
+		}
+		targetOneFeeHistory.NextBaseFee = misc.CalcBaseFee(cfg, header)
 	} else {
 		targetOneFeeHistory.NextBaseFee = new(big.Int)
 	}
@@ -247,12 +250,12 @@ func TxLogsFromEvents(events []abci.Event, msgIndex int) ([]*ethtypes.Log, error
 func ParseTxLogsFromEvent(event abci.Event) ([]*ethtypes.Log, error) {
 	logs := make([]*evmtypes.Log, 0, len(event.Attributes))
 	for _, attr := range event.Attributes {
-		if !bytes.Equal(attr.Key, []byte(evmtypes.AttributeKeyTxLog)) {
+		if attr.Key != evmtypes.AttributeKeyTxLog {
 			continue
 		}
 
 		var log evmtypes.Log
-		if err := json.Unmarshal(attr.Value, &log); err != nil {
+		if err := json.Unmarshal([]byte(attr.Value), &log); err != nil {
 			return nil, err
 		}
 

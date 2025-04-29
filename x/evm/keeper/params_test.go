@@ -3,13 +3,12 @@ package keeper_test
 import (
 	"reflect"
 
-	"github.com/evmos/evmos/v13/x/evm/types"
+	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
 func (suite *KeeperTestSuite) TestParams() {
-	params := suite.app.EvmKeeper.GetParams(suite.ctx)
-	err := suite.app.EvmKeeper.SetParams(suite.ctx, params)
-	suite.Require().NoError(err)
+	params := types.DefaultParams()
+
 	testCases := []struct {
 		name      string
 		paramsFun func() interface{}
@@ -41,30 +40,38 @@ func (suite *KeeperTestSuite) TestParams() {
 			true,
 		},
 		{
-			"success - Check EnableCreate param is set to false and can be retrieved correctly",
+			"success - Check Access Control Create param is set to restricted and can be retrieved correctly",
 			func() interface{} {
-				params.EnableCreate = false
+				params.AccessControl = types.AccessControl{
+					Create: types.AccessControlType{
+						AccessType: types.AccessTypeRestricted,
+					},
+				}
 				err := suite.app.EvmKeeper.SetParams(suite.ctx, params)
 				suite.Require().NoError(err)
-				return params.EnableCreate
+				return types.AccessTypeRestricted
 			},
 			func() interface{} {
 				evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
-				return evmParams.GetEnableCreate()
+				return evmParams.GetAccessControl().Create.AccessType
 			},
 			true,
 		},
 		{
-			"success - Check EnableCall param is set to false and can be retrieved correctly",
+			"success - Check Access control param is set to restricted and can be retrieved correctly",
 			func() interface{} {
-				params.EnableCall = false
+				params.AccessControl = types.AccessControl{
+					Call: types.AccessControlType{
+						AccessType: types.AccessTypeRestricted,
+					},
+				}
 				err := suite.app.EvmKeeper.SetParams(suite.ctx, params)
 				suite.Require().NoError(err)
-				return params.EnableCall
+				return types.AccessTypeRestricted
 			},
 			func() interface{} {
 				evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
-				return evmParams.GetEnableCall()
+				return evmParams.GetAccessControl().Call.AccessType
 			},
 			true,
 		},
@@ -96,9 +103,33 @@ func (suite *KeeperTestSuite) TestParams() {
 			},
 			true,
 		},
+		{
+			name: "success - Active precompiles are sorted when setting params",
+			paramsFun: func() interface{} {
+				params.ActiveStaticPrecompiles = []string{
+					"0x0000000000000000000000000000000000000801",
+					"0x0000000000000000000000000000000000000800",
+				}
+				err := suite.app.EvmKeeper.SetParams(suite.ctx, params)
+				suite.Require().NoError(err, "expected no error when setting params")
+
+				// NOTE: return sorted slice here because the precompiles should be sorted when setting the params
+				return []string{
+					"0x0000000000000000000000000000000000000800",
+					"0x0000000000000000000000000000000000000801",
+				}
+			},
+			getFun: func() interface{} {
+				evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
+				return evmParams.GetActiveStaticPrecompiles()
+			},
+			expected: true,
+		},
 	}
 	for _, tc := range testCases {
 		suite.Run(tc.name, func() {
+			suite.SetupTest()
+
 			outcome := reflect.DeepEqual(tc.paramsFun(), tc.getFun())
 			suite.Require().Equal(tc.expected, outcome)
 		})

@@ -58,7 +58,6 @@ yarn.lock
 .vagrant/
 *.box
 *.log
-out.txt
 vagrant
 
 # IDE
@@ -84,8 +83,4 @@ dependency-graph.png
 
 # OpenZeppelin contracts
 contracts/@openzeppelin/*
-
-#scripts
-start_testnet.sh
-start_validator.sh
-
+cmd/nxqd/nxqd

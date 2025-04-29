@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"math/big"
 
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	"github.com/cosmos/ibc-go/v6/modules/apps/transfer/types"
-	channeltypes "github.com/cosmos/ibc-go/v6/modules/core/04-channel/types"
-	host "github.com/cosmos/ibc-go/v6/modules/core/24-host"
-	"github.com/evmos/evmos/v13/testutil"
-	erc20types "github.com/evmos/evmos/v13/x/erc20/types"
-	"github.com/evmos/evmos/v13/x/ibc/transfer/keeper"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	"github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	channeltypes "github.com/cosmos/ibc-go/v7/modules/core/04-channel/types"
+	host "github.com/cosmos/ibc-go/v7/modules/core/24-host"
+	erc20types "github.com/evmos/evmos/v19/x/erc20/types"
+	"github.com/evmos/evmos/v19/x/ibc/transfer/keeper"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -31,9 +32,9 @@ func (suite *KeeperTestSuite) TestTransfer() {
 			"pass - no token pair",
 			func() *types.MsgTransfer {
 				senderAcc := sdk.AccAddress(suite.address.Bytes())
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin("aevmos", sdk.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin("aevmos", math.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
 
-				coins := sdk.NewCoins(sdk.NewCoin("aevmos", sdk.NewInt(10)))
+				coins := sdk.NewCoins(sdk.NewCoin("aevmos", math.NewInt(10)))
 				err := suite.app.BankKeeper.MintCoins(suite.ctx, erc20types.ModuleName, coins)
 				suite.Require().NoError(err)
 				err = suite.app.BankKeeper.SendCoinsFromModuleToAccount(suite.ctx, erc20types.ModuleName, senderAcc, coins)
@@ -52,7 +53,7 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				suite.Commit()
 
 				// senderAcc := sdk.MustAccAddressFromBech32(addr)
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin("erc20/"+contractAddr.String(), sdk.NewInt(10)), addr, "", timeoutHeight, 0, "")
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin("erc20/"+contractAddr.String(), math.NewInt(10)), addr, "", timeoutHeight, 0, "")
 				return transferMsg
 			},
 			false,
@@ -72,7 +73,7 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				suite.MintERC20Token(contractAddr, suite.address, suite.address, big.NewInt(10))
 				suite.Commit()
 
-				coin := sdk.NewCoin(pair.Denom, sdk.NewInt(10))
+				coin := sdk.NewCoin(pair.Denom, math.NewInt(10))
 				coins := sdk.NewCoins(coin)
 
 				err = suite.app.BankKeeper.MintCoins(suite.ctx, erc20types.ModuleName, coins)
@@ -89,7 +90,7 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				suite.Require().NoError(err)
 				suite.Commit()
 
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, sdk.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, math.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
 
 				return transferMsg
 			},
@@ -116,7 +117,7 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				suite.Require().NoError(err)
 				suite.Commit()
 
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, sdk.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, math.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
 
 				return transferMsg
 			},
@@ -127,7 +128,7 @@ func (suite *KeeperTestSuite) TestTransfer() {
 			func() *types.MsgTransfer {
 				senderAcc := sdk.AccAddress(suite.address.Bytes())
 
-				coin := sdk.NewCoin("test", sdk.NewInt(10))
+				coin := sdk.NewCoin("test", math.NewInt(10))
 				coins := sdk.NewCoins(coin)
 
 				err := suite.app.BankKeeper.MintCoins(suite.ctx, erc20types.ModuleName, coins)
@@ -155,7 +156,7 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				pair.Enabled = false
 				suite.app.Erc20Keeper.SetTokenPair(suite.ctx, *pair)
 
-				coin := sdk.NewCoin(pair.Denom, sdk.NewInt(10))
+				coin := sdk.NewCoin(pair.Denom, math.NewInt(10))
 				senderAcc := sdk.AccAddress(suite.address.Bytes())
 				transferMsg := types.NewMsgTransfer("transfer", "channel-0", coin, senderAcc.String(), "", timeoutHeight, 0, "")
 
@@ -165,31 +166,6 @@ func (suite *KeeperTestSuite) TestTransfer() {
 
 				err = suite.app.BankKeeper.SendCoinsFromModuleToAccount(suite.ctx, erc20types.ModuleName, senderAcc, sdk.NewCoins(coin))
 				suite.Require().NoError(err)
-				suite.Commit()
-
-				return transferMsg
-			},
-			true,
-		},
-		{
-			"no-op - sender is a module account",
-			func() *types.MsgTransfer {
-				contractAddr, err := suite.DeployContract("coin", "token", uint8(6))
-				suite.Require().NoError(err)
-				suite.Commit()
-
-				pair, err := suite.app.Erc20Keeper.RegisterERC20(suite.ctx, contractAddr)
-				suite.Require().NoError(err)
-				suite.Commit()
-
-				// module account needs permission to send funds (perms set in allowedReceivingModAcc)
-				senderAcc := suite.app.AccountKeeper.GetModuleAccount(suite.ctx, "incentives")
-
-				err = testutil.FundModuleAccount(suite.ctx, suite.app.BankKeeper, senderAcc.GetName(), sdk.NewCoins(sdk.NewCoin(pair.Denom, sdk.NewInt(10))))
-				suite.Require().NoError(err)
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, sdk.NewInt(10)), senderAcc.GetAddress().String(), "", timeoutHeight, 0, "")
-
-				suite.MintERC20Token(contractAddr, suite.address, suite.address, big.NewInt(10))
 				suite.Commit()
 
 				return transferMsg
@@ -209,7 +185,7 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				suite.Require().Equal("erc20/"+pair.Erc20Address, pair.Denom)
 
 				senderAcc := sdk.AccAddress(suite.address.Bytes())
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, sdk.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, math.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
 
 				suite.MintERC20Token(contractAddr, suite.address, suite.address, big.NewInt(10))
 				suite.Commit()
@@ -229,9 +205,9 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				suite.Commit()
 
 				senderAcc := sdk.AccAddress(suite.address.Bytes())
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, sdk.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, math.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
 
-				coins := sdk.NewCoins(sdk.NewCoin(pair.Denom, sdk.NewInt(10)))
+				coins := sdk.NewCoins(sdk.NewCoin(pair.Denom, math.NewInt(10)))
 				err = suite.app.BankKeeper.MintCoins(suite.ctx, erc20types.ModuleName, coins)
 				suite.Require().NoError(err)
 				err = suite.app.BankKeeper.SendCoinsFromModuleToAccount(suite.ctx, erc20types.ModuleName, senderAcc, coins)
@@ -254,7 +230,47 @@ func (suite *KeeperTestSuite) TestTransfer() {
 				suite.Commit()
 
 				senderAcc := sdk.AccAddress(suite.address.Bytes())
-				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, sdk.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", sdk.NewCoin(pair.Denom, math.NewInt(10)), senderAcc.String(), "", timeoutHeight, 0, "")
+				return transferMsg
+			},
+			false,
+		},
+
+		// STRV2
+		// native coin - perform normal ibc transfer
+		{
+			"no-op - fail transfer",
+			func() *types.MsgTransfer {
+				senderAcc := sdk.AccAddress(suite.address.Bytes())
+
+				denom := "ibc/DF63978F803A2E27CA5CC9B7631654CCF0BBC788B3B7F0A10200508E37C70992"
+				coinMetadata := banktypes.Metadata{
+					Name:        "Generic IBC name",
+					Symbol:      "IBC",
+					Description: "Generic IBC token description",
+					DenomUnits: []*banktypes.DenomUnit{
+						{
+							Denom:    denom,
+							Exponent: 0,
+							Aliases:  []string{denom},
+						},
+						{
+							Denom:    denom,
+							Exponent: 18,
+						},
+					},
+					Display: denom,
+					Base:    denom,
+				}
+
+				coin := sdk.NewCoin(denom, math.NewInt(10))
+
+				pair, err := suite.app.Erc20Keeper.RegisterERC20Extension(suite.ctx, coinMetadata.Base)
+				suite.Require().Equal(pair.Denom, denom)
+				suite.Require().NoError(err)
+
+				transferMsg := types.NewMsgTransfer("transfer", "channel-0", coin, senderAcc.String(), "", timeoutHeight, 0, "")
+
 				return transferMsg
 			},
 			false,

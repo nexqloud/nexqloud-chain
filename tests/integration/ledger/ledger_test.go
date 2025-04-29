@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"context"
 
+	"cosmossdk.io/math"
+	"cosmossdk.io/simapp/params"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
-	"github.com/cosmos/cosmos-sdk/simapp/params"
 
-	"github.com/evmos/evmos/v13/app"
-	"github.com/evmos/evmos/v13/crypto/hd"
-	"github.com/evmos/evmos/v13/encoding"
-	"github.com/evmos/evmos/v13/tests/integration/ledger/mocks"
-	"github.com/evmos/evmos/v13/testutil"
-	utiltx "github.com/evmos/evmos/v13/testutil/tx"
+	"github.com/evmos/evmos/v19/app"
+	"github.com/evmos/evmos/v19/crypto/hd"
+	"github.com/evmos/evmos/v19/encoding"
+	"github.com/evmos/evmos/v19/tests/integration/ledger/mocks"
+	"github.com/evmos/evmos/v19/testutil"
+	utiltx "github.com/evmos/evmos/v19/testutil/tx"
 
 	"github.com/spf13/cobra"
 
@@ -23,6 +24,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	bankcli "github.com/cosmos/cosmos-sdk/x/bank/client/cli"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/ginkgo/v2"
 )
 
@@ -31,7 +33,7 @@ var (
 		return s.privKey.Sign(msg)
 	}
 
-	signErrMock = func(_ []uint32, msg []byte) ([]byte, error) {
+	signErrMock = func([]uint32, []byte) ([]byte, error) {
 		return nil, mocks.ErrMockedSigning
 	}
 )
@@ -87,7 +89,7 @@ var _ = Describe("Ledger CLI and keyring functionality: ", func() {
 				out, err := sdktestutilcli.ExecTestCLICmd(clientCtx, cmd, []string{
 					ledgerKey,
 					s.FormatFlag(flags.FlagUseLedger),
-					s.FormatFlag(flags.FlagKeyAlgorithm),
+					s.FormatFlag(flags.FlagKeyType),
 					string(hd.EthSecp256k1Type),
 				})
 
@@ -120,7 +122,7 @@ var _ = Describe("Ledger CLI and keyring functionality: ", func() {
 			cmd.SetArgs([]string{
 				ledgerKey,
 				s.FormatFlag(flags.FlagUseLedger),
-				s.FormatFlag(flags.FlagKeyAlgorithm),
+				s.FormatFlag(flags.FlagKeyType),
 				"eth_secp256k1",
 			})
 			// add ledger key for following tests
@@ -174,7 +176,7 @@ var _ = Describe("Ledger CLI and keyring functionality: ", func() {
 						s.app.BankKeeper,
 						s.accAddr,
 						sdk.NewCoins(
-							sdk.NewCoin("aevmos", sdk.NewInt(100000000000000)),
+							sdk.NewCoin("aevmos", math.NewInt(100000000000000)),
 						),
 					)
 					s.Require().NoError(err)
@@ -199,7 +201,7 @@ var _ = Describe("Ledger CLI and keyring functionality: ", func() {
 					cmd.SetArgs([]string{
 						ledgerKey,
 						receiverAccAddr.String(),
-						sdk.NewCoin("aevmos", sdk.NewInt(1000)).String(),
+						sdk.NewCoin("aevmos", math.NewInt(1000)).String(),
 						s.FormatFlag(flags.FlagUseLedger),
 						s.FormatFlag(flags.FlagSkipConfirmation),
 					})
@@ -217,7 +219,7 @@ var _ = Describe("Ledger CLI and keyring functionality: ", func() {
 					cmd.SetArgs([]string{
 						ledgerKey,
 						receiverAccAddr.String(),
-						sdk.NewCoin("aevmos", sdk.NewInt(1000)).String(),
+						sdk.NewCoin("aevmos", math.NewInt(1000)).String(),
 						s.FormatFlag(flags.FlagUseLedger),
 						s.FormatFlag(flags.FlagSkipConfirmation),
 					})

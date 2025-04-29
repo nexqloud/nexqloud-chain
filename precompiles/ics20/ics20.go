@@ -4,20 +4,22 @@
 package ics20
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
 
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	authzkeeper "github.com/cosmos/cosmos-sdk/x/authz/keeper"
-	channelkeeper "github.com/cosmos/ibc-go/v6/modules/core/04-channel/keeper"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	channelkeeper "github.com/cosmos/ibc-go/v7/modules/core/04-channel/keeper"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/evmos/evmos/v13/precompiles/authorization"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
-	transferkeeper "github.com/evmos/evmos/v13/x/ibc/transfer/keeper"
+	"github.com/evmos/evmos/v19/precompiles/authorization"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	transferkeeper "github.com/evmos/evmos/v19/x/ibc/transfer/keeper"
+	stakingkeeper "github.com/evmos/evmos/v19/x/staking/keeper"
 )
+
+// PrecompileAddress of the ICS-20 EVM extension in hex format.
+const PrecompileAddress = "0x0000000000000000000000000000000000000802"
 
 var _ vm.PrecompiledContract = &Precompile{}
 
@@ -28,29 +30,25 @@ var f embed.FS
 
 type Precompile struct {
 	cmn.Precompile
+	stakingKeeper  stakingkeeper.Keeper
 	transferKeeper transferkeeper.Keeper
 	channelKeeper  channelkeeper.Keeper
 }
 
-// NewPrecompile creates a new staking Precompile instance as a
+// NewPrecompile creates a new ICS-20 Precompile instance as a
 // PrecompiledContract interface.
 func NewPrecompile(
+	stakingKeeper stakingkeeper.Keeper,
 	transferKeeper transferkeeper.Keeper,
 	channelKeeper channelkeeper.Keeper,
 	authzKeeper authzkeeper.Keeper,
-	// approvalExpiration time.Duration,
 ) (*Precompile, error) {
-	abiBz, err := f.ReadFile("abi.json")
+	newAbi, err := cmn.LoadABI(f, "abi.json")
 	if err != nil {
 		return nil, err
 	}
 
-	newAbi, err := abi.JSON(bytes.NewReader(abiBz))
-	if err != nil {
-		return nil, err
-	}
-
-	return &Precompile{
+	p := &Precompile{
 		Precompile: cmn.Precompile{
 			ABI:                  newAbi,
 			AuthzKeeper:          authzKeeper,
@@ -60,23 +58,21 @@ func NewPrecompile(
 		},
 		transferKeeper: transferKeeper,
 		channelKeeper:  channelKeeper,
-	}, nil
-}
-
-// Address defines the address of the ICS-20 compile contract.
-// address: 0x0000000000000000000000000000000000000802
-func (Precompile) Address() common.Address {
-	return common.HexToAddress("0x0000000000000000000000000000000000000802")
-}
-
-// IsStateful returns true since the precompile contract has access to the
-// chain state.
-func (Precompile) IsStateful() bool {
-	return true
+		stakingKeeper:  stakingKeeper,
+	}
+	// SetAddress defines the address of the ICS-20 compile contract.
+	// address: 0x0000000000000000000000000000000000000802
+	p.SetAddress(common.HexToAddress(PrecompileAddress))
+	return p, nil
 }
 
 // RequiredGas calculates the precompiled contract's base gas rate.
 func (p Precompile) RequiredGas(input []byte) uint64 {
+	// NOTE: This check avoid panicking when trying to decode the method ID
+	if len(input) < 4 {
+		return 0
+	}
+
 	methodID := input[:4]
 
 	method, err := p.MethodById(methodID)
@@ -90,7 +86,7 @@ func (p Precompile) RequiredGas(input []byte) uint64 {
 
 // Run executes the precompiled contract IBC transfer methods defined in the ABI.
 func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz []byte, err error) {
-	ctx, stateDB, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
+	ctx, stateDB, snapshot, method, initialGas, args, err := p.RunSetup(evm, contract, readOnly, p.IsTransaction)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +130,10 @@ func (p Precompile) Run(evm *vm.EVM, contract *vm.Contract, readOnly bool) (bz [
 
 	if !contract.UseGas(cost) {
 		return nil, vm.ErrOutOfGas
+	}
+
+	if err := p.AddJournalEntries(stateDB, snapshot); err != nil {
+		return nil, err
 	}
 
 	return bz, nil

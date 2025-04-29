@@ -3,7 +3,9 @@ package keeper_test
 import (
 	"testing"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
 
 	"github.com/cosmos/cosmos-sdk/client"
@@ -12,8 +14,9 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/evmos/evmos/v13/app"
-	"github.com/evmos/evmos/v13/x/feemarket/types"
+	"github.com/evmos/evmos/v19/app"
+	"github.com/evmos/evmos/v19/utils"
+	"github.com/evmos/evmos/v19/x/feemarket/types"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -49,6 +52,7 @@ func TestKeeperTestSuite(t *testing.T) {
 // SetupTest setup test environment, it uses`require.TestingT` to support both `testing.T` and `testing.B`.
 func (suite *KeeperTestSuite) SetupTest() {
 	checkTx := false
-	suite.app = app.Setup(checkTx, nil)
-	suite.SetupApp(checkTx)
+	chainID := utils.TestnetChainID + "-1"
+	suite.app = app.Setup(checkTx, nil, chainID)
+	suite.SetupApp(checkTx, chainID)
 }

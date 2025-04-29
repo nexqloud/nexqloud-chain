@@ -1,22 +1,15 @@
 # argument to provide specific version of evmos node
 ARG INITIAL_VERSION
+# checkov:skip=CKV_DOCKER_3:No need to create a user, this is only used on tests
 FROM tharsishq/evmos:$INITIAL_VERSION
-
-# jq needs to perform changes of node parameters
-RUN apt-get update \ 
-&& apt-get install ca-certificates=20210119 jq=1.6-2.1 -y \ 
---no-install-recommends \ 
-&& apt-get clean \
-&& rm -rf /var/lib/apt/lists/*
 
 WORKDIR /go/src/github.com/evmos/evmos
 
 COPY ./init-node.sh .
 
-# perms to make init-node.sh executable
-RUN chmod +x init-node.sh
-
 # JSON-RPC server
 EXPOSE 8545
+
+HEALTHCHECK CMD curl --fail http://localhost:26657 || exit 1
 
 CMD ["sh", "./init-node.sh"]

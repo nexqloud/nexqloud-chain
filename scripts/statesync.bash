@@ -31,7 +31,7 @@ go install ./...
 # go install -ldflags '-w -s -X github.com/cosmos/cosmos-sdk/types.DBBackend=boltdb' -tags boltdb ./...
 
 # Initialize chain.
-nxqd init test --chain-id evmos_9000-1
+evmosd init test --chain-id evmos_9000-1
 
 # Get Genesis
 wget https://archive.evmos.org/mainnet/genesis.json
@@ -59,4 +59,4 @@ export EVMOSD_STATESYNC_TRUST_HASH=$TRUST_HASH
 export EVMOSD_P2P_SEEDS=$(curl -s https://raw.githubusercontent.com/cosmos/chain-registry/master/evmos/chain.json | jq -r '[foreach .peers.seeds[] as $item (""; "\($item.id)@\($item.address)")] | join(",")')
 
 # Start chain.
-nxqd start --x-crisis-skip-assert-invariants 
+evmosd start --x-crisis-skip-assert-invariants 

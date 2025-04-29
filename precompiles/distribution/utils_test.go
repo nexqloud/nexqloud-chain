@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
-	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/math"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/tmhash"
+	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	cryptocodec "github.com/cosmos/cosmos-sdk/crypto/codec"
@@ -17,19 +20,16 @@ import (
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	evmosapp "github.com/evmos/evmos/v13/app"
-	cmn "github.com/evmos/evmos/v13/precompiles/common"
-	"github.com/evmos/evmos/v13/precompiles/distribution"
-	evmosutil "github.com/evmos/evmos/v13/testutil"
-	evmosutiltx "github.com/evmos/evmos/v13/testutil/tx"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	"github.com/evmos/evmos/v13/utils"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	inflationtypes "github.com/evmos/evmos/v13/x/inflation/types"
-	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/crypto/tmhash"
-	tmtypes "github.com/tendermint/tendermint/types"
+	evmosapp "github.com/evmos/evmos/v19/app"
+	cmn "github.com/evmos/evmos/v19/precompiles/common"
+	"github.com/evmos/evmos/v19/precompiles/distribution"
+	evmosutil "github.com/evmos/evmos/v19/testutil"
+	evmosutiltx "github.com/evmos/evmos/v19/testutil/tx"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	"github.com/evmos/evmos/v19/utils"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
+	inflationtypes "github.com/evmos/evmos/v19/x/inflation/v1/types"
 )
 
 // SetupWithGenesisValSet initializes a new EvmosApp with a validator set and genesis accounts
@@ -37,7 +37,7 @@ import (
 // of one consensus engine unit (10^6) in the default token of the simapp from first genesis
 // account. A Nop logger is set in SimApp.
 func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSet, genAccs []authtypes.GenesisAccount, balances ...banktypes.Balance) {
-	appI, genesisState := evmosapp.SetupTestingApp()
+	appI, genesisState := evmosapp.SetupTestingApp(cmn.DefaultChainID)()
 	app, ok := appI.(*evmosapp.Evmos)
 	s.Require().True(ok)
 
@@ -61,15 +61,15 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSe
 			Jailed:            false,
 			Status:            stakingtypes.Bonded,
 			Tokens:            bondAmt,
-			DelegatorShares:   sdk.OneDec(),
+			DelegatorShares:   math.LegacyOneDec(),
 			Description:       stakingtypes.Description{},
 			UnbondingHeight:   int64(0),
 			UnbondingTime:     time.Unix(0, 0).UTC(),
-			Commission:        stakingtypes.NewCommission(sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()),
-			MinSelfDelegation: sdk.ZeroInt(),
+			Commission:        stakingtypes.NewCommission(math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()),
+			MinSelfDelegation: math.ZeroInt(),
 		}
 		validators = append(validators, validator)
-		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), val.Address.Bytes(), sdk.OneDec()))
+		delegations = append(delegations, stakingtypes.NewDelegation(genAccs[0].GetAddress(), val.Address.Bytes(), math.LegacyOneDec()))
 	}
 	s.validators = validators
 
@@ -94,7 +94,7 @@ func (s *PrecompileTestSuite) SetupWithGenesisValSet(valSet *tmtypes.ValidatorSe
 	})
 
 	// update total supply
-	bankGenesis := banktypes.NewGenesisState(banktypes.DefaultGenesisState().Params, balances, totalSupply, []banktypes.Metadata{})
+	bankGenesis := banktypes.NewGenesisState(banktypes.DefaultGenesisState().Params, balances, totalSupply, []banktypes.Metadata{}, []banktypes.SendEnabled{})
 	genesisState[banktypes.ModuleName] = app.AppCodec().MustMarshalJSON(bankGenesis)
 
 	stateBytes, err := json.MarshalIndent(genesisState, "", " ")
@@ -177,17 +177,18 @@ func (s *PrecompileTestSuite) DoSetupTest() {
 	stakingParams := s.app.StakingKeeper.GetParams(s.ctx)
 	stakingParams.BondDenom = utils.BaseDenom
 	s.bondDenom = stakingParams.BondDenom
-	s.app.StakingKeeper.SetParams(s.ctx, stakingParams)
+	err = s.app.StakingKeeper.SetParams(s.ctx, stakingParams)
+	s.Require().NoError(err)
 
 	s.ethSigner = ethtypes.LatestSignerForChainID(s.app.EvmKeeper.ChainID())
 
-	precompile, err := distribution.NewPrecompile(s.app.DistrKeeper, s.app.AuthzKeeper)
+	precompile, err := distribution.NewPrecompile(s.app.DistrKeeper, s.app.StakingKeeper, s.app.AuthzKeeper)
 	s.Require().NoError(err)
 	s.precompile = precompile
 
-	coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, sdk.NewInt(5000000000000000000)))
-	inflCoins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, sdk.NewInt(2000000000000000000)))
-	distrCoins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, sdk.NewInt(3000000000000000000)))
+	coins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(5_000_000_000_000_000_000)))
+	inflCoins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(2_000_000_000_000_000_000)))
+	distrCoins := sdk.NewCoins(sdk.NewCoin(utils.BaseDenom, math.NewInt(3_000_000_000_000_000_000)))
 	err = s.app.BankKeeper.MintCoins(s.ctx, inflationtypes.ModuleName, coins)
 	s.Require().NoError(err)
 	err = s.app.BankKeeper.SendCoinsFromModuleToModule(s.ctx, inflationtypes.ModuleName, authtypes.FeeCollectorName, inflCoins)
@@ -215,7 +216,7 @@ func (s *PrecompileTestSuite) DeployContract(contract evmtypes.CompiledContract)
 type stakingRewards struct {
 	Delegator sdk.AccAddress
 	Validator stakingtypes.Validator
-	RewardAmt sdkmath.Int
+	RewardAmt math.Int
 }
 
 // prepareStakingRewards prepares the test suite for testing delegation rewards.
@@ -242,9 +243,9 @@ func (s *PrecompileTestSuite) prepareStakingRewards(stkRs ...stakingRewards) {
 		s.Require().NoError(err)
 
 		// end block to bond validator and increase block height
-		sdkstaking.EndBlocker(s.ctx, s.app.StakingKeeper)
+		sdkstaking.EndBlocker(s.ctx, s.app.StakingKeeper.Keeper)
 		// allocate rewards to validator (of these 50% will be paid out to the delegator)
-		allocatedRewards := sdk.NewDecCoins(sdk.NewDecCoin(s.bondDenom, r.RewardAmt.Mul(sdk.NewInt(2))))
+		allocatedRewards := sdk.NewDecCoins(sdk.NewDecCoin(s.bondDenom, r.RewardAmt.Mul(math.NewInt(2))))
 		s.app.DistrKeeper.AllocateTokensToValidator(s.ctx, r.Validator, allocatedRewards)
 	}
 	s.NextBlock()
@@ -265,7 +266,7 @@ func (s *PrecompileTestSuite) setupValidatorSlashes(valAddr sdk.ValAddress, slas
 		initialPeriod uint64 = 1
 	)
 
-	slashEvent := distrtypes.ValidatorSlashEvent{ValidatorPeriod: 1, Fraction: sdk.NewDec(5)}
+	slashEvent := distrtypes.ValidatorSlashEvent{ValidatorPeriod: 1, Fraction: math.LegacyNewDec(5)}
 
 	for i := uint64(0); i < slashesCount; i++ {
 		s.app.DistrKeeper.SetValidatorSlashEvent(s.ctx, valAddr, initialHeight+i, initialPeriod+i, slashEvent)

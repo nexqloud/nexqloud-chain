@@ -11,16 +11,25 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strings"
+
+	autocliv1 "cosmossdk.io/api/cosmos/autocli/v1"
+	reflectionv1 "cosmossdk.io/api/cosmos/reflection/v1"
+	"cosmossdk.io/math"
+	runtimeservices "github.com/cosmos/cosmos-sdk/runtime/services"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/gorilla/mux"
 	"github.com/rakyll/statik/fs"
 	"github.com/spf13/cast"
 
-	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/libs/log"
-	tmos "github.com/tendermint/tendermint/libs/os"
-	dbm "github.com/tendermint/tm-db"
+	dbm "github.com/cometbft/cometbft-db"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/libs/log"
+	tmos "github.com/cometbft/cometbft/libs/os"
 
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -31,17 +40,19 @@ import (
 	"github.com/cosmos/cosmos-sdk/server/api"
 	"github.com/cosmos/cosmos-sdk/server/config"
 
+	errorsmod "cosmossdk.io/errors"
+	"cosmossdk.io/simapp"
+	simappparams "cosmossdk.io/simapp/params"
+	"github.com/cosmos/cosmos-sdk/runtime"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
-	"github.com/cosmos/cosmos-sdk/simapp"
-	simappparams "github.com/cosmos/cosmos-sdk/simapp/params"
 	"github.com/cosmos/cosmos-sdk/store/streaming"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/mempool"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/version"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
-	"github.com/cosmos/cosmos-sdk/x/auth/posthandler"
 	authsims "github.com/cosmos/cosmos-sdk/x/auth/simulation"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -54,11 +65,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/capability"
 	capabilitykeeper "github.com/cosmos/cosmos-sdk/x/capability/keeper"
 	capabilitytypes "github.com/cosmos/cosmos-sdk/x/capability/types"
-	"github.com/cosmos/cosmos-sdk/x/crisis"
-	crisiskeeper "github.com/cosmos/cosmos-sdk/x/crisis/keeper"
-	crisistypes "github.com/cosmos/cosmos-sdk/x/crisis/types"
+	"github.com/cosmos/cosmos-sdk/x/consensus"
 	distr "github.com/cosmos/cosmos-sdk/x/distribution"
-	distrclient "github.com/cosmos/cosmos-sdk/x/distribution/client"
 	distrkeeper "github.com/cosmos/cosmos-sdk/x/distribution/keeper"
 	distrtypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/cosmos/cosmos-sdk/x/evidence"
@@ -79,97 +87,102 @@ import (
 	paramsclient "github.com/cosmos/cosmos-sdk/x/params/client"
 	paramskeeper "github.com/cosmos/cosmos-sdk/x/params/keeper"
 	paramstypes "github.com/cosmos/cosmos-sdk/x/params/types"
-	paramproposal "github.com/cosmos/cosmos-sdk/x/params/types/proposal"
 	"github.com/cosmos/cosmos-sdk/x/slashing"
 	slashingkeeper "github.com/cosmos/cosmos-sdk/x/slashing/keeper"
 	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
-	"github.com/cosmos/cosmos-sdk/x/staking"
-	stakingkeeper "github.com/cosmos/cosmos-sdk/x/staking/keeper"
+	sdkstaking "github.com/cosmos/cosmos-sdk/x/staking"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/cosmos/cosmos-sdk/x/upgrade"
 	upgradeclient "github.com/cosmos/cosmos-sdk/x/upgrade/client"
 	upgradekeeper "github.com/cosmos/cosmos-sdk/x/upgrade/keeper"
 	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 
-	ibctestingtypes "github.com/cosmos/ibc-go/v6/testing/types"
+	ibctestingtypes "github.com/cosmos/ibc-go/v7/testing/types"
 
-	ibctransfer "github.com/cosmos/ibc-go/v6/modules/apps/transfer"
-	ibctransfertypes "github.com/cosmos/ibc-go/v6/modules/apps/transfer/types"
-	ibc "github.com/cosmos/ibc-go/v6/modules/core"
-	ibcclient "github.com/cosmos/ibc-go/v6/modules/core/02-client"
-	ibcclientclient "github.com/cosmos/ibc-go/v6/modules/core/02-client/client"
-	ibcclienttypes "github.com/cosmos/ibc-go/v6/modules/core/02-client/types"
-	porttypes "github.com/cosmos/ibc-go/v6/modules/core/05-port/types"
-	ibchost "github.com/cosmos/ibc-go/v6/modules/core/24-host"
-	ibckeeper "github.com/cosmos/ibc-go/v6/modules/core/keeper"
-	ibctesting "github.com/cosmos/ibc-go/v6/testing"
+	ibctransfer "github.com/cosmos/ibc-go/v7/modules/apps/transfer"
+	ibctransfertypes "github.com/cosmos/ibc-go/v7/modules/apps/transfer/types"
+	ibc "github.com/cosmos/ibc-go/v7/modules/core"
+	ibcclient "github.com/cosmos/ibc-go/v7/modules/core/02-client"
+	ibcclientclient "github.com/cosmos/ibc-go/v7/modules/core/02-client/client"
+	ibcclienttypes "github.com/cosmos/ibc-go/v7/modules/core/02-client/types"
+	porttypes "github.com/cosmos/ibc-go/v7/modules/core/05-port/types"
+	ibcexported "github.com/cosmos/ibc-go/v7/modules/core/exported"
+	ibckeeper "github.com/cosmos/ibc-go/v7/modules/core/keeper"
+	ibctm "github.com/cosmos/ibc-go/v7/modules/light-clients/07-tendermint"
+	ibctesting "github.com/cosmos/ibc-go/v7/testing"
 
-	ica "github.com/cosmos/ibc-go/v6/modules/apps/27-interchain-accounts"
-	icahost "github.com/cosmos/ibc-go/v6/modules/apps/27-interchain-accounts/host"
-	icahostkeeper "github.com/cosmos/ibc-go/v6/modules/apps/27-interchain-accounts/host/keeper"
-	icahosttypes "github.com/cosmos/ibc-go/v6/modules/apps/27-interchain-accounts/host/types"
-	icatypes "github.com/cosmos/ibc-go/v6/modules/apps/27-interchain-accounts/types"
+	ratelimit "github.com/cosmos/ibc-apps/modules/rate-limiting/v7"
+	ratelimitkeeper "github.com/cosmos/ibc-apps/modules/rate-limiting/v7/keeper"
+	ratelimittypes "github.com/cosmos/ibc-apps/modules/rate-limiting/v7/types"
 
-	ethante "github.com/evmos/evmos/v13/app/ante/evm"
-	"github.com/evmos/evmos/v13/encoding"
-	"github.com/evmos/evmos/v13/ethereum/eip712"
-	srvflags "github.com/evmos/evmos/v13/server/flags"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	"github.com/evmos/evmos/v13/x/evm"
-	evmkeeper "github.com/evmos/evmos/v13/x/evm/keeper"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	"github.com/evmos/evmos/v13/x/feemarket"
-	feemarketkeeper "github.com/evmos/evmos/v13/x/feemarket/keeper"
-	feemarkettypes "github.com/evmos/evmos/v13/x/feemarket/types"
+	ica "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts"
+	icahost "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts/host"
+	icahostkeeper "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts/host/keeper"
+	icahosttypes "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts/host/types"
+	icatypes "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts/types"
+
+	consensusparamkeeper "github.com/cosmos/cosmos-sdk/x/consensus/keeper"
+	consensusparamtypes "github.com/cosmos/cosmos-sdk/x/consensus/types"
+
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
 
 	// unnamed import of statik for swagger UI support
-	_ "github.com/evmos/evmos/v13/client/docs/statik"
+	_ "github.com/evmos/evmos/v19/client/docs/statik"
+	"github.com/evmos/evmos/v19/utils"
 
-	"github.com/evmos/evmos/v13/app/ante"
-	v10 "github.com/evmos/evmos/v13/app/upgrades/v10"
-	v11 "github.com/evmos/evmos/v13/app/upgrades/v11"
-	v12 "github.com/evmos/evmos/v13/app/upgrades/v12"
-	v13 "github.com/evmos/evmos/v13/app/upgrades/v13"
-	v8 "github.com/evmos/evmos/v13/app/upgrades/v8"
-	v81 "github.com/evmos/evmos/v13/app/upgrades/v8_1"
-	v82 "github.com/evmos/evmos/v13/app/upgrades/v8_2"
-	v9 "github.com/evmos/evmos/v13/app/upgrades/v9"
-	v91 "github.com/evmos/evmos/v13/app/upgrades/v9_1"
-	"github.com/evmos/evmos/v13/x/claims"
-	claimskeeper "github.com/evmos/evmos/v13/x/claims/keeper"
-	claimstypes "github.com/evmos/evmos/v13/x/claims/types"
-	"github.com/evmos/evmos/v13/x/epochs"
-	epochskeeper "github.com/evmos/evmos/v13/x/epochs/keeper"
-	epochstypes "github.com/evmos/evmos/v13/x/epochs/types"
-	"github.com/evmos/evmos/v13/x/erc20"
-	erc20client "github.com/evmos/evmos/v13/x/erc20/client"
-	erc20keeper "github.com/evmos/evmos/v13/x/erc20/keeper"
-	erc20types "github.com/evmos/evmos/v13/x/erc20/types"
-	"github.com/evmos/evmos/v13/x/incentives"
-	incentivesclient "github.com/evmos/evmos/v13/x/incentives/client"
-	incentiveskeeper "github.com/evmos/evmos/v13/x/incentives/keeper"
-	incentivestypes "github.com/evmos/evmos/v13/x/incentives/types"
-	"github.com/evmos/evmos/v13/x/inflation"
-	inflationkeeper "github.com/evmos/evmos/v13/x/inflation/keeper"
-	inflationtypes "github.com/evmos/evmos/v13/x/inflation/types"
-	"github.com/evmos/evmos/v13/x/recovery"
-	recoverykeeper "github.com/evmos/evmos/v13/x/recovery/keeper"
-	recoverytypes "github.com/evmos/evmos/v13/x/recovery/types"
-	revenue "github.com/evmos/evmos/v13/x/revenue/v1"
-	revenuekeeper "github.com/evmos/evmos/v13/x/revenue/v1/keeper"
-	revenuetypes "github.com/evmos/evmos/v13/x/revenue/v1/types"
-	"github.com/evmos/evmos/v13/x/vesting"
-	vestingkeeper "github.com/evmos/evmos/v13/x/vesting/keeper"
-	vestingtypes "github.com/evmos/evmos/v13/x/vesting/types"
+	"github.com/evmos/evmos/v19/app/ante"
+	ethante "github.com/evmos/evmos/v19/app/ante/evm"
+	"github.com/evmos/evmos/v19/app/post"
+	v17 "github.com/evmos/evmos/v19/app/upgrades/v17"
+	v18 "github.com/evmos/evmos/v19/app/upgrades/v18"
+	v19 "github.com/evmos/evmos/v19/app/upgrades/v19"
+	v191 "github.com/evmos/evmos/v19/app/upgrades/v19_1"
+	v192 "github.com/evmos/evmos/v19/app/upgrades/v19_2"
+	"github.com/evmos/evmos/v19/encoding"
+	"github.com/evmos/evmos/v19/ethereum/eip712"
+	bankprecompile "github.com/evmos/evmos/v19/precompiles/bank"
+	bech32precompile "github.com/evmos/evmos/v19/precompiles/bech32"
+	distprecompile "github.com/evmos/evmos/v19/precompiles/distribution"
+	ics20precompile "github.com/evmos/evmos/v19/precompiles/ics20"
+	p256precompile "github.com/evmos/evmos/v19/precompiles/p256"
+	stakingprecompile "github.com/evmos/evmos/v19/precompiles/staking"
+	vestingprecompile "github.com/evmos/evmos/v19/precompiles/vesting"
+	srvflags "github.com/evmos/evmos/v19/server/flags"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	"github.com/evmos/evmos/v19/x/epochs"
+	epochskeeper "github.com/evmos/evmos/v19/x/epochs/keeper"
+	epochstypes "github.com/evmos/evmos/v19/x/epochs/types"
+	"github.com/evmos/evmos/v19/x/erc20"
+	erc20client "github.com/evmos/evmos/v19/x/erc20/client"
+	erc20keeper "github.com/evmos/evmos/v19/x/erc20/keeper"
+	erc20types "github.com/evmos/evmos/v19/x/erc20/types"
+	"github.com/evmos/evmos/v19/x/evm"
+	evmkeeper "github.com/evmos/evmos/v19/x/evm/keeper"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
+	"github.com/evmos/evmos/v19/x/feemarket"
+	feemarketkeeper "github.com/evmos/evmos/v19/x/feemarket/keeper"
+	feemarkettypes "github.com/evmos/evmos/v19/x/feemarket/types"
+	"github.com/evmos/evmos/v19/x/incentives"
+	inflation "github.com/evmos/evmos/v19/x/inflation/v1"
+	inflationkeeper "github.com/evmos/evmos/v19/x/inflation/v1/keeper"
+	inflationtypes "github.com/evmos/evmos/v19/x/inflation/v1/types"
+	"github.com/evmos/evmos/v19/x/staking"
+	stakingkeeper "github.com/evmos/evmos/v19/x/staking/keeper"
+	"github.com/evmos/evmos/v19/x/vesting"
+	vestingclient "github.com/evmos/evmos/v19/x/vesting/client"
+	vestingkeeper "github.com/evmos/evmos/v19/x/vesting/keeper"
+	vestingtypes "github.com/evmos/evmos/v19/x/vesting/types"
 
 	// NOTE: override ICS20 keeper to support IBC transfers of ERC20 tokens
-	"github.com/evmos/evmos/v13/x/ibc/transfer"
-	transferkeeper "github.com/evmos/evmos/v13/x/ibc/transfer/keeper"
+	"github.com/evmos/evmos/v19/x/ibc/transfer"
+	transferkeeper "github.com/evmos/evmos/v19/x/ibc/transfer/keeper"
+
+	memiavlstore "github.com/crypto-org-chain/cronos/store"
 
 	// Force-load the tracer engines to trigger registration due to Go-Ethereum v1.10.15 changes
-
-	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
-	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
+	_ "github.com/evmos/evmos/v19/x/evm/core/tracers/js"
+	_ "github.com/evmos/evmos/v19/x/evm/core/tracers/native"
 )
 
 func init() {
@@ -186,7 +199,7 @@ func init() {
 	feemarkettypes.DefaultMinGasPrice = MainnetMinGasPrices
 	feemarkettypes.DefaultMinGasMultiplier = MainnetMinGasMultiplier
 	// modify default min commission to 5%
-	stakingtypes.DefaultMinCommissionRate = sdk.NewDecWithPrec(5, 2)
+	stakingtypes.DefaultMinCommissionRate = math.LegacyNewDecWithPrec(5, 2)
 }
 
 // Name defines the application binary name
@@ -201,24 +214,24 @@ var (
 	// and genesis verification.
 	ModuleBasics = module.NewBasicManager(
 		auth.AppModuleBasic{},
-		genutil.AppModuleBasic{},
+		genutil.NewAppModuleBasic(genutiltypes.DefaultMessageValidator),
 		bank.AppModuleBasic{},
 		capability.AppModuleBasic{},
-		staking.AppModuleBasic{},
+		staking.AppModuleBasic{AppModuleBasic: &sdkstaking.AppModuleBasic{}},
 		distr.AppModuleBasic{},
 		gov.NewAppModuleBasic(
 			[]govclient.ProposalHandler{
-				paramsclient.ProposalHandler, distrclient.ProposalHandler, upgradeclient.LegacyProposalHandler, upgradeclient.LegacyCancelProposalHandler,
+				paramsclient.ProposalHandler, upgradeclient.LegacyProposalHandler, upgradeclient.LegacyCancelProposalHandler,
 				ibcclientclient.UpdateClientProposalHandler, ibcclientclient.UpgradeProposalHandler,
 				// Evmos proposal types
-				erc20client.RegisterCoinProposalHandler, erc20client.RegisterERC20ProposalHandler, erc20client.ToggleTokenConversionProposalHandler,
-				incentivesclient.RegisterIncentiveProposalHandler, incentivesclient.CancelIncentiveProposalHandler,
+				erc20client.RegisterERC20ProposalHandler, erc20client.ToggleTokenConversionProposalHandler,
+				vestingclient.RegisterClawbackProposalHandler,
 			},
 		),
 		params.AppModuleBasic{},
-		crisis.AppModuleBasic{},
 		slashing.AppModuleBasic{},
 		ibc.AppModuleBasic{},
+		ibctm.AppModuleBasic{},
 		ica.AppModuleBasic{},
 		authzmodule.AppModuleBasic{},
 		feegrantmodule.AppModuleBasic{},
@@ -230,16 +243,15 @@ var (
 		feemarket.AppModuleBasic{},
 		inflation.AppModuleBasic{},
 		erc20.AppModuleBasic{},
-		incentives.AppModuleBasic{},
 		epochs.AppModuleBasic{},
-		claims.AppModuleBasic{},
-		recovery.AppModuleBasic{},
-		revenue.AppModuleBasic{},
+		consensus.AppModuleBasic{},
+		incentives.AppModuleBasic{},
+		ratelimit.AppModuleBasic{},
 	)
 
 	// module account permissions
 	maccPerms = map[string][]string{
-		authtypes.FeeCollectorName:     nil,
+		authtypes.FeeCollectorName:     {authtypes.Burner},
 		distrtypes.ModuleName:          nil,
 		stakingtypes.BondedPoolName:    {authtypes.Burner, authtypes.Staking},
 		stakingtypes.NotBondedPoolName: {authtypes.Burner, authtypes.Staking},
@@ -249,20 +261,61 @@ var (
 		evmtypes.ModuleName:            {authtypes.Minter, authtypes.Burner}, // used for secure addition and subtraction of balance using module account
 		inflationtypes.ModuleName:      {authtypes.Minter},
 		erc20types.ModuleName:          {authtypes.Minter, authtypes.Burner},
-		claimstypes.ModuleName:         nil,
-		incentivestypes.ModuleName:     {authtypes.Minter, authtypes.Burner},
-	}
-
-	// module accounts that are allowed to receive tokens
-	allowedReceivingModAcc = map[string]bool{
-		incentivestypes.ModuleName: true,
+		ratelimittypes.ModuleName:      nil,
 	}
 )
 
 var (
 	_ servertypes.Application = (*Evmos)(nil)
 	_ ibctesting.TestingApp   = (*Evmos)(nil)
+	_ runtime.AppI            = (*Evmos)(nil)
 )
+
+// evmKeeperAdapter is an adapter for EVM keeper to match the EVMKeeper interface
+type evmKeeperAdapter struct {
+	app *Evmos // Store reference to the app instead of the keeper directly
+}
+
+// CallEVM implements the EVMKeeper interface
+func (a evmKeeperAdapter) CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (evmtypes.MsgEthereumTxResponse, error) {
+	// Check if EVM keeper is available
+	if a.app.EvmKeeper == nil {
+		return evmtypes.MsgEthereumTxResponse{}, fmt.Errorf("EVM keeper is not initialized")
+	}
+
+	parsed, err := abi.JSON(strings.NewReader(abiJSON))
+	if err != nil {
+		return evmtypes.MsgEthereumTxResponse{}, err
+	}
+
+	// Use zero address for read-only calls
+	fromAddr := common.Address{}
+
+	respPtr, err := a.app.EvmKeeper.CallEVM(ctx, parsed, fromAddr, contract, true, method, args...)
+	if err != nil {
+		return evmtypes.MsgEthereumTxResponse{}, err
+	}
+
+	return *respPtr, nil
+}
+
+// EthCall implements the EvmEthCaller interface
+func (a evmKeeperAdapter) EthCall(ctx sdk.Context, req *evmtypes.EthCallRequest) (*evmtypes.MsgEthereumTxResponse, error) {
+	// Check if EVM keeper is available
+	if a.app.EvmKeeper == nil {
+		return nil, fmt.Errorf("EVM keeper is not initialized")
+	}
+
+	return a.app.EvmKeeper.EthCall(ctx, req)
+}
+
+// GetAccount implements the EVMKeeper interface
+func (a evmKeeperAdapter) GetAccount(ctx sdk.Context, addr common.Address) *statedb.Account {
+	if a.app.EvmKeeper == nil {
+		return nil
+	}
+	return a.app.EvmKeeper.GetAccount(ctx, addr)
+}
 
 // Evmos implements an extended ABCI application. It is an application
 // that may process transactions through Ethereum's EVM running atop of
@@ -283,22 +336,23 @@ type Evmos struct {
 	memKeys map[string]*storetypes.MemoryStoreKey
 
 	// keepers
-	AccountKeeper    authkeeper.AccountKeeper
-	BankKeeper       bankkeeper.Keeper
-	CapabilityKeeper *capabilitykeeper.Keeper
-	StakingKeeper    stakingkeeper.Keeper
-	SlashingKeeper   slashingkeeper.Keeper
-	DistrKeeper      distrkeeper.Keeper
-	GovKeeper        govkeeper.Keeper
-	CrisisKeeper     crisiskeeper.Keeper
-	UpgradeKeeper    upgradekeeper.Keeper
-	ParamsKeeper     paramskeeper.Keeper
-	FeeGrantKeeper   feegrantkeeper.Keeper
-	AuthzKeeper      authzkeeper.Keeper
-	IBCKeeper        *ibckeeper.Keeper // IBC Keeper must be a pointer in the app, so we can SetRouter on it correctly
-	ICAHostKeeper    icahostkeeper.Keeper
-	EvidenceKeeper   evidencekeeper.Keeper
-	TransferKeeper   transferkeeper.Keeper
+	AccountKeeper         authkeeper.AccountKeeper
+	BankKeeper            bankkeeper.Keeper
+	CapabilityKeeper      *capabilitykeeper.Keeper
+	StakingKeeper         stakingkeeper.Keeper
+	SlashingKeeper        slashingkeeper.Keeper
+	DistrKeeper           distrkeeper.Keeper
+	GovKeeper             govkeeper.Keeper
+	UpgradeKeeper         upgradekeeper.Keeper
+	ParamsKeeper          paramskeeper.Keeper
+	FeeGrantKeeper        feegrantkeeper.Keeper
+	AuthzKeeper           authzkeeper.Keeper
+	IBCKeeper             *ibckeeper.Keeper // IBC Keeper must be a pointer in the app, so we can SetRouter on it correctly
+	ICAHostKeeper         icahostkeeper.Keeper
+	EvidenceKeeper        evidencekeeper.Keeper
+	TransferKeeper        transferkeeper.Keeper
+	ConsensusParamsKeeper consensusparamkeeper.Keeper
+	RateLimitKeeper       ratelimitkeeper.Keeper
 
 	// make scoped keepers public for test purposes
 	ScopedIBCKeeper      capabilitykeeper.ScopedKeeper
@@ -309,14 +363,10 @@ type Evmos struct {
 	FeeMarketKeeper feemarketkeeper.Keeper
 
 	// Evmos keepers
-	InflationKeeper  inflationkeeper.Keeper
-	ClaimsKeeper     *claimskeeper.Keeper
-	Erc20Keeper      erc20keeper.Keeper
-	IncentivesKeeper incentiveskeeper.Keeper
-	EpochsKeeper     epochskeeper.Keeper
-	VestingKeeper    vestingkeeper.Keeper
-	RecoveryKeeper   *recoverykeeper.Keeper
-	RevenueKeeper    revenuekeeper.Keeper
+	InflationKeeper inflationkeeper.Keeper
+	Erc20Keeper     erc20keeper.Keeper
+	EpochsKeeper    epochskeeper.Keeper
+	VestingKeeper   vestingkeeper.Keeper
 
 	// the module manager
 	mm *module.Manager
@@ -324,7 +374,15 @@ type Evmos struct {
 	// the configurator
 	configurator module.Configurator
 
+	// simulation manager
+	sm *module.SimulationManager
+
 	tpsCounter *tpsCounter
+}
+
+// SimulationManager implements runtime.AppI
+func (*Evmos) SimulationManager() *module.SimulationManager {
+	panic("unimplemented")
 }
 
 // NewEvmos returns a reference to a new initialized Ethermint application.
@@ -346,6 +404,18 @@ func NewEvmos(
 
 	eip712.SetEncodingConfig(encodingConfig)
 
+	// setup memiavl if it's enabled in config
+	baseAppOptions = memiavlstore.SetupMemIAVL(logger, homePath, appOpts, false, false, baseAppOptions)
+
+	// Setup Mempool and Proposal Handlers
+	baseAppOptions = append(baseAppOptions, func(app *baseapp.BaseApp) {
+		mempool := mempool.NoOpMempool{}
+		app.SetMempool(mempool)
+		handler := baseapp.NewDefaultProposalHandler(mempool, app)
+		app.SetPrepareProposal(handler.PrepareProposalHandler())
+		app.SetProcessProposal(handler.ProcessProposalHandler())
+	})
+
 	// NOTE we use custom transaction decoder that supports the sdk.Tx interface instead of sdk.StdTx
 	bApp := baseapp.NewBaseApp(
 		Name,
@@ -358,34 +428,7 @@ func NewEvmos(
 	bApp.SetVersion(version.Version)
 	bApp.SetInterfaceRegistry(interfaceRegistry)
 
-	keys := sdk.NewKVStoreKeys(
-		// SDK keys
-		authtypes.StoreKey, banktypes.StoreKey, stakingtypes.StoreKey,
-		distrtypes.StoreKey, slashingtypes.StoreKey,
-		govtypes.StoreKey, paramstypes.StoreKey, upgradetypes.StoreKey,
-		evidencetypes.StoreKey, capabilitytypes.StoreKey,
-		feegrant.StoreKey, authzkeeper.StoreKey,
-		// ibc keys
-		ibchost.StoreKey, ibctransfertypes.StoreKey,
-		// ica keys
-		icahosttypes.StoreKey,
-		// ethermint keys
-		evmtypes.StoreKey, feemarkettypes.StoreKey,
-		// evmos keys
-		inflationtypes.StoreKey, erc20types.StoreKey, incentivestypes.StoreKey,
-		epochstypes.StoreKey, claimstypes.StoreKey, vestingtypes.StoreKey,
-		revenuetypes.StoreKey, recoverytypes.StoreKey,
-	)
-
-	// Add the EVM transient store key
-	tkeys := sdk.NewTransientStoreKeys(paramstypes.TStoreKey, evmtypes.TransientKey, feemarkettypes.TransientKey)
-	memKeys := sdk.NewMemoryStoreKeys(capabilitytypes.MemStoreKey)
-
-	// load state streaming if enabled
-	if _, _, err := streaming.LoadStreamingServices(bApp, appOpts, appCodec, keys); err != nil {
-		fmt.Printf("failed to load state streaming: %s", err)
-		os.Exit(1)
-	}
+	keys, memKeys, tkeys := StoreKeys()
 
 	app := &Evmos{
 		BaseApp:           bApp,
@@ -400,13 +443,18 @@ func NewEvmos(
 
 	// init params keeper and subspaces
 	app.ParamsKeeper = initParamsKeeper(appCodec, cdc, keys[paramstypes.StoreKey], tkeys[paramstypes.TStoreKey])
+
+	// get authority address
+	authAddr := authtypes.NewModuleAddress(govtypes.ModuleName).String()
+
 	// set the BaseApp's parameter store
-	bApp.SetParamStore(app.ParamsKeeper.Subspace(baseapp.Paramspace).WithKeyTable(paramstypes.ConsensusParamsKeyTable()))
+	app.ConsensusParamsKeeper = consensusparamkeeper.NewKeeper(appCodec, keys[consensusparamtypes.StoreKey], authAddr)
+	bApp.SetParamStore(&app.ConsensusParamsKeeper)
 
 	// add capability keeper and ScopeToModule for ibc module
 	app.CapabilityKeeper = capabilitykeeper.NewKeeper(appCodec, keys[capabilitytypes.StoreKey], memKeys[capabilitytypes.MemStoreKey])
 
-	scopedIBCKeeper := app.CapabilityKeeper.ScopeToModule(ibchost.ModuleName)
+	scopedIBCKeeper := app.CapabilityKeeper.ScopeToModule(ibcexported.ModuleName)
 	scopedTransferKeeper := app.CapabilityKeeper.ScopeToModule(ibctransfertypes.ModuleName)
 	scopedICAHostKeeper := app.CapabilityKeeper.ScopeToModule(icahosttypes.SubModuleName)
 
@@ -416,26 +464,30 @@ func NewEvmos(
 
 	// use custom Ethermint account for contracts
 	app.AccountKeeper = authkeeper.NewAccountKeeper(
-		appCodec, keys[authtypes.StoreKey], app.GetSubspace(authtypes.ModuleName), evmostypes.ProtoAccount, maccPerms, sdk.GetConfig().GetBech32AccountAddrPrefix(),
+		appCodec, keys[authtypes.StoreKey],
+		evmostypes.ProtoAccount, maccPerms,
+		sdk.GetConfig().GetBech32AccountAddrPrefix(),
+		authAddr,
 	)
 	app.BankKeeper = bankkeeper.NewBaseKeeper(
-		appCodec, keys[banktypes.StoreKey], app.AccountKeeper, app.GetSubspace(banktypes.ModuleName), app.BlockedAddrs(),
+		appCodec, keys[banktypes.StoreKey], app.AccountKeeper, app.BlockedAddrs(), authAddr,
 	)
+
+	// Create an adapter that implements the EVMKeeper interface
+	evmAdapter := evmKeeperAdapter{app: app}
+
 	stakingKeeper := stakingkeeper.NewKeeper(
-		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, app.GetSubspace(stakingtypes.ModuleName),
+		appCodec, keys[stakingtypes.StoreKey], app.AccountKeeper, app.BankKeeper, authAddr, evmAdapter,
 	)
 	app.DistrKeeper = distrkeeper.NewKeeper(
-		appCodec, keys[distrtypes.StoreKey], app.GetSubspace(distrtypes.ModuleName), app.AccountKeeper, app.BankKeeper,
-		&stakingKeeper, authtypes.FeeCollectorName,
+		appCodec, keys[distrtypes.StoreKey], app.AccountKeeper, app.BankKeeper,
+		stakingKeeper, authtypes.FeeCollectorName, authAddr,
 	)
 	app.SlashingKeeper = slashingkeeper.NewKeeper(
-		appCodec, keys[slashingtypes.StoreKey], &stakingKeeper, app.GetSubspace(slashingtypes.ModuleName),
-	)
-	app.CrisisKeeper = crisiskeeper.NewKeeper(
-		app.GetSubspace(crisistypes.ModuleName), invCheckPeriod, app.BankKeeper, authtypes.FeeCollectorName,
+		appCodec, app.LegacyAmino(), keys[slashingtypes.StoreKey], stakingKeeper, authAddr,
 	)
 	app.FeeGrantKeeper = feegrantkeeper.NewKeeper(appCodec, keys[feegrant.StoreKey], app.AccountKeeper)
-	app.UpgradeKeeper = upgradekeeper.NewKeeper(skipUpgradeHeights, keys[upgradetypes.StoreKey], appCodec, homePath, app.BaseApp, authtypes.NewModuleAddress(govtypes.ModuleName).String())
+	app.UpgradeKeeper = *upgradekeeper.NewKeeper(skipUpgradeHeights, keys[upgradetypes.StoreKey], appCodec, homePath, app.BaseApp, authAddr)
 
 	app.AuthzKeeper = authzkeeper.NewKeeper(keys[authzkeeper.StoreKey], appCodec, app.MsgServiceRouter(), app.AccountKeeper)
 
@@ -451,94 +503,95 @@ func NewEvmos(
 
 	evmKeeper := evmkeeper.NewKeeper(
 		appCodec, keys[evmtypes.StoreKey], tkeys[evmtypes.TransientKey], authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.AccountKeeper, app.BankKeeper, &stakingKeeper, app.FeeMarketKeeper,
+		app.AccountKeeper, app.BankKeeper, stakingKeeper, app.FeeMarketKeeper,
+		// FIX: Temporary solution to solve keeper interdependency while new precompile module
+		// is being developed.
+		&app.Erc20Keeper,
 		tracer, app.GetSubspace(evmtypes.ModuleName),
 	)
-
 	app.EvmKeeper = evmKeeper
 
 	// Create IBC Keeper
 	app.IBCKeeper = ibckeeper.NewKeeper(
-		appCodec, keys[ibchost.StoreKey], app.GetSubspace(ibchost.ModuleName), &stakingKeeper, app.UpgradeKeeper, scopedIBCKeeper,
+		appCodec, keys[ibcexported.StoreKey], app.GetSubspace(ibcexported.ModuleName), stakingKeeper, app.UpgradeKeeper, scopedIBCKeeper,
 	)
 
 	// register the proposal types
 	govRouter := govv1beta1.NewRouter()
 	govRouter.AddRoute(govtypes.RouterKey, govv1beta1.ProposalHandler).
-		AddRoute(paramproposal.RouterKey, params.NewParamChangeProposalHandler(app.ParamsKeeper)).
-		AddRoute(distrtypes.RouterKey, distr.NewCommunityPoolSpendProposalHandler(app.DistrKeeper)).
-		AddRoute(upgradetypes.RouterKey, upgrade.NewSoftwareUpgradeProposalHandler(app.UpgradeKeeper)).
+		AddRoute(upgradetypes.RouterKey, upgrade.NewSoftwareUpgradeProposalHandler(&app.UpgradeKeeper)).
 		AddRoute(ibcclienttypes.RouterKey, ibcclient.NewClientProposalHandler(app.IBCKeeper.ClientKeeper)).
 		AddRoute(erc20types.RouterKey, erc20.NewErc20ProposalHandler(&app.Erc20Keeper)).
-		AddRoute(incentivestypes.RouterKey, incentives.NewIncentivesProposalHandler(&app.IncentivesKeeper))
+		AddRoute(vestingtypes.RouterKey, vesting.NewVestingProposalHandler(&app.VestingKeeper))
 
-	govConfig := govtypes.DefaultConfig()
-	/*
-		Example of setting gov params:
-		govConfig.MaxMetadataLen = 10000
-	*/
+	govConfig := govtypes.Config{
+		MaxMetadataLen: 5000,
+	}
 	govKeeper := govkeeper.NewKeeper(
-		appCodec, keys[govtypes.StoreKey], app.GetSubspace(govtypes.ModuleName), app.AccountKeeper, app.BankKeeper,
-		&stakingKeeper, govRouter, app.MsgServiceRouter(), govConfig,
+		appCodec, keys[govtypes.StoreKey], app.AccountKeeper, app.BankKeeper,
+		stakingKeeper, app.MsgServiceRouter(), govConfig, authAddr,
 	)
+
+	// Set legacy router for backwards compatibility with gov v1beta1
+	govKeeper.SetLegacyRouter(govRouter)
 
 	// Evmos Keeper
 	app.InflationKeeper = inflationkeeper.NewKeeper(
 		keys[inflationtypes.StoreKey], appCodec, authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.AccountKeeper, app.BankKeeper, app.DistrKeeper, &stakingKeeper,
+		app.AccountKeeper, app.BankKeeper, app.DistrKeeper, stakingKeeper,
 		authtypes.FeeCollectorName,
-	)
-
-	app.ClaimsKeeper = claimskeeper.NewKeeper(
-		appCodec, keys[claimstypes.StoreKey], authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.AccountKeeper, app.BankKeeper, &stakingKeeper, app.DistrKeeper, app.IBCKeeper.ChannelKeeper,
 	)
 
 	// register the staking hooks
 	// NOTE: stakingKeeper above is passed by reference, so that it will contain these hooks
 	// NOTE: Distr, Slashing and Claim must be created before calling the Hooks method to avoid returning a Keeper without its table generated
-	app.StakingKeeper = *stakingKeeper.SetHooks(
+	stakingKeeper.SetHooks(
 		stakingtypes.NewMultiStakingHooks(
 			app.DistrKeeper.Hooks(),
 			app.SlashingKeeper.Hooks(),
-			app.ClaimsKeeper.Hooks(),
 		),
 	)
 
+	app.StakingKeeper = *stakingKeeper
+
 	app.VestingKeeper = vestingkeeper.NewKeeper(
-		keys[vestingtypes.StoreKey], appCodec,
-		app.AccountKeeper, app.BankKeeper, app.StakingKeeper,
+		keys[vestingtypes.StoreKey], authtypes.NewModuleAddress(govtypes.ModuleName), appCodec,
+		app.AccountKeeper, app.BankKeeper, app.DistrKeeper, app.StakingKeeper, govKeeper, // NOTE: app.govKeeper not defined yet, use govKeeper
 	)
 
 	app.Erc20Keeper = erc20keeper.NewKeeper(
 		keys[erc20types.StoreKey], appCodec, authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.AccountKeeper, app.BankKeeper, app.EvmKeeper, app.StakingKeeper, app.ClaimsKeeper,
+		app.AccountKeeper, app.BankKeeper, app.EvmKeeper, app.StakingKeeper,
+		app.AuthzKeeper, &app.TransferKeeper,
 	)
 
-	app.IncentivesKeeper = incentiveskeeper.NewKeeper(
-		keys[incentivestypes.StoreKey], appCodec, authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.AccountKeeper, app.BankKeeper, app.InflationKeeper, app.StakingKeeper, app.EvmKeeper,
-	)
-
-	app.RevenueKeeper = revenuekeeper.NewKeeper(
-		keys[revenuetypes.StoreKey], appCodec, authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.BankKeeper, app.DistrKeeper, app.AccountKeeper, app.EvmKeeper,
-		authtypes.FeeCollectorName,
+	// Create the rate limit keeper
+	app.RateLimitKeeper = *ratelimitkeeper.NewKeeper(
+		appCodec,
+		keys[ratelimittypes.StoreKey],
+		app.GetSubspace(ratelimittypes.ModuleName),
+		authtypes.NewModuleAddress(govtypes.ModuleName).String(),
+		app.BankKeeper,
+		app.IBCKeeper.ChannelKeeper,
+		app.IBCKeeper.ChannelKeeper, // ICS4Wrapper
 	)
 
 	app.TransferKeeper = transferkeeper.NewKeeper(
 		appCodec, keys[ibctransfertypes.StoreKey], app.GetSubspace(ibctransfertypes.ModuleName),
-		app.ClaimsKeeper, // ICS4 Wrapper: claims IBC middleware
+		app.RateLimitKeeper, // ICS4 Wrapper: ratelimit IBC middleware
 		app.IBCKeeper.ChannelKeeper, &app.IBCKeeper.PortKeeper,
 		app.AccountKeeper, app.BankKeeper, scopedTransferKeeper,
 		app.Erc20Keeper, // Add ERC20 Keeper for ERC20 transfers
 	)
 
 	// We call this after setting the hooks to ensure that the hooks are set on the keeper
-	evmKeeper.WithPrecompiles(
-		evmkeeper.AvailablePrecompiles(
-			stakingKeeper,
+	evmKeeper.WithStaticPrecompiles(
+		evmkeeper.NewAvailableStaticPrecompiles(
+			*stakingKeeper,
 			app.DistrKeeper,
+			app.BankKeeper,
+			app.Erc20Keeper,
+			app.VestingKeeper,
 			app.AuthzKeeper,
 			app.TransferKeeper,
 			app.IBCKeeper.ChannelKeeper,
@@ -549,42 +602,15 @@ func NewEvmos(
 	app.EpochsKeeper = *epochsKeeper.SetHooks(
 		epochskeeper.NewMultiEpochHooks(
 			// insert epoch hooks receivers here
-			app.IncentivesKeeper.Hooks(),
 			app.InflationKeeper.Hooks(),
 		),
 	)
 
 	app.GovKeeper = *govKeeper.SetHooks(
 		govtypes.NewMultiGovHooks(
-			app.ClaimsKeeper.Hooks(),
+			app.VestingKeeper.Hooks(),
 		),
 	)
-
-	app.EvmKeeper = app.EvmKeeper.SetHooks(
-		evmkeeper.NewMultiEvmHooks(
-			app.Erc20Keeper.Hooks(),
-			app.IncentivesKeeper.Hooks(),
-			app.RevenueKeeper.Hooks(),
-			app.ClaimsKeeper.Hooks(),
-		),
-	)
-
-	app.RecoveryKeeper = recoverykeeper.NewKeeper(
-		keys[recoverytypes.StoreKey],
-		appCodec,
-		authtypes.NewModuleAddress(govtypes.ModuleName),
-		app.AccountKeeper,
-		app.BankKeeper,
-		app.IBCKeeper.ChannelKeeper,
-		app.TransferKeeper,
-		app.ClaimsKeeper,
-	)
-
-	// NOTE: app.Erc20Keeper is already initialized elsewhere
-
-	// Set the ICS4 wrappers for custom module middlewares
-	app.RecoveryKeeper.SetICS4Wrapper(app.IBCKeeper.ChannelKeeper)
-	app.ClaimsKeeper.SetICS4Wrapper(app.RecoveryKeeper)
 
 	// Override the ICS20 app module
 	transferModule := transfer.NewAppModule(app.TransferKeeper)
@@ -593,13 +619,14 @@ func NewEvmos(
 	app.ICAHostKeeper = icahostkeeper.NewKeeper(
 		appCodec, app.keys[icahosttypes.StoreKey],
 		app.GetSubspace(icahosttypes.SubModuleName),
-		app.ClaimsKeeper,
+		app.IBCKeeper.ChannelKeeper,
 		app.IBCKeeper.ChannelKeeper,
 		&app.IBCKeeper.PortKeeper,
 		app.AccountKeeper,
 		scopedICAHostKeeper,
 		bApp.MsgServiceRouter(),
 	)
+	app.ICAHostKeeper.WithQueryRouter(bApp.GRPCQueryRouter())
 
 	// create host IBC module
 	icaHostIBCModule := icahost.NewIBCModule(app.ICAHostKeeper)
@@ -624,8 +651,7 @@ func NewEvmos(
 	var transferStack porttypes.IBCModule
 
 	transferStack = transfer.NewIBCModule(app.TransferKeeper)
-	transferStack = claims.NewIBCMiddleware(*app.ClaimsKeeper, transferStack)
-	transferStack = recovery.NewIBCMiddleware(*app.RecoveryKeeper, transferStack)
+	transferStack = ratelimit.NewIBCMiddleware(app.RateLimitKeeper, transferStack)
 	transferStack = erc20.NewIBCMiddleware(app.Erc20Keeper, transferStack)
 
 	// Create static IBC router, add transfer route, then set and seal it
@@ -645,10 +671,6 @@ func NewEvmos(
 
 	/****  Module Options ****/
 
-	// NOTE: we may consider parsing `appOpts` inside module constructors. For the moment
-	// we prefer to be more strict in what arguments the modules expect.
-	skipGenesisInvariants := cast.ToBool(appOpts.Get(crisis.FlagSkipGenesisInvariants))
-
 	// NOTE: Any module instantiated in the module manager that is later modified
 	// must be passed by reference here.
 	app.mm = module.NewManager(
@@ -657,42 +679,35 @@ func NewEvmos(
 			app.AccountKeeper, app.StakingKeeper, app.BaseApp.DeliverTx,
 			encodingConfig.TxConfig,
 		),
-		auth.NewAppModule(appCodec, app.AccountKeeper, authsims.RandomGenesisAccounts),
-		bank.NewAppModule(appCodec, app.BankKeeper, app.AccountKeeper),
-		capability.NewAppModule(appCodec, *app.CapabilityKeeper),
-		crisis.NewAppModule(&app.CrisisKeeper, skipGenesisInvariants),
-		gov.NewAppModule(appCodec, app.GovKeeper, app.AccountKeeper, app.BankKeeper),
-		slashing.NewAppModule(appCodec, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper),
-		distr.NewAppModule(appCodec, app.DistrKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper),
-		staking.NewAppModule(appCodec, app.StakingKeeper, app.AccountKeeper, app.BankKeeper),
-		upgrade.NewAppModule(app.UpgradeKeeper),
+		auth.NewAppModule(appCodec, app.AccountKeeper, authsims.RandomGenesisAccounts, app.GetSubspace(authtypes.ModuleName)),
+		bank.NewAppModule(appCodec, app.BankKeeper, app.AccountKeeper, app.GetSubspace(banktypes.ModuleName)),
+		capability.NewAppModule(appCodec, *app.CapabilityKeeper, false),
+		gov.NewAppModule(appCodec, &app.GovKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(govtypes.ModuleName)),
+		slashing.NewAppModule(appCodec, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(slashingtypes.ModuleName)),
+		distr.NewAppModule(appCodec, app.DistrKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, app.GetSubspace(distrtypes.ModuleName)),
+		staking.NewAppModule(appCodec, &app.StakingKeeper, app.AccountKeeper, app.BankKeeper, app.GetSubspace(stakingtypes.ModuleName)),
+		upgrade.NewAppModule(&app.UpgradeKeeper),
 		evidence.NewAppModule(app.EvidenceKeeper),
 		params.NewAppModule(app.ParamsKeeper),
 		feegrantmodule.NewAppModule(appCodec, app.AccountKeeper, app.BankKeeper, app.FeeGrantKeeper, app.interfaceRegistry),
 		authzmodule.NewAppModule(appCodec, app.AuthzKeeper, app.AccountKeeper, app.BankKeeper, app.interfaceRegistry),
+		consensus.NewAppModule(appCodec, app.ConsensusParamsKeeper),
 
 		// ibc modules
 		ibc.NewAppModule(app.IBCKeeper),
 		ica.NewAppModule(nil, &app.ICAHostKeeper),
 		transferModule,
+		ratelimit.NewAppModule(appCodec, app.RateLimitKeeper),
 		// Ethermint app modules
 		evm.NewAppModule(app.EvmKeeper, app.AccountKeeper, app.GetSubspace(evmtypes.ModuleName)),
 		feemarket.NewAppModule(app.FeeMarketKeeper, app.GetSubspace(feemarkettypes.ModuleName)),
 		// Evmos app modules
-		inflation.NewAppModule(app.InflationKeeper, app.AccountKeeper, app.StakingKeeper,
+		inflation.NewAppModule(app.InflationKeeper, app.AccountKeeper, *app.StakingKeeper.Keeper,
 			app.GetSubspace(inflationtypes.ModuleName)),
 		erc20.NewAppModule(app.Erc20Keeper, app.AccountKeeper,
 			app.GetSubspace(erc20types.ModuleName)),
-		incentives.NewAppModule(app.IncentivesKeeper, app.AccountKeeper,
-			app.GetSubspace(incentivestypes.ModuleName)),
 		epochs.NewAppModule(appCodec, app.EpochsKeeper),
-		claims.NewAppModule(appCodec, *app.ClaimsKeeper,
-			app.GetSubspace(claimstypes.ModuleName)),
-		vesting.NewAppModule(app.VestingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper),
-		recovery.NewAppModule(*app.RecoveryKeeper,
-			app.GetSubspace(recoverytypes.ModuleName)),
-		revenue.NewAppModule(app.RevenueKeeper, app.AccountKeeper,
-			app.GetSubspace(revenuetypes.ModuleName)),
+		vesting.NewAppModule(app.VestingKeeper, app.AccountKeeper, app.BankKeeper, *app.StakingKeeper.Keeper),
 	)
 
 	// During begin block slashing happens after distr.BeginBlocker so that
@@ -712,14 +727,13 @@ func NewEvmos(
 		slashingtypes.ModuleName,
 		evidencetypes.ModuleName,
 		stakingtypes.ModuleName,
-		ibchost.ModuleName,
+		ibcexported.ModuleName,
 		// no-op modules
 		ibctransfertypes.ModuleName,
 		icatypes.ModuleName,
 		authtypes.ModuleName,
 		banktypes.ModuleName,
 		govtypes.ModuleName,
-		crisistypes.ModuleName,
 		genutiltypes.ModuleName,
 		authz.ModuleName,
 		feegrant.ModuleName,
@@ -727,24 +741,20 @@ func NewEvmos(
 		vestingtypes.ModuleName,
 		inflationtypes.ModuleName,
 		erc20types.ModuleName,
-		claimstypes.ModuleName,
-		incentivestypes.ModuleName,
-		recoverytypes.ModuleName,
-		revenuetypes.ModuleName,
+		consensusparamtypes.ModuleName,
+		ratelimittypes.ModuleName,
 	)
 
 	// NOTE: fee market module must go last in order to retrieve the block gas used.
 	app.mm.SetOrderEndBlockers(
-		crisistypes.ModuleName,
 		govtypes.ModuleName,
 		stakingtypes.ModuleName,
 		evmtypes.ModuleName,
 		feemarkettypes.ModuleName,
 		// Note: epochs' endblock should be "real" end of epochs, we keep epochs endblock at the end
 		epochstypes.ModuleName,
-		claimstypes.ModuleName,
 		// no-op modules
-		ibchost.ModuleName,
+		ibcexported.ModuleName,
 		ibctransfertypes.ModuleName,
 		icatypes.ModuleName,
 		capabilitytypes.ModuleName,
@@ -762,9 +772,8 @@ func NewEvmos(
 		vestingtypes.ModuleName,
 		inflationtypes.ModuleName,
 		erc20types.ModuleName,
-		incentivestypes.ModuleName,
-		recoverytypes.ModuleName,
-		revenuetypes.ModuleName,
+		consensusparamtypes.ModuleName,
+		ratelimittypes.ModuleName,
 	)
 
 	// NOTE: The genutils module must occur after staking so that pools are
@@ -778,14 +787,11 @@ func NewEvmos(
 		authtypes.ModuleName,
 		banktypes.ModuleName,
 		distrtypes.ModuleName,
-		// NOTE: staking requires the claiming hook
-		claimstypes.ModuleName,
 		stakingtypes.ModuleName,
 		slashingtypes.ModuleName,
 		govtypes.ModuleName,
-		ibchost.ModuleName,
+		ibcexported.ModuleName,
 		// Ethermint modules
-		// evm module denomination is used by the revenue module, in AnteHandle
 		evmtypes.ModuleName,
 		// NOTE: feemarket module needs to be initialized before genutil module:
 		// gentx transactions use MinGasPriceDecorator.AnteHandle
@@ -802,26 +808,59 @@ func NewEvmos(
 		vestingtypes.ModuleName,
 		inflationtypes.ModuleName,
 		erc20types.ModuleName,
-		incentivestypes.ModuleName,
 		epochstypes.ModuleName,
-		recoverytypes.ModuleName,
-		revenuetypes.ModuleName,
-		// NOTE: crisis module must go at the end to check for invariants on each module
-		crisistypes.ModuleName,
+		consensusparamtypes.ModuleName,
+		ratelimittypes.ModuleName,
 	)
 
-	app.mm.RegisterInvariants(&app.CrisisKeeper)
-	app.mm.RegisterRoutes(app.Router(), app.QueryRouter(), encodingConfig.Amino)
 	app.configurator = module.NewConfigurator(app.appCodec, app.MsgServiceRouter(), app.GRPCQueryRouter())
 	app.mm.RegisterServices(app.configurator)
 
 	// add test gRPC service for testing gRPC queries in isolation
 	// testdata.RegisterTestServiceServer(app.GRPCQueryRouter(), testdata.TestServiceImpl{})
 
+	// create the simulation manager and define the order of the modules for deterministic simulations
+	//
+	// NOTE: this is not required apps that don't use the simulator for fuzz testing
+	// transactions
+	overrideModules := map[string]module.AppModuleSimulation{
+		authtypes.ModuleName: auth.NewAppModule(app.appCodec, app.AccountKeeper, authsims.RandomGenesisAccounts, app.GetSubspace(authtypes.ModuleName)),
+	}
+	app.sm = module.NewSimulationManagerFromAppModules(app.mm.Modules, overrideModules)
+
+	autocliv1.RegisterQueryServer(app.GRPCQueryRouter(), runtimeservices.NewAutoCLIQueryService(app.mm.Modules))
+
+	reflectionSvc, err := runtimeservices.NewReflectionService()
+	if err != nil {
+		panic(err)
+	}
+	reflectionv1.RegisterReflectionServiceServer(app.GRPCQueryRouter(), reflectionSvc)
+
+	app.sm.RegisterStoreDecoders()
+
 	// initialize stores
 	app.MountKVStores(keys)
 	app.MountTransientStores(tkeys)
 	app.MountMemoryStores(memKeys)
+
+	// load state streaming if enabled
+	if _, _, err := streaming.LoadStreamingServices(bApp, appOpts, appCodec, logger, keys); err != nil {
+		fmt.Printf("failed to load state streaming: %s", err)
+		os.Exit(1)
+	}
+
+	// wire up the versiondb's `StreamingService` and `MultiStore`.
+	var queryMultiStore sdk.MultiStore
+
+	streamers := cast.ToStringSlice(appOpts.Get(streaming.OptStoreStreamers))
+	if slices.Contains(streamers, versionDB) {
+		queryMultiStore, err = app.setupVersionDB(homePath, keys, tkeys, memKeys)
+		// ignore linter here because the error returned will depend on the
+		// binary build: if it is built with rocksdb or not
+		if err != nil {
+			panic(errorsmod.Wrap(err, "error on versionDB setup"))
+		}
+	}
 
 	// initialize BaseApp
 	app.SetInitChainer(app.InitChainer)
@@ -836,7 +875,25 @@ func NewEvmos(
 
 	if loadLatest {
 		if err := app.LoadLatestVersion(); err != nil {
-			tmos.Exit(err.Error())
+			logger.Error("error on loading last version", "err", err)
+			os.Exit(1)
+		}
+
+		// queryMultiStore will be only defined when using versionDB
+		// when defined, we check if the iavl & versionDB versions match
+		if queryMultiStore != nil {
+			v1 := queryMultiStore.LatestVersion()
+			v2 := app.LastBlockHeight()
+			// Prevent creating gaps in versiondb
+			// - if versiondb lag behind iavl, when commit new blocks, it creates gap in versiondb.
+			// 	 This can happen because cms is committed before versiondb.
+			// - if versiondb is beyond iavl, and when commit new blocks, versiondb will write some duplicated data.
+			//	 This is actually not harmful, if the rewritten data is identical to the old ones.
+			// 	 This can happen with memiavl async-commit.
+			// The latter case is not harmful, so we can relax the checking to improve UX.
+			if v1 > 0 && v1 < v2 {
+				tmos.Exit(fmt.Sprintf("latest version of version-db (%d) lags behind iavl's latest version (%d)", v1, v2))
+			}
 		}
 	}
 
@@ -883,22 +940,22 @@ func (app *Evmos) setAnteHandler(txConfig client.TxConfig, maxGasWanted uint64) 
 }
 
 func (app *Evmos) setPostHandler() {
-	postHandler, err := posthandler.NewPostHandler(
-		posthandler.HandlerOptions{},
-	)
-	if err != nil {
+	options := post.HandlerOptions{
+		FeeCollectorName: authtypes.FeeCollectorName,
+		BankKeeper:       app.BankKeeper,
+	}
+
+	if err := options.Validate(); err != nil {
 		panic(err)
 	}
 
-	app.SetPostHandler(postHandler)
+	app.SetPostHandler(post.NewPostHandler(options))
 }
 
 // BeginBlocker runs the Tendermint ABCI BeginBlock logic. It executes state changes at the beginning
 // of the new block for every registered module. If there is a registered fork at the current height,
 // BeginBlocker will schedule the upgrade plan and perform the state migration (if any).
 func (app *Evmos) BeginBlocker(ctx sdk.Context, req abci.RequestBeginBlock) abci.ResponseBeginBlock {
-	// Perform any scheduled forks before executing the modules logic
-	app.ScheduleForkUpgrade(ctx)
 	return app.mm.BeginBlock(ctx, req)
 }
 
@@ -967,7 +1024,24 @@ func (app *Evmos) BlockedAddrs() map[string]bool {
 	sort.Strings(accs)
 
 	for _, acc := range accs {
-		blockedAddrs[authtypes.NewModuleAddress(acc).String()] = !allowedReceivingModAcc[acc]
+		blockedAddrs[authtypes.NewModuleAddress(acc).String()] = true
+	}
+
+	blockedPrecompilesHex := []string{
+		p256precompile.PrecompileAddress,
+		bech32precompile.PrecompileAddress,
+		bankprecompile.PrecompileAddress,
+		stakingprecompile.PrecompileAddress,
+		distprecompile.PrecompileAddress,
+		ics20precompile.PrecompileAddress,
+		vestingprecompile.PrecompileAddress,
+	}
+	for _, addr := range vm.PrecompiledAddressesBerlin {
+		blockedPrecompilesHex = append(blockedPrecompilesHex, addr.Hex())
+	}
+
+	for _, precompile := range blockedPrecompilesHex {
+		blockedAddrs[utils.EthHexToSDKAddr(precompile).String()] = true
 	}
 
 	return blockedAddrs
@@ -1130,103 +1204,70 @@ func initParamsKeeper(
 	paramsKeeper.Subspace(stakingtypes.ModuleName)
 	paramsKeeper.Subspace(distrtypes.ModuleName)
 	paramsKeeper.Subspace(slashingtypes.ModuleName)
-	paramsKeeper.Subspace(govtypes.ModuleName).WithKeyTable(govv1.ParamKeyTable())
-	paramsKeeper.Subspace(crisistypes.ModuleName)
+	paramsKeeper.Subspace(govtypes.ModuleName).WithKeyTable(govv1.ParamKeyTable()) //nolint: staticcheck
+	// IBC subspaces
 	paramsKeeper.Subspace(ibctransfertypes.ModuleName)
-	paramsKeeper.Subspace(ibchost.ModuleName)
+	paramsKeeper.Subspace(ibcexported.ModuleName)
 	paramsKeeper.Subspace(icahosttypes.SubModuleName)
+	paramsKeeper.Subspace(ratelimittypes.ModuleName)
 	// ethermint subspaces
 	paramsKeeper.Subspace(evmtypes.ModuleName).WithKeyTable(evmtypes.ParamKeyTable()) //nolint: staticcheck
 	paramsKeeper.Subspace(feemarkettypes.ModuleName).WithKeyTable(feemarkettypes.ParamKeyTable())
 	// evmos subspaces
 	paramsKeeper.Subspace(inflationtypes.ModuleName)
 	paramsKeeper.Subspace(erc20types.ModuleName)
-	paramsKeeper.Subspace(claimstypes.ModuleName)
-	paramsKeeper.Subspace(incentivestypes.ModuleName)
-	paramsKeeper.Subspace(recoverytypes.ModuleName)
-	paramsKeeper.Subspace(revenuetypes.ModuleName)
 	return paramsKeeper
 }
 
 func (app *Evmos) setupUpgradeHandlers() {
-	// v8 upgrade handler
+	// v17 upgrade handler
 	app.UpgradeKeeper.SetUpgradeHandler(
-		v8.UpgradeName,
-		v8.CreateUpgradeHandler(
+		v17.UpgradeName,
+		v17.CreateUpgradeHandler(
 			app.mm, app.configurator,
 		),
 	)
 
-	// v8.1 upgrade handler
+	// v18 upgrade handler
 	app.UpgradeKeeper.SetUpgradeHandler(
-		v81.UpgradeName,
-		v81.CreateUpgradeHandler(
+		v18.UpgradeName,
+		v18.CreateUpgradeHandler(
 			app.mm, app.configurator,
 		),
 	)
 
-	// v8.2 upgrade handler
+	// v19 upgrade handler
 	app.UpgradeKeeper.SetUpgradeHandler(
-		v82.UpgradeName,
-		v82.CreateUpgradeHandler(
-			app.mm, app.configurator,
-		),
-	)
-
-	// v9 upgrade handler
-	app.UpgradeKeeper.SetUpgradeHandler(
-		v9.UpgradeName,
-		v9.CreateUpgradeHandler(
-			app.mm, app.configurator,
-			app.DistrKeeper,
-		),
-	)
-
-	// v9.1 upgrade handler
-	app.UpgradeKeeper.SetUpgradeHandler(
-		v91.UpgradeName,
-		v91.CreateUpgradeHandler(
-			app.mm, app.configurator,
-			app.DistrKeeper,
-		),
-	)
-
-	// v10 upgrade handler
-	app.UpgradeKeeper.SetUpgradeHandler(
-		v10.UpgradeName,
-		v10.CreateUpgradeHandler(
-			app.mm, app.configurator,
-			app.StakingKeeper,
-		),
-	)
-
-	// v11 upgrade handler
-	app.UpgradeKeeper.SetUpgradeHandler(
-		v11.UpgradeName,
-		v11.CreateUpgradeHandler(
+		v19.UpgradeName,
+		v19.CreateUpgradeHandler(
 			app.mm, app.configurator,
 			app.AccountKeeper,
 			app.BankKeeper,
 			app.StakingKeeper,
-			app.DistrKeeper,
+			app.Erc20Keeper,
+			app.EvmKeeper,
 		),
 	)
 
-	// v12 upgrade handler
+	// v19.1 upgrade handler
 	app.UpgradeKeeper.SetUpgradeHandler(
-		v12.UpgradeName,
-		v12.CreateUpgradeHandler(
+		v191.UpgradeName,
+		v191.CreateUpgradeHandler(
 			app.mm, app.configurator,
-			app.DistrKeeper,
+			app.AccountKeeper,
+			app.BankKeeper,
+			app.StakingKeeper,
+			app.Erc20Keeper,
+			app.EvmKeeper,
 		),
 	)
 
-	// v13 upgrade handler
+	// v19.2 upgrade handler
 	app.UpgradeKeeper.SetUpgradeHandler(
-		v13.UpgradeName,
-		v13.CreateUpgradeHandler(
+		v192.UpgradeName,
+		v192.CreateUpgradeHandler(
 			app.mm, app.configurator,
-			*app.EvmKeeper,
+			app.Erc20Keeper,
 		),
 	)
 
@@ -1245,35 +1286,26 @@ func (app *Evmos) setupUpgradeHandlers() {
 	var storeUpgrades *storetypes.StoreUpgrades
 
 	switch upgradeInfo.Name {
-	case v8.UpgradeName:
-		// add revenue module for testnet (v7 -> v8)
+	case v19.UpgradeName:
+		// revenue module is deprecated in v19
+		// This ran only on testnet
 		storeUpgrades = &storetypes.StoreUpgrades{
-			Added: []string{"feesplit"},
+			Deleted: []string{"revenue"},
 		}
-	case v81.UpgradeName:
-		// NOTE: store upgrade for mainnet was not registered and was replaced by
-		// the v8.2 upgrade.
-	case v82.UpgradeName:
-		// add  missing revenue module for mainnet (v8.1 -> v8.2)
-		// IMPORTANT: this upgrade CANNOT be executed for testnet!
-		storeUpgrades = &storetypes.StoreUpgrades{
-			Added:   []string{revenuetypes.ModuleName},
-			Deleted: []string{"feesplit"},
+	case v191.UpgradeName:
+		if utils.IsMainnet(app.ChainID()) {
+			// revenue module is deprecated in v19.1
+			storeUpgrades = &storetypes.StoreUpgrades{
+				Deleted: []string{"revenue"},
+				Added:   []string{ratelimittypes.ModuleName},
+			}
+		} else {
+			storeUpgrades = &storetypes.StoreUpgrades{
+				Added: []string{ratelimittypes.ModuleName},
+			}
 		}
-	case v9.UpgradeName, v91.UpgradeName:
-		// no store upgrade in v9 or v9.1
-	case v10.UpgradeName:
-		// no store upgrades in v10
-	case v11.UpgradeName:
-		// add ica host submodule in v11
-		// initialize recovery store
-		storeUpgrades = &storetypes.StoreUpgrades{
-			Added: []string{icahosttypes.SubModuleName, recoverytypes.StoreKey},
-		}
-	case v12.UpgradeName:
-		// no store upgrades
-	case v13.UpgradeName:
-		// no store upgrades
+	default:
+		// no-op
 	}
 
 	if storeUpgrades != nil {

@@ -3,22 +3,24 @@ package distribution_test
 import (
 	"testing"
 
-	"github.com/evmos/evmos/v13/precompiles/distribution"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
+	"github.com/evmos/evmos/v19/precompiles/distribution"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
 
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
 
+	tmtypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	evmosapp "github.com/evmos/evmos/v13/app"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
+	evmosapp "github.com/evmos/evmos/v19/app"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 	"github.com/stretchr/testify/suite"
-	tmtypes "github.com/tendermint/tendermint/types"
 )
 
 var s *PrecompileTestSuite

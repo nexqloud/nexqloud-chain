@@ -23,13 +23,11 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
 
-	"github.com/evmos/evmos/v13/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-
-	evmoskr "github.com/evmos/evmos/v13/crypto/keyring"
-
-	vestingcli "github.com/evmos/evmos/v13/x/vesting/client/cli"
-	vestingtypes "github.com/evmos/evmos/v13/x/vesting/types"
+	evmoskr "github.com/evmos/evmos/v19/crypto/keyring"
+	"github.com/evmos/evmos/v19/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
+	vestingcli "github.com/evmos/evmos/v19/x/vesting/client/cli"
+	vestingtypes "github.com/evmos/evmos/v19/x/vesting/types"
 )
 
 const (
@@ -182,7 +180,7 @@ contain valid denominations. Accounts may optionally be supplied with vesting pa
 
 				// The vesting and lockup schedules must describe the same total amount.
 				// IsEqual can panic, so use (a == b) <=> (a <= b && b <= a).
-				if !(vestingCoins.IsAllLTE(lockupCoins) && lockupCoins.IsAllLTE(vestingCoins)) {
+				if !vestingtypes.CoinEq(lockupCoins, vestingCoins) {
 					return fmt.Errorf("lockup (%s) and vesting (%s) amounts must be equal",
 						lockupCoins, vestingCoins,
 					)

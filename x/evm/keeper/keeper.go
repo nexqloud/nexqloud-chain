@@ -6,6 +6,8 @@ import (
 	"math/big"
 
 	errorsmod "cosmossdk.io/errors"
+	"cosmossdk.io/math"
+	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
 	storetypes "github.com/cosmos/cosmos-sdk/store/types"
@@ -14,13 +16,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/tendermint/tendermint/libs/log"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
 
-	evmostypes "github.com/evmos/evmos/v13/types"
-	"github.com/evmos/evmos/v13/x/evm/statedb"
-	"github.com/evmos/evmos/v13/x/evm/types"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	"github.com/evmos/evmos/v19/x/evm/statedb"
+	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
 // Keeper grants access to the EVM module state and implements the go-ethereum StateDB interface.
@@ -39,6 +40,7 @@ type Keeper struct {
 
 	// the address capable of executing a MsgUpdateParams message. Typically, this should be the x/gov module account.
 	authority sdk.AccAddress
+
 	// access to account state
 	accountKeeper types.AccountKeeper
 	// update balance and accounting operations with coins
@@ -47,6 +49,8 @@ type Keeper struct {
 	stakingKeeper types.StakingKeeper
 	// fetch EIP1559 base fee and parameters
 	feeMarketKeeper types.FeeMarketKeeper
+	// erc20Keeper interface needed to instantiate erc20 precompiles
+	erc20Keeper types.Erc20Keeper
 
 	// chain ID number obtained from the context's chain id
 	eip155ChainID *big.Int
@@ -54,8 +58,6 @@ type Keeper struct {
 	// Tracer used to collect execution traces from the EVM transaction execution
 	tracer string
 
-	// EVM Hooks for tx post-processing
-	hooks types.EvmHooks
 	// Legacy subspace
 	ss paramstypes.Subspace
 
@@ -74,6 +76,7 @@ func NewKeeper(
 	bankKeeper types.BankKeeper,
 	sk types.StakingKeeper,
 	fmk types.FeeMarketKeeper,
+	erc20Keeper types.Erc20Keeper,
 	tracer string,
 	ss paramstypes.Subspace,
 ) *Keeper {
@@ -98,6 +101,7 @@ func NewKeeper(
 		storeKey:        storeKey,
 		transientKey:    transientKey,
 		tracer:          tracer,
+		erc20Keeper:     erc20Keeper,
 		ss:              ss,
 	}
 }
@@ -229,32 +233,6 @@ func (k Keeper) GetAccountStorage(ctx sdk.Context, address common.Address) types
 // Account
 // ----------------------------------------------------------------------------
 
-// SetHooks sets the hooks for the EVM module
-// It should be called only once during initialization, it panic if called more than once.
-func (k *Keeper) SetHooks(eh types.EvmHooks) *Keeper {
-	if k.hooks != nil {
-		panic("cannot set evm hooks twice")
-	}
-
-	k.hooks = eh
-	return k
-}
-
-// CleanHooks resets the hooks for the EVM module
-// NOTE: Should only be used for testing purposes
-func (k *Keeper) CleanHooks() *Keeper {
-	k.hooks = nil
-	return k
-}
-
-// PostTxProcessing delegate the call to the hooks. If no hook has been registered, this function returns with a `nil` error
-func (k *Keeper) PostTxProcessing(ctx sdk.Context, msg core.Message, receipt *ethtypes.Receipt) error {
-	if k.hooks == nil {
-		return nil
-	}
-	return k.hooks.PostTxProcessing(ctx, msg, receipt)
-}
-
 // Tracer return a default vm.Tracer based on current keeper state
 func (k Keeper) Tracer(ctx sdk.Context, msg core.Message, ethCfg *params.ChainConfig) vm.EVMLogger {
 	return types.NewTracer(k.tracer, msg, ethCfg, ctx.BlockHeight())
@@ -340,13 +318,8 @@ func (k Keeper) getBaseFee(ctx sdk.Context, london bool) *big.Int {
 }
 
 // GetMinGasMultiplier returns the MinGasMultiplier param from the fee market module
-func (k Keeper) GetMinGasMultiplier(ctx sdk.Context) sdk.Dec {
-	fmkParmas := k.feeMarketKeeper.GetParams(ctx)
-	if fmkParmas.MinGasMultiplier.IsNil() {
-		// in case we are executing eth_call on a legacy block, returns a zero value.
-		return sdk.ZeroDec()
-	}
-	return fmkParmas.MinGasMultiplier
+func (k Keeper) GetMinGasMultiplier(ctx sdk.Context) math.LegacyDec {
+	return k.feeMarketKeeper.GetParams(ctx).MinGasMultiplier
 }
 
 // ResetTransientGasUsed reset gas used to prepare for execution of current cosmos tx, called in ante handler.

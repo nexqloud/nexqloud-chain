@@ -13,7 +13,7 @@ func EnableObservability() error {
 	// }
 
 	// pe, err := prometheus.NewExporter(prometheus.Options{
-	// 	Namespace: "nxqd",
+	// 	Namespace: "evmosd",
 	// })
 	// if err != nil {
 	// 	return fmt.Errorf("cmd/config: failed to create the OpenCensus Prometheus exporter: %w", err)

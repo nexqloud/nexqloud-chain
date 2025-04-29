@@ -9,17 +9,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	cfg "github.com/tendermint/tendermint/config"
-	"github.com/tendermint/tendermint/libs/cli"
-	tmos "github.com/tendermint/tendermint/libs/os"
-	tmrand "github.com/tendermint/tendermint/libs/rand"
-	"github.com/tendermint/tendermint/types"
+	cfg "github.com/cometbft/cometbft/config"
+	"github.com/cometbft/cometbft/libs/cli"
+	tmos "github.com/cometbft/cometbft/libs/os"
+	tmrand "github.com/cometbft/cometbft/libs/rand"
+	"github.com/cometbft/cometbft/types"
 
 	"github.com/cosmos/go-bip39"
 
@@ -84,10 +83,6 @@ func InitCmd(mbm module.BasicManager, defaultNodeHome string) *cobra.Command {
 			config.P2P.MaxNumInboundPeers = 240
 			config.P2P.MaxNumOutboundPeers = 30
 
-			// Set default seeds
-			seeds := []string{}
-			config.P2P.Seeds = strings.Join(seeds, ",")
-
 			config.Mempool.Size = 10000
 			config.StateSync.TrustPeriod = 112 * time.Hour
 
@@ -95,7 +90,7 @@ func InitCmd(mbm module.BasicManager, defaultNodeHome string) *cobra.Command {
 
 			chainID, _ := cmd.Flags().GetString(flags.FlagChainID)
 			if chainID == "" {
-				chainID = fmt.Sprintf("evmos_9000-%v", tmrand.Str(6))
+				chainID = fmt.Sprintf("nxqd_6000-%v", tmrand.Str(6))
 			}
 
 			// Get bip39 mnemonic

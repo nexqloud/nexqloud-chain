@@ -6,27 +6,26 @@ import (
 	"math/big"
 
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
+	"github.com/ethereum/go-ethereum/common"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+	"github.com/evmos/evmos/v19/x/evm/core/vm"
 
-	"github.com/ethereum/go-ethereum/core"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	feemarkettypes "github.com/evmos/evmos/v13/x/feemarket/types"
+	feemarkettypes "github.com/evmos/evmos/v19/x/feemarket/types"
 )
 
 // AccountKeeper defines the expected account keeper interface
 type AccountKeeper interface {
 	NewAccountWithAddress(ctx sdk.Context, addr sdk.AccAddress) authtypes.AccountI
 	GetModuleAddress(moduleName string) sdk.AccAddress
-	GetAllAccounts(ctx sdk.Context) (accounts []authtypes.AccountI)
 	IterateAccounts(ctx sdk.Context, cb func(account authtypes.AccountI) bool)
-	GetSequence(sdk.Context, sdk.AccAddress) (uint64, error)
 	GetAccount(ctx sdk.Context, addr sdk.AccAddress) authtypes.AccountI
 	SetAccount(ctx sdk.Context, account authtypes.AccountI)
 	RemoveAccount(ctx sdk.Context, account authtypes.AccountI)
 	GetParams(ctx sdk.Context) (params authtypes.Params)
+	GetSequence(ctx sdk.Context, account sdk.AccAddress) (uint64, error)
 }
 
 // BankKeeper defines the expected interface needed to retrieve account balances.
@@ -48,16 +47,23 @@ type StakingKeeper interface {
 type FeeMarketKeeper interface {
 	GetBaseFee(ctx sdk.Context) *big.Int
 	GetParams(ctx sdk.Context) feemarkettypes.Params
-	AddTransientGasWanted(ctx sdk.Context, gasWanted uint64) (uint64, error)
+	CalculateBaseFee(ctx sdk.Context) *big.Int
 }
 
-// Event Hooks
-// These can be utilized to customize evm transaction processing.
+// Erc20Keeper defines the expected interface needed to instantiate ERC20 precompiles.
+type Erc20Keeper interface {
+	GetERC20PrecompileInstance(ctx sdk.Context, address common.Address) (contract vm.PrecompiledContract, found bool, err error)
+}
 
-// EvmHooks event hooks for evm tx processing
-type EvmHooks interface {
-	// Must be called after tx is processed successfully, if return an error, the whole transaction is reverted.
-	PostTxProcessing(ctx sdk.Context, msg core.Message, receipt *ethtypes.Receipt) error
+// EVMKeeper defines the expected EVM keeper interface
+type EVMKeeper interface {
+	// ... existing methods
+
+	// CallEVM performs a smart contract method call using given parameters
+	CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (MsgEthereumTxResponse, error)
+
+	// EthCall performs a read-only EVM call using the provided transaction args
+	EthCall(ctx sdk.Context, req *EthCallRequest) (*MsgEthereumTxResponse, error)
 }
 
 type (

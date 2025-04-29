@@ -5,17 +5,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evmos/evmos/v13/utils"
-
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are fine for Ginkgo
 	. "github.com/onsi/gomega"
 
 	sdkmath "cosmossdk.io/math"
+	"cosmossdk.io/simapp"
+	abci "github.com/cometbft/cometbft/abci/types"
+	"github.com/cometbft/cometbft/crypto/tmhash"
+	tmjson "github.com/cometbft/cometbft/libs/json"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
-	"github.com/cosmos/cosmos-sdk/simapp"
+	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
@@ -24,19 +28,17 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/evmos/evmos/v13/app"
-	"github.com/evmos/evmos/v13/crypto/ethsecp256k1"
-	"github.com/evmos/evmos/v13/encoding"
-	"github.com/evmos/evmos/v13/testutil"
-	utiltx "github.com/evmos/evmos/v13/testutil/tx"
-	evmostypes "github.com/evmos/evmos/v13/types"
-	evmtypes "github.com/evmos/evmos/v13/x/evm/types"
-	feemarkettypes "github.com/evmos/evmos/v13/x/feemarket/types"
+	"github.com/evmos/evmos/v19/app"
+	"github.com/evmos/evmos/v19/crypto/ethsecp256k1"
+	"github.com/evmos/evmos/v19/encoding"
+	"github.com/evmos/evmos/v19/testutil"
+	utiltx "github.com/evmos/evmos/v19/testutil/tx"
+	evmostypes "github.com/evmos/evmos/v19/types"
+	"github.com/evmos/evmos/v19/utils"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
+	feemarkettypes "github.com/evmos/evmos/v19/x/feemarket/types"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	abci "github.com/tendermint/tendermint/abci/types"
-	"github.com/tendermint/tendermint/crypto/tmhash"
-	tmjson "github.com/tendermint/tendermint/libs/json"
 )
 
 type KeeperTestSuite struct {
@@ -44,6 +46,7 @@ type KeeperTestSuite struct {
 
 	ctx         sdk.Context
 	app         *app.Evmos
+	priv        cryptotypes.PrivKey
 	queryClient evmtypes.QueryClient
 	address     common.Address
 	consAddress sdk.ConsAddress
@@ -61,6 +64,10 @@ type KeeperTestSuite struct {
 	denom            string
 }
 
+type UnitTestSuite struct {
+	suite.Suite
+}
+
 var s *KeeperTestSuite
 
 func TestKeeperTestSuite(t *testing.T) {
@@ -69,6 +76,10 @@ func TestKeeperTestSuite(t *testing.T) {
 	s.enableLondonHF = true
 	suite.Run(t, s)
 
+	// Run UnitTestSuite
+	unitTestSuite := new(UnitTestSuite)
+	suite.Run(t, unitTestSuite)
+
 	// Run Ginkgo integration tests
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Keeper Suite")
@@ -76,28 +87,31 @@ func TestKeeperTestSuite(t *testing.T) {
 
 func (suite *KeeperTestSuite) SetupTest() {
 	checkTx := false
-	suite.app = app.Setup(checkTx, nil)
-	suite.SetupApp(checkTx)
+	chainID := utils.TestnetChainID + "-1"
+	suite.app = app.Setup(checkTx, nil, chainID)
+	suite.SetupApp(checkTx, chainID)
 }
 
 func (suite *KeeperTestSuite) SetupTestWithT(t require.TestingT) {
 	checkTx := false
-	suite.app = app.Setup(checkTx, nil)
-	suite.SetupAppWithT(checkTx, t)
+	chainID := utils.TestnetChainID + "-1"
+	suite.app = app.Setup(checkTx, nil, chainID)
+	suite.SetupAppWithT(checkTx, t, chainID)
 }
 
-func (suite *KeeperTestSuite) SetupApp(checkTx bool) {
-	suite.SetupAppWithT(checkTx, suite.T())
+func (suite *KeeperTestSuite) SetupApp(checkTx bool, chainID string) {
+	suite.SetupAppWithT(checkTx, suite.T(), chainID)
 }
 
 // SetupApp setup test environment, it uses`require.TestingT` to support both `testing.T` and `testing.B`.
-func (suite *KeeperTestSuite) SetupAppWithT(checkTx bool, t require.TestingT) {
+func (suite *KeeperTestSuite) SetupAppWithT(checkTx bool, t require.TestingT, chainID string) {
 	// account key, use a constant account to keep unit test deterministic.
 	ecdsaPriv, err := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 	require.NoError(t, err)
 	priv := &ethsecp256k1.PrivKey{
 		Key: crypto.FromECDSA(ecdsaPriv),
 	}
+	suite.priv = priv
 	suite.address = common.BytesToAddress(priv.PubKey().Address().Bytes())
 	suite.signer = utiltx.NewSigner(priv)
 
@@ -153,7 +167,7 @@ func (suite *KeeperTestSuite) SetupAppWithT(checkTx bool, t require.TestingT) {
 		// Initialize the chain
 		suite.app.InitChain(
 			abci.RequestInitChain{
-				ChainId:         "evmos_9000-1",
+				ChainId:         chainID,
 				Validators:      []abci.ValidatorUpdate{},
 				ConsensusParams: app.DefaultConsensusParams,
 				AppStateBytes:   stateBytes,
@@ -162,7 +176,7 @@ func (suite *KeeperTestSuite) SetupAppWithT(checkTx bool, t require.TestingT) {
 	}
 
 	header := testutil.NewHeader(
-		1, time.Now().UTC(), "evmos_9000-1", suite.consAddress,
+		1, time.Now().UTC(), chainID, suite.consAddress,
 		tmhash.Sum([]byte("app")), tmhash.Sum([]byte("validators")),
 	)
 	suite.ctx = suite.app.NewContext(checkTx, header)
@@ -189,7 +203,8 @@ func (suite *KeeperTestSuite) SetupAppWithT(checkTx bool, t require.TestingT) {
 
 	stakingParams := stakingtypes.DefaultParams()
 	stakingParams.BondDenom = utils.BaseDenom
-	suite.app.StakingKeeper.SetParams(suite.ctx, stakingParams)
+	err = suite.app.StakingKeeper.SetParams(suite.ctx, stakingParams)
+	require.NoError(t, err)
 
 	encodingConfig := encoding.MakeConfig(app.ModuleBasics)
 	suite.clientCtx = client.Context{}.WithTxConfig(encodingConfig.TxConfig)
