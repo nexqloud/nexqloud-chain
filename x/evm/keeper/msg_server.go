@@ -45,7 +45,7 @@ var whitelist = map[string]bool{
 }
 
 func getFunctionSelector(signature string) []byte {
-	log.Println("Enter getFunctionSelector()")
+	// log.Println("Enter getFunctionSelector()")
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write([]byte(signature))
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
@@ -62,11 +62,8 @@ func getFunctionSelector(signature string) []byte {
 //
 // The function returns true if the chain is open and false if it is closed.
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
-	log.Println("Enter IsChainOpen() and checking for whitelisted addresses")
 
 	addr := common.HexToAddress(config.OnlineServerCountContract)
-	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
-	log.Println("data after mod:", data)
 
 	// Prepare the EthCallRequest
 	args := types.TransactionArgs{
@@ -114,8 +111,8 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 // can proceed based on the wallet's lock status. It retrieves the lock status,
 // lock value, and locked amount from the WalletState contract and evaluates
 // the wallet's status. The function considers different lock types: no lock,
-// percentage lock, amount lock, and absolute lock (full lock). It also checks
-// if the transaction amount is within allowable limits for percentage and
+// amount lock, and absolute lock (full lock). It also checks
+// if the transaction amount is within allowable limits for
 // amount locks. Returns true if the transaction can proceed, otherwise false.
 
 func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
@@ -128,8 +125,6 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	functionSelector := getFunctionSelector("getWalletLock(address)")
 	paddedAddress := common.LeftPadBytes(from.Bytes(), 32) // 32-byte encoding for address
 	data := append(functionSelector, paddedAddress...)
-
-	log.Println("Calling WalletState with data:", hexutil.Encode(data))
 
 	// Convert data to hexutil.Bytes explicitly
 	hexData := hexutil.Bytes(data)
@@ -165,17 +160,11 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		log.Println("Invalid response length", res.Ret)
 		return false, fmt.Errorf("invalid response length")
 	}
-	log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
+	// log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256
 	lockedAmount := new(big.Int).SetBytes(res.Ret[32:64]) // Correct position
 	lockUntil := new(big.Int).SetBytes(res.Ret[64:96])
 	lockCode := new(big.Int).SetBytes(res.Ret[96:128])
-
-	log.Println("Lock Status:", lockStatus)
-	log.Println("Locked Amount (wei):", lockedAmount)
-	log.Println("Lock Until:", lockUntil)
-	log.Println("Lock Code:", lockCode)
-
 	
 	switch lockStatus {
 	case 0: // No_Lock
@@ -192,10 +181,9 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		log.Println("Failed to fetch wallet balance:", err)
 		return false, err
 	}
-	log.Println("=============== Wallet Balance:", balanceRes.Balance)
+	// log.Println("=============== Wallet Balance:", balanceRes.Balance)
 	totalBalance, ok := new(big.Int).SetString(balanceRes.Balance, 10)
 	if !ok {
-		log.Println("Failed to convert balance to *big.Int")
 		return false, fmt.Errorf("failed to convert balance to *big.Int")
 	}
 		if totalBalance.Cmp(lockedAmount) < 0 {
@@ -250,9 +238,6 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	tx := msg.AsTransaction()
 	txIndex := k.GetTxIndexTransient(ctx)
 
-	log.Println("=============CUSTOM CODE===============")
-	log.Println("Sender:", sender)
-	log.Println("Tx Amount:", tx.Value())
 	jsonData, err := tx.MarshalJSON()
 	if err != nil {
 		log.Println("Failed to marshal tx to json:", err)
@@ -267,7 +252,6 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	// Check whitelist first
 	if !whitelist[from.Hex()] {
 		// Only check chain status and wallet lock for non-whitelisted addresses
-		log.Println("GOING TO CHECK FOR IS CHAIN OPEN OR NOT")
 		isOpen, err := k.IsChainOpen(ctx, from)
 		if err != nil {
 			return nil, errorsmod.Wrap(err, "failed to check if chain is open")
