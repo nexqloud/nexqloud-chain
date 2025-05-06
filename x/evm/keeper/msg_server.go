@@ -64,10 +64,6 @@ func getFunctionSelector(signature string) []byte {
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
 	log.Println("Enter IsChainOpen() and checking for whitelisted addresses")
 
-	if whitelist[from.Hex()] {
-		log.Println("Sender is whitelisted, allowing transaction")
-		return true, nil
-	}
 	addr := common.HexToAddress(config.OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 	log.Println("data after mod:", data)
@@ -180,7 +176,15 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	log.Println("Lock Until:", lockUntil)
 	log.Println("Lock Code:", lockCode)
 
-	// Fetch the balance using Keeper
+	
+	switch lockStatus {
+	case 0: // No_Lock
+		log.Println("✅ Wallet is unlocked")
+		return true, nil
+
+	case 1: // Amount_Lock
+		// Ensure locked amount is not greater than total balance
+		// Fetch the balance using Keeper
 	balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
 		Address: from.Hex(),
 	})
@@ -194,13 +198,6 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		log.Println("Failed to convert balance to *big.Int")
 		return false, fmt.Errorf("failed to convert balance to *big.Int")
 	}
-	switch lockStatus {
-	case 0: // No_Lock
-		log.Println("✅ Wallet is unlocked")
-		return true, nil
-
-	case 1: // Amount_Lock
-		// Ensure locked amount is not greater than total balance
 		if totalBalance.Cmp(lockedAmount) < 0 {
 			log.Println("❌ Locked amount exceeds wallet balance")
 			return false, fmt.Errorf("locked amount exceeds wallet balance")
