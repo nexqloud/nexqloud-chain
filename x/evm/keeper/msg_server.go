@@ -14,12 +14,8 @@ import (
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	"golang.org/x/crypto/sha3"
 
-	// "github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-
-	// "github.com/ethereum/go-ethereum/crypto"
-	// "github.com/ethereum/go-ethereum/ethclient"
 
 	tmbytes "github.com/cometbft/cometbft/libs/bytes"
 	tmtypes "github.com/cometbft/cometbft/types"
@@ -64,6 +60,7 @@ func getFunctionSelector(signature string) []byte {
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
 
 	addr := common.HexToAddress(config.OnlineServerCountContract)
+	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 
 	// Prepare the EthCallRequest
 	args := types.TransactionArgs{
@@ -80,7 +77,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	req := &types.EthCallRequest{
 		Args:    argsBytes,
-		GasCap:  uint64(1000000), // Adjust gas cap as needed
+		GasCap:  config.DefaultGasCap, // Use the default gas cap from config
 		ChainId: config.ChainID,  // Replace with the chain ID
 	}
 
@@ -144,7 +141,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 	req := &types.EthCallRequest{
 		Args:    argsBytes,
-		GasCap:  uint64(1000000),
+		GasCap:  config.DefaultGasCap, // Use the default gas cap from config
 		ChainId: config.ChainID,
 	}
 

@@ -89,10 +89,6 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	valAccAddr := sdk.AccAddress(valAddr.Bytes())
 	valEvmAddr := common.BytesToAddress(valAccAddr)
 
-	// Get validator address from delegator address for reference (not currently used)
-	delAddr, _ := sdk.AccAddressFromBech32(msg.DelegatorAddress)
-	_ = common.BytesToAddress(delAddr) // Convert but don't store the unused variable
-
 	// Check if the validator is approved (with simplified error handling)
 	isApproved, err := k.isApprovedValidator(ctx, valEvmAddr)
 	if err != nil {
@@ -285,7 +281,7 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 	// Create the EthCallRequest
 	ethCallRequest := &evmtypes.EthCallRequest{
 		Args:   argsJSON,
-		GasCap: 25000,
+		GasCap: config.DefaultGasCap, // Use default gas cap from config
 	}
 
 	// Make the EthCall
@@ -352,7 +348,7 @@ func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common
 	ethCallRequest := &evmtypes.EthCallRequest{
 		Args: argsJSON,
 		// Set a reasonable gas cap to prevent DoS
-		GasCap: 25000,
+		GasCap: config.DefaultGasCap, // Use default gas cap from config
 	}
 
 	// Make the direct call using EthCall
