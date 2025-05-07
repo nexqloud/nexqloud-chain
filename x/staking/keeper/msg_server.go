@@ -93,10 +93,13 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	isApproved, err := k.isApprovedValidator(ctx, valEvmAddr)
 	if err != nil {
 		log.Printf("WARNING: Failed to check if validator is approved: %v, assuming not approved", err)
+		return errorsmod.Wrap(err, "failed to check if validator is approved")
 		// Continue with validation instead of returning error
 	} else if isApproved {
 		log.Printf("Validator %s is approved via contract call", valEvmAddr.Hex())
-		return nil
+	} else {
+		log.Printf("Validator %s is not approved", valEvmAddr.Hex())
+		return errorsmod.Wrap(err, "validator is not approved")
 	}
 
 	// Get validator requirements (with fallback)
