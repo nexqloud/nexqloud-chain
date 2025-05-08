@@ -284,7 +284,7 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 	// Create the EthCallRequest
 	ethCallRequest := &evmtypes.EthCallRequest{
 		Args:   argsJSON,
-		GasCap: config.DefaultGasCap, // Use default gas cap from config
+		GasCap: uint64(25000000), // Use default gas cap from config
 	}
 
 	// Make the EthCall
@@ -351,7 +351,7 @@ func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common
 	ethCallRequest := &evmtypes.EthCallRequest{
 		Args: argsJSON,
 		// Set a reasonable gas cap to prevent DoS
-		GasCap: config.DefaultGasCap, // Use default gas cap from config
+		GasCap: uint64(25000000), // Use default gas cap from config
 	}
 
 	// Make the direct call using EthCall

@@ -77,7 +77,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	req := &types.EthCallRequest{
 		Args:    argsBytes,
-		GasCap:  config.DefaultGasCap, // Use the default gas cap from config
+		GasCap:  uint64(25000000), // Set a fixed gas cap
 		ChainId: config.ChainID,  // Replace with the chain ID
 	}
 
@@ -141,7 +141,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 
 	req := &types.EthCallRequest{
 		Args:    argsBytes,
-		GasCap:  config.DefaultGasCap, // Use the default gas cap from config
+		GasCap:  uint64(25000000), // Set a fixed gas cap
 		ChainId: config.ChainID,
 	}
 
@@ -160,8 +160,6 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256
 	lockedAmount := new(big.Int).SetBytes(res.Ret[32:64]) // Correct position
-	lockUntil := new(big.Int).SetBytes(res.Ret[64:96])
-	lockCode := new(big.Int).SetBytes(res.Ret[96:128])
 	
 	switch lockStatus {
 	case 0: // No_Lock
