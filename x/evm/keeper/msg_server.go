@@ -50,12 +50,8 @@ func getFunctionSelector(signature string) []byte {
 // IsChainOpen checks if the chain is open for new transactions based on the
 // online server count from the contract. If the count is greater than or equal
 // to 1000, the chain is considered open. Otherwise, it is closed.
-//
-// The function takes the sender address as an argument and checks if it is
-// whitelisted. If it is, the function returns true immediately. Otherwise, it
-// calls the getOnlineServerCount() function on the contract and parses the
+// the function calls the getOnlineServerCount() function on the contract and parses the
 // response to get the count.
-//
 // The function returns true if the chain is open and false if it is closed.
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
 
