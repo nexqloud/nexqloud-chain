@@ -54,20 +54,16 @@ func (k msgServer) Delegate(goCtx context.Context, msg *types.MsgDelegate) (*typ
 // customValidatorChecks performs custom validation checks for validators
 // This includes NFT ownership validation and minimum self-delegation requirements
 func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateValidator) error {
-	// log.Println("========= NFT Validation Start =========")
-	// log.Printf("Validator address (bech32): %s", msg.ValidatorAddress)
-	// log.Printf("Delegator address (bech32): %s", msg.DelegatorAddress)
-
+	
 	// Check if we're in a genesis block (height <= 1)
 	// During initialization, bypass all validation
 	if ctx.BlockHeight() <= 1 {
-		// log.Println("Detected genesis block (height <= 1), bypassing NFT validation")
 		return nil
 	}
 
 	// Check if EVM Keeper is initialized
 	if k.evmKeeper == nil {
-		// log.Println("FATAL: EVM Keeper not initialized")
+
 		return errorsmod.Wrap(
 			errortypes.ErrInvalidRequest,
 			"EVM module not configured",
@@ -98,7 +94,6 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	} else if isApproved {
 		log.Printf("Validator %s is approved via contract call", valEvmAddr.Hex())
 	} else {
-		// log.Printf("Validator %s is not approved", valEvmAddr.Hex())
 		return errorsmod.Wrap(err, "validator is not approved")
 	}
 
@@ -316,7 +311,7 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common.Address) (*big.Int, error) {
 	log.Printf("Querying NFT balance using EthCall for address: %s", ownerAddr.Hex())
 
-	// balanceOf function signature (0x70a08231)
+	// balanceOf function signature
 	// followed by the address parameter
 	callData := append([]byte{0x70, 0xa0, 0x82, 0x31}, common.LeftPadBytes(ownerAddr.Bytes(), 32)...)
 
@@ -375,7 +370,6 @@ type EvmEthCaller interface {
 
 // isApprovedValidator checks if an address is on the approved validators list
 func (k msgServer) isApprovedValidator(ctx sdk.Context, validatorAddr common.Address) (bool, error) {
-	// log.Printf("Checking if validator %s is approved", validatorAddr.Hex())
 
 	// Get WalletState contract address
 	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
