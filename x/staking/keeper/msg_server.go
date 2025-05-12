@@ -54,20 +54,16 @@ func (k msgServer) Delegate(goCtx context.Context, msg *types.MsgDelegate) (*typ
 // customValidatorChecks performs custom validation checks for validators
 // This includes NFT ownership validation and minimum self-delegation requirements
 func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateValidator) error {
-	log.Println("========= NFT Validation Start =========")
-	log.Printf("Validator address (bech32): %s", msg.ValidatorAddress)
-	log.Printf("Delegator address (bech32): %s", msg.DelegatorAddress)
-
+	
 	// Check if we're in a genesis block (height <= 1)
 	// During initialization, bypass all validation
 	if ctx.BlockHeight() <= 1 {
-		log.Println("Detected genesis block (height <= 1), bypassing NFT validation")
 		return nil
 	}
 
 	// Check if EVM Keeper is initialized
 	if k.evmKeeper == nil {
-		log.Println("FATAL: EVM Keeper not initialized")
+
 		return errorsmod.Wrap(
 			errortypes.ErrInvalidRequest,
 			"EVM module not configured",
@@ -89,26 +85,23 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	valAccAddr := sdk.AccAddress(valAddr.Bytes())
 	valEvmAddr := common.BytesToAddress(valAccAddr)
 
-	// Get validator address from delegator address for reference (not currently used)
-	delAddr, _ := sdk.AccAddressFromBech32(msg.DelegatorAddress)
-	_ = common.BytesToAddress(delAddr) // Convert but don't store the unused variable
-
 	// Check if the validator is approved (with simplified error handling)
 	isApproved, err := k.isApprovedValidator(ctx, valEvmAddr)
 	if err != nil {
 		log.Printf("WARNING: Failed to check if validator is approved: %v, assuming not approved", err)
+		return errorsmod.Wrap(err, "failed to check if validator is approved")
 		// Continue with validation instead of returning error
 	} else if isApproved {
 		log.Printf("Validator %s is approved via contract call", valEvmAddr.Hex())
-		return nil
+	} else {
+		return errorsmod.Wrap(err, "validator is not approved")
 	}
 
 	// Get validator requirements (with fallback)
 	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
 	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, walletStateContract)
 	if err != nil {
-		log.Printf("ERROR: Failed to get validator requirements: %v", err)
-		log.Println("Using default values: 5 NXQ tokens, 5 NXQNFT")
+	
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
 		requiredNXQNFTs = big.NewInt(5)                           // Default: 5 NFT
 	}
@@ -116,7 +109,7 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	// Get NFT balance
 	nftBalance, err := k.getNFTBalance(ctx, nftContract, valEvmAddr)
 	if err != nil {
-		log.Printf("ERROR: Failed to query NFT balance: %v", err)
+
 		return errorsmod.Wrap(
 			errortypes.ErrUnauthorized,
 			fmt.Sprintf("unable to verify NFT ownership: %v - please ensure you own an NFT at contract %s",
@@ -124,11 +117,8 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 		)
 	}
 
-	log.Printf("NFT Balance for %s: %s", valEvmAddr.Hex(), nftBalance.String())
-
 	// Check if the NFT balance meets the requirement
 	if nftBalance.Cmp(requiredNXQNFTs) < 0 {
-		log.Printf("ERROR: Validator does not have enough NXQNFT. Required: ≥%s, Found: %s",
 			requiredNXQNFTs.String(), nftBalance.String())
 		return errorsmod.Wrap(
 			errortypes.ErrUnauthorized,
@@ -138,14 +128,12 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	}
 
 	log.Println("✅ NFT validation passed successfully")
-	log.Println("========= NFT Validation End =========")
 
 	// Convert required NXQ tokens from big.Int to sdk.Int for comparison
 	requiredMinSelfDelegation := sdk.NewIntFromBigInt(requiredNXQTokens)
 
 	// Ensure minimum self delegation meets the requirement
 	if msg.MinSelfDelegation.LT(requiredMinSelfDelegation) {
-		log.Printf("ERROR: Minimum self delegation too low. Required: ≥%s NXQ, Found: %s",
 			requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String())
 		return errorsmod.Wrap(
 			errortypes.ErrInvalidRequest,
@@ -178,10 +166,6 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		return nil, err
 	}
 
-	log.Println("========= Create Validator =========")
-	log.Printf("Delegator address: %s", msg.DelegatorAddress)
-	log.Printf("Value: %s", msg.Value)
-	log.Println("====================================")
 
 	return k.MsgServer.CreateValidator(goCtx, msg)
 }
@@ -263,7 +247,6 @@ func getFunctionSelector(signature string) []byte {
 // getValidatorRequirements queries the WalletState contract to get the required number of
 // NXQ tokens and NXQNFT's to become a validator
 func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common.Address) (*big.Int, *big.Int, error) {
-	log.Printf("Querying validator requirements from contract: %s", contractAddr.Hex())
 
 	// Calculate the function selector using the getFunctionSelector function
 	functionSignature := "getValidatorRequirements()"
@@ -285,7 +268,7 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 	// Create the EthCallRequest
 	ethCallRequest := &evmtypes.EthCallRequest{
 		Args:   argsJSON,
-		GasCap: 25000,
+		GasCap: uint64(25000000), // Use default gas cap from config
 	}
 
 	// Make the EthCall
@@ -300,7 +283,6 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 	// Execute the EthCall
 	response, err := ethCaller.EthCall(ctx, ethCallRequest)
 	if err != nil {
-		log.Printf("ERROR: EthCall to WalletState contract failed: %v", err)
 		return nil, nil, err
 	}
 
@@ -329,7 +311,7 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common.Address) (*big.Int, error) {
 	log.Printf("Querying NFT balance using EthCall for address: %s", ownerAddr.Hex())
 
-	// balanceOf function signature (0x70a08231)
+	// balanceOf function signature
 	// followed by the address parameter
 	callData := append([]byte{0x70, 0xa0, 0x82, 0x31}, common.LeftPadBytes(ownerAddr.Bytes(), 32)...)
 
@@ -352,11 +334,10 @@ func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common
 	ethCallRequest := &evmtypes.EthCallRequest{
 		Args: argsJSON,
 		// Set a reasonable gas cap to prevent DoS
-		GasCap: 25000,
+		GasCap: uint64(25000000), // Use default gas cap from config
 	}
 
 	// Make the direct call using EthCall
-	log.Printf("Making direct EthCall to contract %s", contractAddr.Hex())
 
 	// Check if evmKeeper has EthCall method
 	ethCaller, ok := k.evmKeeper.(EvmEthCaller)
@@ -367,7 +348,6 @@ func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common
 	// Make the EthCall
 	response, err := ethCaller.EthCall(ctx, ethCallRequest)
 	if err != nil {
-		// Log the specific error but don't return hardcoded values
 		log.Printf("ERROR: EthCall failed: %v", err)
 		return nil, err
 	}
@@ -379,7 +359,6 @@ func (k msgServer) getNFTBalance(ctx sdk.Context, contractAddr, ownerAddr common
 
 	// The response.Ret contains the balance as a 32-byte big-endian integer
 	balance := new(big.Int).SetBytes(response.Ret)
-	log.Printf("NFT balance retrieved successfully: %s", balance.String())
 
 	return balance, nil
 }
@@ -391,7 +370,6 @@ type EvmEthCaller interface {
 
 // isApprovedValidator checks if an address is on the approved validators list
 func (k msgServer) isApprovedValidator(ctx sdk.Context, validatorAddr common.Address) (bool, error) {
-	log.Printf("Checking if validator %s is approved", validatorAddr.Hex())
 
 	// Get WalletState contract address
 	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
