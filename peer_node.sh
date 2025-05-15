@@ -9,7 +9,7 @@ fi
 
 #dev
 if [ -z "$SEED_NODE_IP" ]; then
-    SEED_NODE_IP="stage-node.nexqloud.net"
+    SEED_NODE_IP="13.203.229.219"
 fi
 
 # #staging
