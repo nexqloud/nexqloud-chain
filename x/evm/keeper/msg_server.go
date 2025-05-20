@@ -58,6 +58,10 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	addr := common.HexToAddress(config.OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 
+	 // Get the current block height
+	 currentHeight := ctx.BlockHeight()
+	 // Calculate previous block height
+	 previousBlock := currentHeight - 1
 	// Prepare the EthCallRequest
 	args := types.TransactionArgs{
 		From: &from, // Use the dynamic sender address passed from EthereumTx
@@ -75,6 +79,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		Args:    argsBytes,
 		GasCap:  uint64(25000000), // Set a fixed gas cap
 		ChainId: config.ChainID,  // Replace with the chain ID
+		BlockNumber: &previousBlock, // Use the previous block height
 	}
 
 	// Call the EthCall function
