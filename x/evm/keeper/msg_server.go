@@ -34,10 +34,10 @@ import (
 var _ types.MsgServer = &Keeper{}
 var whitelist = map[string]bool{
 	//staging config
-	"0x0845ed4B7CE9c886BC801edaF4f31F5123ffE69A": true,
+	// "0x0845ed4B7CE9c886BC801edaF4f31F5123ffE69A": true,
 
 	//dev config
-	// "0xD72273711FE3EaeE998867828c62CeD2aF1425D3": true,
+	"0xD7Ad5EAc42E11c611D17fdB771b2Ec4c5224Ce3A": true,
 }
 
 func getFunctionSelector(signature string) []byte {
@@ -58,6 +58,10 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	addr := common.HexToAddress(config.OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 
+	 // Get the current block height
+	 currentHeight := ctx.BlockHeight()
+	 // Calculate previous block height
+	 previousBlock := currentHeight - 1
 	// Prepare the EthCallRequest
 	args := types.TransactionArgs{
 		From: &from, // Use the dynamic sender address passed from EthereumTx
@@ -75,6 +79,7 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		Args:    argsBytes,
 		GasCap:  uint64(25000000), // Set a fixed gas cap
 		ChainId: config.ChainID,  // Replace with the chain ID
+		BlockNumber: &previousBlock, // Use the previous block height
 	}
 
 	// Call the EthCall function

@@ -119,7 +119,6 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 
 	// Check if the NFT balance meets the requirement
 	if nftBalance.Cmp(requiredNXQNFTs) < 0 {
-			requiredNXQNFTs.String(), nftBalance.String())
 		return errorsmod.Wrap(
 			errortypes.ErrUnauthorized,
 			fmt.Sprintf("must own ≥%s NXQNFT, found %s",
@@ -134,15 +133,12 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 
 	// Ensure minimum self delegation meets the requirement
 	if msg.MinSelfDelegation.LT(requiredMinSelfDelegation) {
-			requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String())
 		return errorsmod.Wrap(
 			errortypes.ErrInvalidRequest,
 			fmt.Sprintf("minimum self delegation must be at least %s NXQ, got %s",
 				requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String()),
 		)
 	}
-	log.Printf("✅ Minimum self delegation requirement met: %s ≥ %s",
-		msg.MinSelfDelegation.String(), requiredMinSelfDelegation.String())
 
 	return nil
 }
