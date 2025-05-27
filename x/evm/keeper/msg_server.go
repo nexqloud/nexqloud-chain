@@ -54,54 +54,78 @@ func getFunctionSelector(signature string) []byte {
 // response to get the count.
 // The function returns true if the chain is open and false if it is closed.
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
+	log.Println("🔍 Entering IsChainOpen() - Starting chain status check")
+	
+	currentHeight := ctx.BlockHeight()
+	log.Printf("📍 Current Block Height: %d", currentHeight)
+	log.Printf("🏦 Checking for address: %s", from.Hex())
+
+	// Create a new context at the previous block height
+	previousHeight := currentHeight - 1
+	log.Printf("📍 Using Previous Block Height: %d", previousHeight)
+	
+	// Get the previous block's header
+	previousHeader := ctx.BlockHeader()
+	previousHeader.Height = previousHeight
+	
+	// Create context for the previous block
+	previousCtx := ctx.WithBlockHeader(previousHeader)
+	log.Printf("📑 Created context for previous block")
 
 	addr := common.HexToAddress(config.OnlineServerCountContract)
-	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
+	log.Printf("📝 Contract Address: %s", addr.Hex())
 
-	 // Get the current block height
-	 currentHeight := ctx.BlockHeight()
-	 // Calculate previous block height
-	 previousBlock := currentHeight - 1
-	// Prepare the EthCallRequest
+	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
+	log.Printf("🔧 Function Selector: %s", hexutil.Encode(data))
+
+	// Prepare the EthCall request
 	args := types.TransactionArgs{
-		From: &from, // Use the dynamic sender address passed from EthereumTx
-		To:   &addr, // Replace with the contract address
-		Data: &data, // Replace with the actual function call data
+		From: &from,
+		To:   &addr,
+		Data: &data,
 	}
 
 	argsBytes, err := json.Marshal(args)
 	if err != nil {
-		log.Println("Failed to marshal args:", err)
+		log.Printf("❌ Failed to marshal args: %v", err)
 		return false, err
 	}
+	log.Printf("📦 Marshalled Args: %s", string(argsBytes))
 
 	req := &types.EthCallRequest{
-		Args:    argsBytes,
-		GasCap:  uint64(25000000), // Set a fixed gas cap
-		ChainId: config.ChainID,  // Replace with the chain ID
-		BlockNumber: &previousBlock, // Use the previous block height
+		Args:            argsBytes,
+		GasCap:         uint64(25000000),
+		ChainId:        config.ChainID,
+		ProposerAddress: previousHeader.ProposerAddress,
 	}
+	log.Printf("🔗 Chain ID: %d", config.ChainID)
+	log.Printf("👤 Previous Block Proposer Address: %X", previousHeader.ProposerAddress)
 
-	// Call the EthCall function
-	res, err := k.EthCall(ctx, req)
+	// Call EthCall with previous block's context
+	res, err := k.EthCall(previousCtx, req)
 	if err != nil {
-		log.Println("Failed to call EthCall:", err)
+		log.Printf("❌ EthCall failed: %v", err)
 		return false, err
 	}
+	log.Printf("📥 Raw EthCall Response: %s", hexutil.Encode(res.Ret))
 
 	// Parse the response to get the online server count
 	count := new(big.Int)
 	count.SetBytes(res.Ret)
-
-	log.Println("Current Online Server Count:", count)
+	log.Printf("🔢 Current Online Server Count: %s", count.String())
 
 	// Check if the chain is open based on the count
-	if count.Cmp(big.NewInt(1000)) >= 0 {
-		log.Println("Chain is open")
+	threshold := big.NewInt(1000)
+	isOpen := count.Cmp(threshold) >= 0
+	log.Printf("📊 Threshold: %s", threshold.String())
+	log.Printf("🎯 Comparison result: %v", isOpen)
+
+	if isOpen {
+		log.Println("✅ Chain is OPEN")
 		return true, nil
 	}
 
-	log.Println("Chain is closed")
+	log.Println("❌ Chain is CLOSED")
 	return false, nil
 }
 
@@ -127,7 +151,6 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// Convert data to hexutil.Bytes explicitly
 	hexData := hexutil.Bytes(data)
 
-	// Prepare EthCall request
 	args := types.TransactionArgs{
 		From: &from,
 		To:   &walletStateContract,
