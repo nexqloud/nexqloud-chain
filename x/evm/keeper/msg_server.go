@@ -71,9 +71,20 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	// Create context for the previous block
 	previousCtx := ctx.WithBlockHeader(previousHeader)
 	log.Printf("📑 Created context for previous block")
+	log.Printf("🔄 Previous Block Time: %v", previousHeader.Time)
+	log.Printf("🔄 Previous Block Hash: %X", previousHeader.LastBlockId.Hash)
 
 	addr := common.HexToAddress(config.OnlineServerCountContract)
 	log.Printf("📝 Contract Address: %s", addr.Hex())
+
+	// Check if contract exists
+	acc := k.GetAccount(previousCtx, addr)
+	if acc == nil {
+		log.Printf("⚠️ Warning: Contract account not found at address %s", addr.Hex())
+	} else {
+		log.Printf("✅ Contract account exists with nonce: %d, balance: %s", acc.Nonce, acc.Balance)
+		log.Printf("📝 Contract code hash: %X", acc.CodeHash)
+	}
 
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 	log.Printf("🔧 Function Selector: %s", hexutil.Encode(data))
