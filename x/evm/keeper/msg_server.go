@@ -54,15 +54,10 @@ func getFunctionSelector(signature string) []byte {
 // response to get the count.
 // The function returns true if the chain is open and false if it is closed.
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
-	log.Println("🔍 Entering IsChainOpen() - Starting chain status check")
+	log.Println("🔍 Checking chain status")
 	
 	currentHeight := ctx.BlockHeight()
-	log.Printf("📍 Current Block Height: %d", currentHeight)
-	log.Printf("🏦 Checking for address: %s", from.Hex())
-
-	// Create a new context at the previous block height
 	previousHeight := currentHeight - 1
-	log.Printf("📍 Using Previous Block Height: %d", previousHeight)
 	
 	// Get the previous block's header
 	previousHeader := ctx.BlockHeader()
@@ -70,24 +65,9 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	
 	// Create context for the previous block
 	previousCtx := ctx.WithBlockHeader(previousHeader)
-	log.Printf("📑 Created context for previous block")
-	log.Printf("🔄 Previous Block Time: %v", previousHeader.Time)
-	log.Printf("🔄 Previous Block Hash: %X", previousHeader.LastBlockId.Hash)
 
 	addr := common.HexToAddress(config.OnlineServerCountContract)
-	log.Printf("📝 Contract Address: %s", addr.Hex())
-
-	// Check if contract exists
-	acc := k.GetAccount(previousCtx, addr)
-	if acc == nil {
-		log.Printf("⚠️ Warning: Contract account not found at address %s", addr.Hex())
-	} else {
-		log.Printf("✅ Contract account exists with nonce: %d, balance: %s", acc.Nonce, acc.Balance)
-		log.Printf("📝 Contract code hash: %X", acc.CodeHash)
-	}
-
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
-	log.Printf("🔧 Function Selector: %s", hexutil.Encode(data))
 
 	// Prepare the EthCall request
 	args := types.TransactionArgs{
@@ -101,7 +81,6 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		log.Printf("❌ Failed to marshal args: %v", err)
 		return false, err
 	}
-	log.Printf("📦 Marshalled Args: %s", string(argsBytes))
 
 	req := &types.EthCallRequest{
 		Args:            argsBytes,
@@ -109,8 +88,6 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		ChainId:        config.ChainID,
 		ProposerAddress: previousHeader.ProposerAddress,
 	}
-	log.Printf("🔗 Chain ID: %d", config.ChainID)
-	log.Printf("👤 Previous Block Proposer Address: %X", previousHeader.ProposerAddress)
 
 	// Call EthCall with previous block's context
 	res, err := k.EthCall(previousCtx, req)
@@ -118,18 +95,15 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		log.Printf("❌ EthCall failed: %v", err)
 		return false, err
 	}
-	log.Printf("📥 Raw EthCall Response: %s", hexutil.Encode(res.Ret))
 
 	// Parse the response to get the online server count
 	count := new(big.Int)
 	count.SetBytes(res.Ret)
-	log.Printf("🔢 Current Online Server Count: %s", count.String())
+	log.Printf("📊 Online Server Count: %s", count.String())
 
 	// Check if the chain is open based on the count
 	threshold := big.NewInt(1000)
 	isOpen := count.Cmp(threshold) >= 0
-	log.Printf("📊 Threshold: %s", threshold.String())
-	log.Printf("🎯 Comparison result: %v", isOpen)
 
 	if isOpen {
 		log.Println("✅ Chain is OPEN")
