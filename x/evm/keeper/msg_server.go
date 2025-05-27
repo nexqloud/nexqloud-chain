@@ -78,7 +78,6 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	argsBytes, err := json.Marshal(args)
 	if err != nil {
-		log.Printf("❌ Failed to marshal args: %v", err)
 		return false, err
 	}
 
@@ -92,14 +91,13 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	// Call EthCall with previous block's context
 	res, err := k.EthCall(previousCtx, req)
 	if err != nil {
-		log.Printf("❌ EthCall failed: %v", err)
 		return false, err
 	}
 
 	// Parse the response to get the online server count
 	count := new(big.Int)
 	count.SetBytes(res.Ret)
-	log.Printf("📊 Online Server Count: %s", count.String())
+	log.Printf("Online Server Count: %s", count.String())
 
 	// Check if the chain is open based on the count
 	threshold := big.NewInt(1000)
