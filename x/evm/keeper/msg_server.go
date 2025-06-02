@@ -55,14 +55,14 @@ func getFunctionSelector(signature string) []byte {
 // The function returns true if the chain is open and false if it is closed.
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
 	log.Println("🔍 Checking chain status")
-	
+
 	currentHeight := ctx.BlockHeight()
 	previousHeight := currentHeight - 1
-	
+
 	// Get the previous block's header
 	previousHeader := ctx.BlockHeader()
 	previousHeader.Height = previousHeight
-	
+
 	// Create context for the previous block
 	previousCtx := ctx.WithBlockHeader(previousHeader)
 
@@ -83,8 +83,8 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	req := &types.EthCallRequest{
 		Args:            argsBytes,
-		GasCap:         uint64(25000000),
-		ChainId:        config.ChainID,
+		GasCap:          uint64(25000000),
+		ChainId:         config.ChainID,
 		ProposerAddress: previousHeader.ProposerAddress,
 	}
 
@@ -167,7 +167,7 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	// log.Println("Raw EthCall Response:", hexutil.Encode(res.Ret))
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256
 	lockedAmount := new(big.Int).SetBytes(res.Ret[32:64]) // Correct position
-	
+
 	switch lockStatus {
 	case 0: // No_Lock
 		log.Println("✅ Wallet is unlocked")
@@ -176,18 +176,18 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	case 1: // Amount_Lock
 		// Ensure locked amount is not greater than total balance
 		// Fetch the balance using Keeper
-	balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
-		Address: from.Hex(),
-	})
-	if err != nil {
-		log.Println("Failed to fetch wallet balance:", err)
-		return false, err
-	}
-	// log.Println("=============== Wallet Balance:", balanceRes.Balance)
-	totalBalance, ok := new(big.Int).SetString(balanceRes.Balance, 10)
-	if !ok {
-		return false, fmt.Errorf("failed to convert balance to *big.Int")
-	}
+		balanceRes, err := k.Balance(ctx, &types.QueryBalanceRequest{
+			Address: from.Hex(),
+		})
+		if err != nil {
+			log.Println("Failed to fetch wallet balance:", err)
+			return false, err
+		}
+		// log.Println("=============== Wallet Balance:", balanceRes.Balance)
+		totalBalance, ok := new(big.Int).SetString(balanceRes.Balance, 10)
+		if !ok {
+			return false, fmt.Errorf("failed to convert balance to *big.Int")
+		}
 		if totalBalance.Cmp(lockedAmount) < 0 {
 			log.Println("❌ Locked amount exceeds wallet balance")
 			return false, fmt.Errorf("locked amount exceeds wallet balance")
