@@ -106,25 +106,6 @@ check_dependencies() {
     print_success "All dependencies found"
 }
 
-# Simplified function to generate a key
-generate_key() {
-    local key_name=$1
-    
-    print_info "Processing key: $key_name"
-    
-    print_info "Generating key for $key_name"
-    
-    # Instructive message about password
-    print_warning "You will be prompted to create a password for your keyring."
-    print_warning "This password protects all your keys. Remember it well!"
-    
-    # Generate key
-    echo "$VAL_MNEMONIC" | $NXQD_BIN keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
-    
-    print_success "Key $key_name generated"
-    print_warning "IMPORTANT: Make sure to securely write down the mnemonic phrase shown above!"
-}
-
 # Initialize the blockchain
 initialize_blockchain() {
     print_section "Initializing Blockchain"
@@ -148,7 +129,7 @@ initialize_blockchain() {
 
     # Generate a single primary key
     print_info "Processing key: primary"
-    generate_key "primary"
+    expect recovery_key.expect
     
     # Initialize the chain
     print_section "Chain Initialization"
