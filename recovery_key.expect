@@ -5,9 +5,10 @@ set timeout 20
 
 set mnemonic $env(VAL_MNEMONIC)
 set password $env(VAL_PASSWORD)
+set nxqd_home $env(NXQD_HOME)
 
 # Start the command
-spawn nxqd keys add primary --recover --keyring-backend file --algo eth_secp256k1 --home "~/.nxqd"
+spawn nxqd keys add primary --recover --keyring-backend file --algo eth_secp256k1 --home "$nxqd_home/.nxqd"
 
 # Wait a moment for the mnemonic prompt
 sleep 1
