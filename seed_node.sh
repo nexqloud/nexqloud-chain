@@ -129,6 +129,7 @@ initialize_blockchain() {
 
     # Generate a single primary key
     print_info "Processing key: primary"
+    export NXQD_HOME=$HOMEDIR
     expect recovery_key.expect
     
     # Initialize the chain
