@@ -5,7 +5,7 @@ set timeout 20
 
 set nxqd_home $env(NXQD_HOME)
 set password $env(VAL_PASSWORD)
-set address $(nxqd keys show "primary" -a --keyring-backend "file" --home "$nxqd_home")
+set address $env(VAL_ADDRESS)
 
 spawn nxqd add-genesis-account "$address" "21000000000000000000000000unxq" --keyring-backend "file" --home "$nxqd_home"
 
