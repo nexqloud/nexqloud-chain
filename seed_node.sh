@@ -179,7 +179,7 @@ initialize_blockchain() {
     print_section "Setting Up Genesis Accounts"
     # Add the primary key as a genesis account with the full token supply
     print_info "Adding genesis account with all tokens"
-    local address=$($NXQD_BIN keys show "primary" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
+    export VAL_ADDRESS=$($NXQD_BIN keys show "primary" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
     expect add_genesis.expect
     print_success "Added genesis account primary with balance 21000000000000000000000000unxq"
     
