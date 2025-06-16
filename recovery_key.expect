@@ -3,20 +3,23 @@
 # Set timeout for each step
 set timeout 20
 
+set mnemonic $env(VAL_MNEMONIC)
+set password $env(VAL_PASSWORD)
+
 # Start the command
 spawn nxqd keys add primary --recover --keyring-backend file --algo eth_secp256k1 --home "~/.nxqd"
 
 # Wait a moment for the mnemonic prompt
 sleep 1
-send "$VAL_MNEMONIC\r"
+send "$mnemonic\r"
 
 # Wait for the keyring passphrase prompt
 sleep 2
-send "$VAL_PASSWORD\r"
+send "$password\r"
 
 # Wait for the confirmation prompt
 sleep 1
-send "$VAL_PASSWORD\r"
+send "$password\r"
 
 # Wait for the command to complete
 expect eof
