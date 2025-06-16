@@ -1,0 +1,26 @@
+#!/usr/bin/expect -f
+
+# Set timeout for each step
+set timeout 20
+
+# Set variables (use env vars if needed)
+set mnemonic "$VAL_MNEMONIC"
+set password "$VAL_PASSWORD"
+
+# Start the command
+spawn nxqd keys add primary --recover --keyring-backend file --algo eth_secp256k1 --home "~/.nxqd"
+
+# Wait a moment for the mnemonic prompt
+sleep 1
+send "$mnemonic\r"
+
+# Wait for the keyring passphrase prompt
+sleep 2
+send "$password\r"
+
+# Wait for the confirmation prompt
+sleep 1
+send "$password\r"
+
+# Wait for the command to complete
+expect eof
