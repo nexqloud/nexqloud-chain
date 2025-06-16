@@ -1,0 +1,16 @@
+#!/usr/bin/expect -f
+
+# Set timeout for each step
+set timeout 20
+
+set nxqd_home $env(NXQD_HOME)
+set password $env(VAL_PASSWORD)
+set address $(nxqd keys show "primary" -a --keyring-backend "file" --home "$nxqd_home")
+
+spawn nxqd add-genesis-account "$address" "21000000000000000000000000unxq" --keyring-backend "file" --home "$nxqd_home"
+
+sleep 1
+send "$password\r"
+
+# Wait for the command to complete
+expect eof
