@@ -12,6 +12,13 @@ if [ -z "$SEED_NODE_IP" ]; then
     SEED_NODE_IP="13.203.229.219"
 fi
 
+# Multiple seed nodes for redundancy (comma-separated)
+ADDITIONAL_SEED_NODES=${ADDITIONAL_SEED_NODES:-""}
+
+# Persistent peers for direct validator connections (comma-separated)
+# Format: "nodeID@ip:port,nodeID2@ip2:port"
+PERSISTENT_PEERS=${PERSISTENT_PEERS:-""}
+
 # #staging
 # if [ -z "$SEED_NODE_IP" ]; then
 #     SEED_NODE_IP="stage-node.nexqloud.net"
@@ -167,6 +174,12 @@ init() {
     echo "Using seed node ID: $SEED_NODE_ID"
     SEEDS="$SEED_NODE_ID@$SEED_NODE_IP:26656"
 
+    # Add additional seed nodes if provided
+    if [ -n "$ADDITIONAL_SEED_NODES" ]; then
+        echo "Adding additional seed nodes: $ADDITIONAL_SEED_NODES"
+        SEEDS="$SEEDS,$ADDITIONAL_SEED_NODES"
+    fi
+
     # Update seeds in config
     if [[ "$OSTYPE" == "darwin"* ]]; then
         TMP_CONFIG=$(mktemp)
@@ -174,6 +187,32 @@ init() {
         rm -f "$TMP_CONFIG"
     else
         sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
+    fi
+
+    # Configure persistent peers if provided
+    if [ -n "$PERSISTENT_PEERS" ]; then
+        echo "Configuring persistent peers: $PERSISTENT_PEERS"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            TMP_CONFIG=$(mktemp)
+            sed "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
+            rm -f "$TMP_CONFIG"
+        else
+            sed -i "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+        fi
+    fi
+
+    # Optimize peer discovery settings for better network resilience
+    echo "Optimizing peer discovery settings..."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        TMP_CONFIG=$(mktemp)
+        sed 's/addr_book_strict = true/addr_book_strict = false/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
+        sed 's/max_num_inbound_peers = 40/max_num_inbound_peers = 80/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
+        sed 's/max_num_outbound_peers = 10/max_num_outbound_peers = 20/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
+        rm -f "$TMP_CONFIG"
+    else
+        sed -i 's/addr_book_strict = true/addr_book_strict = false/g' "$CONFIG"
+        sed -i 's/max_num_inbound_peers = 40/max_num_inbound_peers = 80/g' "$CONFIG"
+        sed -i 's/max_num_outbound_peers = 10/max_num_outbound_peers = 20/g' "$CONFIG"
     fi
 
     echo "Node initialized successfully!"

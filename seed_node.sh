@@ -8,6 +8,11 @@ KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
 HOMEDIR="$HOME/.nxqd"
 
+# Additional seed nodes for redundancy (add more as needed)
+ADDITIONAL_SEEDS=${ADDITIONAL_SEEDS:-""}
+# Persistent peers for direct validator connections
+PERSISTENT_PEERS=${PERSISTENT_PEERS:-""}
+
 #for local testing
 # NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
@@ -270,6 +275,43 @@ initialize_blockchain() {
     # Verify the change was applied
     print_info "Verifying Tendermint RPC configuration:"
     grep "laddr = \"tcp:" "$CONFIG"
+    
+    # Configure network peers for better resilience
+    print_section "Configuring Network Peers"
+    
+    # Set up additional seeds if provided
+    if [ -n "$ADDITIONAL_SEEDS" ]; then
+        print_info "Configuring additional seed nodes: $ADDITIONAL_SEEDS"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/seeds =.*/seeds = \"$ADDITIONAL_SEEDS\"/g" "$CONFIG"
+        else
+            sed -i "s/seeds =.*/seeds = \"$ADDITIONAL_SEEDS\"/g" "$CONFIG"
+        fi
+    fi
+    
+    # Set up persistent peers if provided
+    if [ -n "$PERSISTENT_PEERS" ]; then
+        print_info "Configuring persistent peers: $PERSISTENT_PEERS"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+        else
+            sed -i "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+        fi
+    fi
+    
+    # Enable peer discovery settings for better network resilience
+    print_info "Optimizing peer discovery settings"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/addr_book_strict = true/addr_book_strict = false/g' "$CONFIG"
+        sed -i '' 's/max_num_inbound_peers = 40/max_num_inbound_peers = 100/g' "$CONFIG"
+        sed -i '' 's/max_num_outbound_peers = 10/max_num_outbound_peers = 25/g' "$CONFIG"
+    else
+        sed -i 's/addr_book_strict = true/addr_book_strict = false/g' "$CONFIG"
+        sed -i 's/max_num_inbound_peers = 40/max_num_inbound_peers = 100/g' "$CONFIG"
+        sed -i 's/max_num_outbound_peers = 10/max_num_outbound_peers = 25/g' "$CONFIG"
+    fi
+    
+    print_success "Network peer configuration completed"
     
     print_section "Initialization Complete"
     print_success "Node has been successfully initialized!"

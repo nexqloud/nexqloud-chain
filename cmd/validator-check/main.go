@@ -26,12 +26,12 @@ type ContractConfig struct {
 	// NodeURL is the URL of the Ethereum JSON-RPC endpoint for testing
 	NodeURL string
 }
-
+ 
 // DefaultContractConfig returns the default configuration for the staking module
 func DefaultContractConfig() ContractConfig {
 	return ContractConfig{
-		NFTContractAddress:         common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099"),
-		WalletStateContractAddress: common.HexToAddress("0x687A737732FFee7b38dF33e91f58723ea19F9145"),
+		NFTContractAddress:         common.HexToAddress("0x1dC7fe6712F76c4ebFaad69284FbFe31153b9ebE"),
+		WalletStateContractAddress: common.HexToAddress("0x1bABb0B43e8E16Dc62C13a7d4678B290b0778C99"),
 		NodeURL:                    "http://dev-node.nexqloud.net:8545",
 	}
 }
