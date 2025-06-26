@@ -175,11 +175,13 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	// Cache the result
 	cacheMutex.Lock()
+	log.Println("Caching chain status ✅✅✅✅")
 	chainStatusCacheMap["chain_status"] = &chainStatusCache{
 		isOpen:    isOpen,
 		timestamp: time.Now(),
 		height:    currentHeight,
 	}
+	log.Println("Status cached ✅✅✅✅", chainStatusCacheMap["chain_status"])
 	cacheMutex.Unlock()
 
 	if isOpen {
