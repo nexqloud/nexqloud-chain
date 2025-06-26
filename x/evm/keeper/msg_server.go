@@ -10,6 +10,8 @@ import (
 	"log"
 	"math/big"
 	"strconv"
+	"sync"
+	"time"
 
 	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	"golang.org/x/crypto/sha3"
@@ -32,12 +34,59 @@ import (
 
 // }
 var _ types.MsgServer = &Keeper{}
-var whitelist = map[string]bool{
-	//staging config
-	"0x50823c6fBF2Dd945480951ABBa144b9a1e89dFC3": true,
 
-	//dev config
-	// "0xE56A21BB0619225616DE7613937b2b816A14deB1": true,
+// Cache structures to reduce EthCall frequency
+type chainStatusCache struct {
+	isOpen    bool
+	timestamp time.Time
+	height    int64
+}
+
+type walletLockCache struct {
+	isUnlocked bool
+	timestamp  time.Time
+	height     int64
+	amount     *big.Int
+}
+
+var (
+	whitelist = map[string]bool{
+		//staging config
+		"0x50823c6fBF2Dd945480951ABBa144b9a1e89dFC3": true,
+
+		//dev config
+		// "0xE56A21BB0619225616DE7613937b2b816A14deB1": true,
+	}
+	
+	// Cache with mutex for thread safety
+	chainStatusCacheMap = make(map[string]*chainStatusCache)
+	walletLockCacheMap  = make(map[string]*walletLockCache)
+	cacheMutex          sync.RWMutex
+	
+	// Cache duration - 5 seconds to reduce memory pressure
+	cacheDuration = 5 * time.Second
+)
+
+// cleanupCache removes expired cache entries to prevent memory leaks
+func cleanupCache() {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	
+	now := time.Now()
+	
+	// Cleanup chain status cache
+	for key, cache := range chainStatusCacheMap {
+		if now.Sub(cache.timestamp) > cacheDuration {
+			delete(chainStatusCacheMap, key)
+		}
+	}
+	
+	// Cleanup wallet lock cache
+	for key, cache := range walletLockCacheMap {
+		if now.Sub(cache.timestamp) > cacheDuration {
+			delete(walletLockCacheMap, key)
+		}
+	}
 }
 
 func getFunctionSelector(signature string) []byte {
@@ -57,6 +106,27 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	log.Println("🔍 Checking chain status")
 	
 	currentHeight := ctx.BlockHeight()
+	
+	// Periodic cache cleanup (every 10th call)
+	if currentHeight%10 == 0 {
+		cleanupCache()
+	}
+	
+	// Check cache first
+	cacheMutex.RLock()
+	if cache, exists := chainStatusCacheMap["chain_status"]; exists {
+		if time.Since(cache.timestamp) < cacheDuration && cache.height == currentHeight {
+			cacheMutex.RUnlock()
+			if cache.isOpen {
+				log.Println("✅ Chain is OPEN (cached)")
+			} else {
+				log.Println("❌ Chain is CLOSED (cached)")
+			}
+			return cache.isOpen, nil
+		}
+	}
+	cacheMutex.RUnlock()
+	
 	previousHeight := currentHeight - 1
 	
 	// Get the previous block's header
@@ -103,6 +173,15 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	threshold := big.NewInt(1000)
 	isOpen := count.Cmp(threshold) >= 0
 
+	// Cache the result
+	cacheMutex.Lock()
+	chainStatusCacheMap["chain_status"] = &chainStatusCache{
+		isOpen:    isOpen,
+		timestamp: time.Now(),
+		height:    currentHeight,
+	}
+	cacheMutex.Unlock()
+
 	if isOpen {
 		log.Println("✅ Chain is OPEN")
 		return true, nil
@@ -122,6 +201,31 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
 	log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
+
+	currentHeight := ctx.BlockHeight()
+	walletKey := from.Hex()
+	
+	// Periodic cache cleanup (every 10th call)
+	if currentHeight%10 == 0 {
+		cleanupCache()
+	}
+	
+	// Check cache first
+	cacheMutex.RLock()
+	if cache, exists := walletLockCacheMap[walletKey]; exists {
+		if time.Since(cache.timestamp) < cacheDuration && 
+		   cache.height == currentHeight && 
+		   cache.amount.Cmp(txAmount) >= 0 {
+			cacheMutex.RUnlock()
+			if cache.isUnlocked {
+				log.Println("✅ Wallet is unlocked (cached)")
+			} else {
+				log.Println("❌ Wallet is locked (cached)")
+			}
+			return cache.isUnlocked, nil
+		}
+	}
+	cacheMutex.RUnlock()
 
 	// Define the WalletState contract address
 	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
@@ -168,10 +272,14 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	lockStatus := new(big.Int).SetBytes(res.Ret[:32]).Uint64() % 256
 	lockedAmount := new(big.Int).SetBytes(res.Ret[32:64]) // Correct position
 	
+	var isUnlocked bool
+	var resultError error
+	
 	switch lockStatus {
 	case 0: // No_Lock
 		log.Println("✅ Wallet is unlocked")
-		return true, nil
+		isUnlocked = true
+		resultError = nil
 
 	case 1: // Amount_Lock
 		// Ensure locked amount is not greater than total balance
@@ -209,24 +317,43 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 			// If difference is within tolerance, allow the transaction
 			if diff.Cmp(tolerance) <= 0 {
 				log.Printf("✅ Transaction within tolerance (diff: %s wei)", diff.String())
-				return true, nil
+				isUnlocked = true
+				resultError = nil
+			} else {
+				log.Printf("❌ Tx %s > Allowed %s (diff: %s)", txAmount.String(), maxAllowed.String(), diff.String())
+				isUnlocked = false
+				resultError = fmt.Errorf("exceeds limit")
 			}
-
-			log.Printf("❌ Tx %s > Allowed %s (diff: %s)", txAmount.String(), maxAllowed.String(), diff.String())
-			return false, fmt.Errorf("exceeds limit")
+		} else {
+			log.Println("✅ Transaction allowed under amount lock")
+			isUnlocked = true
+			resultError = nil
 		}
-
-		log.Println("✅ Transaction allowed under amount lock")
-		return true, nil
 
 	case 2: // Absolute_Lock
 		log.Println("❌ Wallet is fully locked")
-		return false, fmt.Errorf("wallet is fully locked")
+		isUnlocked = false
+		resultError = fmt.Errorf("wallet is fully locked")
 
 	default:
 		log.Println("❌ Unknown lock status")
-		return false, fmt.Errorf("unknown lock status")
+		isUnlocked = false
+		resultError = fmt.Errorf("unknown lock status")
 	}
+
+	// Cache the result only if successful
+	if resultError == nil {
+		cacheMutex.Lock()
+		walletLockCacheMap[walletKey] = &walletLockCache{
+			isUnlocked: isUnlocked,
+			timestamp:  time.Now(),
+			height:     currentHeight,
+			amount:     new(big.Int).Set(txAmount),
+		}
+		cacheMutex.Unlock()
+	}
+
+	return isUnlocked, resultError
 }
 
 // EthereumTx implements the gRPC MsgServer interface. It receives a transaction which is then
@@ -254,13 +381,14 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	// Check whitelist first
 	if !whitelist[from.Hex()] {
 		// Only check chain status and wallet lock for non-whitelisted addresses
-		isOpen, err := k.IsChainOpen(ctx, from)
-		if err != nil {
-			return nil, errorsmod.Wrap(err, "failed to check if chain is open")
-		}
-		if !isOpen {
-			return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-		}
+
+			isOpen, err := k.IsChainOpen(ctx, from)
+			if err != nil {
+				return nil, errorsmod.Wrap(err, "failed to check if chain is open")
+			}
+			if !isOpen {
+				return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
+			}
 
 		txAmount := tx.Value()
 		isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
