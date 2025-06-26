@@ -71,6 +71,8 @@ var (
 	
 	// Cache statistics
 	cleanupCounter = 0
+	cacheHits      = 0
+	cacheMisses    = 0
 )
 
 // cleanupCache removes expired cache entries to prevent memory leaks
@@ -97,8 +99,13 @@ func cleanupCache() {
 	// Log cache statistics every 50th cleanup
 	cleanupCounter++
 	if cleanupCounter%50 == 0 {
-		log.Printf("📊 Cache Stats - Chain Status: %d entries, Wallet Lock: %d entries", 
-			len(chainStatusCacheMap), len(walletLockCacheMap))
+		totalRequests := cacheHits + cacheMisses
+		hitRate := 0.0
+		if totalRequests > 0 {
+			hitRate = float64(cacheHits) / float64(totalRequests) * 100
+		}
+		log.Printf("📊 Cache Stats - Chain Status: %d entries, Wallet Lock: %d entries, Hit Rate: %.2f%% (%d hits, %d misses)", 
+			len(chainStatusCacheMap), len(walletLockCacheMap), hitRate, cacheHits, cacheMisses)
 	}
 }
 
@@ -125,18 +132,19 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		cleanupCache()
 	}
 	
-	// Use a more flexible cache key based on block height range
-	// This allows cache hits for transactions within the same block or nearby blocks
-	cacheKey := fmt.Sprintf("chain_status_%d", currentHeight/10) // Group by 10-block ranges
+	// Use a simpler cache key - just "chain_status" since we only need one global status
+	cacheKey := "chain_status"
 	
 	// Check cache first
 	cacheMutex.RLock()
 	if cache, exists := chainStatusCacheMap[cacheKey]; exists {
-		// More flexible height check - allow cache hits within 5 blocks
+		// More flexible height check - allow cache hits within 10 blocks
 		if time.Since(cache.timestamp) < cacheDuration && 
-		   abs(currentHeight - cache.height) <= 5 {
+		   abs(currentHeight - cache.height) <= 10 {
 			cacheMutex.RUnlock()
-			log.Printf("🎯 Cache HIT for key: %s, height: %d, cached_height: %d", cacheKey, currentHeight, cache.height)
+			cacheHits++
+			log.Printf("🎯 Cache HIT for key: %s, height: %d, cached_height: %d, time_since: %v", 
+				cacheKey, currentHeight, cache.height, time.Since(cache.timestamp))
 			if cache.isOpen {
 				log.Println("✅ Chain is OPEN (cached)")
 			} else {
@@ -148,9 +156,18 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 				cacheKey, time.Since(cache.timestamp), abs(currentHeight - cache.height))
 		}
 	} else {
-		log.Printf("❌ Cache MISS for key: %s", cacheKey)
+		cacheMisses++
+		log.Printf("❌ Cache MISS for key: %s (no entry exists)", cacheKey)
 	}
 	cacheMutex.RUnlock()
+	
+	// Debug: Log all existing cache keys
+	cacheMutex.RLock()
+	log.Printf("🔍 Current cache keys: %v", getCacheKeys())
+	cacheMutex.RUnlock()
+	
+	// Verify cache state before making EthCall
+	verifyCacheState()
 	
 	previousHeight := currentHeight - 1
 	
@@ -200,14 +217,17 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	// Cache the result
 	cacheMutex.Lock()
-	log.Println("Caching chain status ✅✅✅✅")
+	log.Printf("💾 Caching chain status for key: %s, height: %d, isOpen: %v", cacheKey, currentHeight, isOpen)
 	chainStatusCacheMap[cacheKey] = &chainStatusCache{
 		isOpen:    isOpen,
 		timestamp: time.Now(),
 		height:    currentHeight,
 	}
-	log.Println("Status cached ✅✅✅✅", chainStatusCacheMap[cacheKey])
+	log.Printf("✅ Status cached: %+v", chainStatusCacheMap[cacheKey])
 	cacheMutex.Unlock()
+
+	// Verify cache state after caching
+	verifyCacheState()
 
 	if isOpen {
 		log.Println("✅ Chain is OPEN")
@@ -216,6 +236,30 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	log.Println("❌ Chain is CLOSED")
 	return false, nil
+}
+
+// getCacheKeys returns all current cache keys for debugging
+func getCacheKeys() []string {
+	keys := make([]string, 0, len(chainStatusCacheMap))
+	for key := range chainStatusCacheMap {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// verifyCacheState logs the current state of the cache for debugging
+func verifyCacheState() {
+	cacheMutex.RLock()
+	defer cacheMutex.RUnlock()
+	
+	log.Printf("🔍 Cache State Verification:")
+	log.Printf("  - Chain Status Cache Entries: %d", len(chainStatusCacheMap))
+	log.Printf("  - Wallet Lock Cache Entries: %d", len(walletLockCacheMap))
+	
+	for key, cache := range chainStatusCacheMap {
+		log.Printf("  - Key: %s, Height: %d, IsOpen: %v, Age: %v", 
+			key, cache.height, cache.isOpen, time.Since(cache.timestamp))
+	}
 }
 
 // abs returns the absolute value of an int64
