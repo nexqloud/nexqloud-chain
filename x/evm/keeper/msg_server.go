@@ -63,8 +63,14 @@ var (
 	walletLockCacheMap  = make(map[string]*walletLockCache)
 	cacheMutex          sync.RWMutex
 	
-	// Cache duration - 5 seconds to reduce memory pressure
-	cacheDuration = 5 * time.Second
+	// Cache duration - increased to 30 seconds for better cache hit rate
+	cacheDuration = 30 * time.Second
+	
+	// Emergency mode - disable chain status checks during high load
+	emergencyMode = false
+	
+	// Cache statistics
+	cleanupCounter = 0
 )
 
 // cleanupCache removes expired cache entries to prevent memory leaks
@@ -86,6 +92,13 @@ func cleanupCache() {
 		if now.Sub(cache.timestamp) > cacheDuration {
 			delete(walletLockCacheMap, key)
 		}
+	}
+	
+	// Log cache statistics every 50th cleanup
+	cleanupCounter++
+	if cleanupCounter%50 == 0 {
+		log.Printf("📊 Cache Stats - Chain Status: %d entries, Wallet Lock: %d entries", 
+			len(chainStatusCacheMap), len(walletLockCacheMap))
 	}
 }
 
@@ -112,18 +125,30 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 		cleanupCache()
 	}
 	
+	// Use a more flexible cache key based on block height range
+	// This allows cache hits for transactions within the same block or nearby blocks
+	cacheKey := fmt.Sprintf("chain_status_%d", currentHeight/10) // Group by 10-block ranges
+	
 	// Check cache first
 	cacheMutex.RLock()
-	if cache, exists := chainStatusCacheMap["chain_status"]; exists {
-		if time.Since(cache.timestamp) < cacheDuration && cache.height == currentHeight {
+	if cache, exists := chainStatusCacheMap[cacheKey]; exists {
+		// More flexible height check - allow cache hits within 5 blocks
+		if time.Since(cache.timestamp) < cacheDuration && 
+		   abs(currentHeight - cache.height) <= 5 {
 			cacheMutex.RUnlock()
+			log.Printf("🎯 Cache HIT for key: %s, height: %d, cached_height: %d", cacheKey, currentHeight, cache.height)
 			if cache.isOpen {
 				log.Println("✅ Chain is OPEN (cached)")
 			} else {
 				log.Println("❌ Chain is CLOSED (cached)")
 			}
 			return cache.isOpen, nil
+		} else {
+			log.Printf("⏰ Cache EXPIRED for key: %s, time_since: %v, height_diff: %d", 
+				cacheKey, time.Since(cache.timestamp), abs(currentHeight - cache.height))
 		}
+	} else {
+		log.Printf("❌ Cache MISS for key: %s", cacheKey)
 	}
 	cacheMutex.RUnlock()
 	
@@ -176,12 +201,12 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	// Cache the result
 	cacheMutex.Lock()
 	log.Println("Caching chain status ✅✅✅✅")
-	chainStatusCacheMap["chain_status"] = &chainStatusCache{
+	chainStatusCacheMap[cacheKey] = &chainStatusCache{
 		isOpen:    isOpen,
 		timestamp: time.Now(),
 		height:    currentHeight,
 	}
-	log.Println("Status cached ✅✅✅✅", chainStatusCacheMap["chain_status"])
+	log.Println("Status cached ✅✅✅✅", chainStatusCacheMap[cacheKey])
 	cacheMutex.Unlock()
 
 	if isOpen {
@@ -191,6 +216,14 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 
 	log.Println("❌ Chain is CLOSED")
 	return false, nil
+}
+
+// abs returns the absolute value of an int64
+func abs(x int64) int64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // IsWalletUnlocked checks if a wallet is unlocked and whether a transaction
@@ -212,20 +245,30 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 		cleanupCache()
 	}
 	
-	// Check cache first
+	// Check cache first with more flexible conditions
 	cacheMutex.RLock()
 	if cache, exists := walletLockCacheMap[walletKey]; exists {
+		// More flexible cache hit conditions:
+		// 1. Cache is still valid (within time limit)
+		// 2. Height is within 5 blocks
+		// 3. Transaction amount is less than or equal to cached amount
 		if time.Since(cache.timestamp) < cacheDuration && 
-		   cache.height == currentHeight && 
-		   cache.amount.Cmp(txAmount) >= 0 {
+		   abs(currentHeight - cache.height) <= 5 && 
+		   txAmount.Cmp(cache.amount) <= 0 {
 			cacheMutex.RUnlock()
+			log.Printf("🎯 Wallet Cache HIT for: %s, height: %d, cached_height: %d", walletKey, currentHeight, cache.height)
 			if cache.isUnlocked {
 				log.Println("✅ Wallet is unlocked (cached)")
 			} else {
 				log.Println("❌ Wallet is locked (cached)")
 			}
 			return cache.isUnlocked, nil
+		} else {
+			log.Printf("⏰ Wallet Cache EXPIRED for: %s, time_since: %v, height_diff: %d", 
+				walletKey, time.Since(cache.timestamp), abs(currentHeight - cache.height))
 		}
+	} else {
+		log.Printf("❌ Wallet Cache MISS for: %s", walletKey)
 	}
 	cacheMutex.RUnlock()
 
