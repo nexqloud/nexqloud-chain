@@ -9,7 +9,8 @@ fi
 
 #dev
 if [ -z "$SEED_NODE_IP" ]; then
-    SEED_NODE_IP="13.203.229.219"
+    # SEED_NODE_IP="13.203.229.219"
+    SEED_NODE_IP="35.88.12.129"
 fi
 
 # #staging
