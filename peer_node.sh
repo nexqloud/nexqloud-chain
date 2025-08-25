@@ -9,7 +9,8 @@ fi
 
 #dev
 if [ -z "$SEED_NODE_IP" ]; then
-    SEED_NODE_IP="13.203.229.219"
+    # SEED_NODE_IP="13.203.229.219"
+    SEED_NODE_IP="35.88.12.129"
 fi
 
 # #staging
@@ -75,7 +76,7 @@ init() {
     $NXQD_BIN config node tcp://$SEED_NODE_IP:26657 --home "$HOMEDIR"
 
     # Generate a new key
-    $NXQD_BIN keys add "$MONIKER" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+    echo "$VAL_MNEMONIC" | $NXQD_BIN keys add "$MONIKER" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
     VAL_ADDRESS=$($NXQD_BIN keys show "$MONIKER" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
     echo "Validator address: $VAL_ADDRESS"
 
