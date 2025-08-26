@@ -172,6 +172,16 @@ initialize_blockchain() {
     # Set base fee in genesis
     jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
     
+    # Configure block time (1 block every 8 seconds)
+    print_info "Setting block time to 8 seconds (0.125 blocks per second)"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i '' 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+    else
+        sed -i 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+    fi
+    
     # Prometheus
     print_info "Enabling Prometheus metrics and APIs"
     if [[ "$OSTYPE" == "darwin"* ]]; then

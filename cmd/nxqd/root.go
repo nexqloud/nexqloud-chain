@@ -349,7 +349,8 @@ func (a appCreator) appExport(
 // return tmcfg.DefaultConfig if no custom configuration is required for the application.
 func initTendermintConfig() *tmcfg.Config {
 	cfg := tmcfg.DefaultConfig()
-	cfg.Consensus.TimeoutCommit = time.Second * 3
+	// Set timeout_commit to 8 seconds (1 block every 8 seconds = 0.125 blocks/second)
+	cfg.Consensus.TimeoutCommit = time.Second * 8
 	// use v0 since v1 severely impacts the node's performance
 	cfg.Mempool.Version = tmcfg.MempoolV0
 
