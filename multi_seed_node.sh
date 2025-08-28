@@ -79,13 +79,21 @@ usage() {
     echo "  start             Start the second seed node"
     echo
     echo "Environment variables:"
-    echo "  KEYRING_PASSWORD  Set this to provide the keyring password (optional)"
-    echo "  FIRST_SEED_IP     IP of the first seed node (default: 98.81.138.222)"
+    echo "  KEYRING_PASSWORD       Set this to provide the keyring password (optional)"
+    echo "  FIRST_SEED_IP          IP of the first seed node (default: 98.81.138.222)"
+    echo "  PERSISTENT_PEER_IP     IP of the persistent peer (default: 96.30.197.66)"
+    echo "  LOCAL_TESTING          Set to 'true' for local testing mode (skips genesis download)"
     echo
     echo "Examples:"
-    echo "  $0 init                          # Initialize second seed node"
-    echo "  FIRST_SEED_IP=custom-ip $0 init  # Initialize with custom first seed IP"
-    echo "  $0 start                         # Start the second seed node"
+    echo "  $0 init                                    # Initialize second seed node"
+    echo "  FIRST_SEED_IP=custom-ip $0 init           # Initialize with custom first seed IP"
+    echo "  LOCAL_TESTING=true $0 init                # Initialize in local testing mode"
+    echo "  $0 start                                   # Start the second seed node"
+    echo
+    echo "Production deployment (CentOS):"
+    echo "  1. Update code: git pull && make clean && make && sudo cp build/nxqd /usr/local/bin/"
+    echo "  2. Initialize: ./multi_seed_node.sh init"
+    echo "  3. Start: sudo systemctl start chain"
 	exit 1
 }
 
@@ -155,32 +163,47 @@ initialize_second_seed() {
     print_info "Initializing second seed node with moniker: $MONIKER and chain-id: $CHAINID"
     $NXQD_BIN init $MONIKER -o --chain-id "$CHAINID" --home "$HOMEDIR"
     
-    # Download genesis from first seed node
-    print_section "Downloading Genesis from First Seed"
-    print_info "Downloading genesis file from first seed node: $FIRST_SEED_IP"
+    # Download genesis from first seed node (or skip for local testing)
+    print_section "Genesis Setup"
     
-    if wget -qO "$GENESIS" "http://$FIRST_SEED_IP/genesis.json"; then
-        print_success "Downloaded genesis file from first seed node: $FIRST_SEED_IP"
+    if [ -n "$LOCAL_TESTING" ] && [ "$LOCAL_TESTING" = "true" ]; then
+        print_info "LOCAL_TESTING mode: Using default genesis file"
+        print_success "Using locally generated genesis file for testing"
     else
-        error_exit "Failed to download genesis file from first seed node: $FIRST_SEED_IP. Make sure the first seed node is running and accessible."
+        print_info "Downloading genesis file from first seed node: $FIRST_SEED_IP"
+        
+        # Try wget first (available on CentOS), then curl as fallback
+        if command -v wget >/dev/null 2>&1; then
+            if wget -qO "$GENESIS" "http://$FIRST_SEED_IP/genesis.json"; then
+                print_success "Downloaded genesis file from first seed node: $FIRST_SEED_IP"
+            else
+                error_exit "Failed to download genesis file from first seed node: $FIRST_SEED_IP. Make sure the first seed node is running and accessible."
+            fi
+        elif command -v curl >/dev/null 2>&1; then
+            if curl -s -o "$GENESIS" "http://$FIRST_SEED_IP/genesis.json"; then
+                print_success "Downloaded genesis file from first seed node: $FIRST_SEED_IP"
+            else
+                error_exit "Failed to download genesis file from first seed node: $FIRST_SEED_IP. Make sure the first seed node is running and accessible."
+            fi
+        else
+            error_exit "Neither wget nor curl found. Please install one of them."
+        fi
+        
+        # Validate the downloaded genesis
+        print_info "Validating downloaded genesis file"
+        if ! $NXQD_BIN validate-genesis --home "$HOMEDIR"; then
+            error_exit "Downloaded genesis file is invalid"
+        fi
+        
+        print_success "Genesis file validated successfully"
     fi
-    
-    # Validate the downloaded genesis
-    print_info "Validating downloaded genesis file"
-    if ! $NXQD_BIN validate-genesis --home "$HOMEDIR"; then
-        error_exit "Downloaded genesis file is invalid"
-    fi
-    
-    print_success "Genesis file validated successfully"
     
     # Configure block time (1 block every 8 seconds)
     print_info "Setting block time to 8 seconds (0.125 blocks per second)"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
-        sed -i '' 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i '' 's/^timeout_commit = .*/timeout_commit = "8s"/' "$CONFIG"
     else
-        sed -i 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
-        sed -i 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i 's/^timeout_commit = .*/timeout_commit = "8s"/' "$CONFIG"
     fi
     
     # Configure second seed node network connections
@@ -194,10 +217,24 @@ initialize_second_seed() {
     get_node_id() {
         local ip=$1
         local node_id
-        if node_id=$(wget -qO- "http://$ip/node-id" 2>/dev/null); then
-            echo "$node_id"
+        
+        # Try wget first (available on CentOS), then curl as fallback
+        if command -v wget >/dev/null 2>&1; then
+            if node_id=$(wget -qO- "http://$ip/node-id" 2>/dev/null); then
+                echo "$node_id"
+            else
+                print_warning "Could not get node ID from $ip (may not be running yet)"
+                return 1
+            fi
+        elif command -v curl >/dev/null 2>&1; then
+            if node_id=$(curl -s "http://$ip/node-id" 2>/dev/null); then
+                echo "$node_id"
+            else
+                print_warning "Could not get node ID from $ip (may not be running yet)"
+                return 1
+            fi
         else
-            print_warning "Could not get node ID from $ip (may not be running yet)"
+            print_warning "Neither wget nor curl found for getting node ID from $ip"
             return 1
         fi
     }
@@ -231,9 +268,9 @@ initialize_second_seed() {
     if [ -n "$PERSISTENT_PEERS" ]; then
         print_info "Configuring persistent peers: $PERSISTENT_PEERS"
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+            sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
         else
-            sed -i "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+            sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
         fi
     else
         print_warning "No persistent peers configured (other nodes may not be running yet)"
