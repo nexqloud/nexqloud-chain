@@ -8,10 +8,10 @@ if [ -z "$MONIKER" ]; then
 fi
 
 #for local testing
-NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-# NXQD_BIN="/usr/local/bin/nxqd"
+NXQD_BIN="/usr/local/bin/nxqd"
 
 KEYRING="test"
 KEYALGO="eth_secp256k1"
@@ -205,14 +205,14 @@ if [[ $1 == "init" ]]; then
     
     # Update config.toml with seeds and persistent peers
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
+        sed -i '' "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
         if [ -n "$PERSISTENT_PEERS" ]; then
-            sed -i '' "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+            sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
         fi
     else
-        sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
+        sed -i "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
         if [ -n "$PERSISTENT_PEERS" ]; then
-            sed -i "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+            sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
         fi
     fi
 
@@ -222,12 +222,25 @@ if [[ $1 == "init" ]]; then
     
     # Try each seed node for genesis file
     for ip in "$SEED_NODE_1_IP" "$SEED_NODE_2_IP"; do
-        if wget -qO- "http://$ip/genesis.json" > "$GENESIS" 2>/dev/null; then
-            print_success "Genesis file downloaded from $ip"
-            GENESIS_DOWNLOADED=true
-            break
+        # Try wget first (available on CentOS), then curl as fallback
+        if command -v wget >/dev/null 2>&1; then
+            if wget -qO "$GENESIS" "http://$ip/genesis.json" 2>/dev/null; then
+                print_success "Genesis file downloaded from $ip (using wget)"
+                GENESIS_DOWNLOADED=true
+                break
+            else
+                print_warning "Failed to download genesis from $ip using wget"
+            fi
+        elif command -v curl >/dev/null 2>&1; then
+            if curl -s -o "$GENESIS" "http://$ip/genesis.json" 2>/dev/null; then
+                print_success "Genesis file downloaded from $ip (using curl)"
+                GENESIS_DOWNLOADED=true
+                break
+            else
+                print_warning "Failed to download genesis from $ip using curl"
+            fi
         else
-            print_warning "Failed to download genesis from $ip"
+            print_warning "Neither wget nor curl available for downloading from $ip"
         fi
     done
     
