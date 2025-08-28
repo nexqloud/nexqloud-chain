@@ -49,3 +49,9 @@ peer node
 git reset --hard && git pull && rm -rf go.sum && make clean && make && sudo cp build/nxqd /usr/local/bin/
 
 ```
+```
+replace the chain service 
+
+sudo cp seed_chain.service /etc/systemd/system/chain.service
+
+```

@@ -7,6 +7,12 @@ if [ -z "$MONIKER" ]; then
 	MONIKER="NexQloudPeer"
 fi
 
+#for local testing
+NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+
+#for remote testing
+# NXQD_BIN="/usr/local/bin/nxqd"
+
 KEYRING="test"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
@@ -34,23 +40,58 @@ command -v jq >/dev/null 2>&1 || {
 # used to exit on first error (any non-zero exit code)
 set -e
 
+# Colors for better UX
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Display an informative message with color
+print_message() {
+    local color=$1
+    local message=$2
+    echo -e "${color}${message}${NC}"
+}
+
+# Display error and exit
+error_exit() {
+    print_message "$RED" "ERROR: $1"
+    exit 1
+}
+
+# Display a warning
+print_warning() {
+    print_message "$YELLOW" "WARNING: $1"
+}
+
+# Display info
+print_info() {
+    print_message "$BLUE" "INFO: $1"
+}
+
+# Display success
+print_success() {
+    print_message "$GREEN" "SUCCESS: $1"
+}
+
 if [[ $1 == "init" ]]; then
 
     # Remove the previous folder
     rm -rf "$HOMEDIR"
 
     # Set client config
-    nxqd config keyring-backend "$KEYRING" --home "$HOMEDIR"
-    nxqd config chain-id "$CHAINID" --home "$HOMEDIR"
+    $NXQD_BIN config keyring-backend "$KEYRING" --home "$HOMEDIR"
+    $NXQD_BIN config chain-id "$CHAINID" --home "$HOMEDIR"
 
     VAL_KEY="mykey"
     VAL_MNEMONIC="copper push brief egg scan entry inform record adjust fossil boss egg comic alien upon aspect dry avoid interest fury window hint race symptom"
 
     # Import keys from mnemonics
-    echo "$VAL_MNEMONIC" | nxqd keys add "$VAL_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+    echo "$VAL_MNEMONIC" | $NXQD_BIN keys add "$VAL_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
 
     # Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)
-    nxqd init $MONIKER -o --chain-id "$CHAINID" --home "$HOMEDIR"
+    $NXQD_BIN init $MONIKER -o --chain-id "$CHAINID" --home "$HOMEDIR"
 
     if [[ $1 == "pending" ]]; then
         if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -90,19 +131,115 @@ if [[ $1 == "init" ]]; then
         sed -i 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
     fi
 
-    # set seed node info
-    SEED_NODE_ID="`wget -qO-  http://$SEED_NODE_IP/node-id`"
-    echo "SEED_NODE_ID=$SEED_NODE_ID"
-    SEEDS="$SEED_NODE_ID@$SEED_NODE_IP:26656"
-    sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
+    # Configure multiple seed nodes for redundancy
+    print_info "Configuring multiple seed nodes and persistent peers"
+    
+    # Default seed nodes - can be overridden by environment variables
+    SEED_NODE_1_IP="${SEED_NODE_1_IP:-98.81.138.222}"
+    SEED_NODE_2_IP="${SEED_NODE_2_IP:-98.81.87.61}"
+    PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-96.30.197.66}"
+    
+    # Function to safely get node ID with fallback
+    get_node_id() {
+        local ip=$1
+        local node_id
+        if node_id=$(wget -qO- "http://$ip/node-id" 2>/dev/null); then
+            echo "$node_id"
+        else
+            print_warning "Failed to get node ID from $ip"
+            return 1
+        fi
+    }
+    
+    # Get node IDs from all available seed nodes
+    SEED_NODE_1_ID=""
+    SEED_NODE_2_ID=""
+    PERSISTENT_PEER_ID=""
+    
+    if get_node_id "$SEED_NODE_1_IP" >/dev/null 2>&1; then
+        SEED_NODE_1_ID=$(get_node_id "$SEED_NODE_1_IP")
+    fi
+    
+    if get_node_id "$SEED_NODE_2_IP" >/dev/null 2>&1; then
+        SEED_NODE_2_ID=$(get_node_id "$SEED_NODE_2_IP")
+    fi
+    
+    if get_node_id "$PERSISTENT_PEER_IP" >/dev/null 2>&1; then
+        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_IP")
+    fi
+    
+    # Build seeds list (only include available nodes)
+    SEEDS=""
+    if [ -n "$SEED_NODE_1_ID" ]; then
+        SEEDS="$SEED_NODE_1_ID@$SEED_NODE_1_IP:26656"
+        print_success "Added seed node 1: $SEED_NODE_1_IP"
+    fi
+    
+    if [ -n "$SEED_NODE_2_ID" ]; then
+        if [ -n "$SEEDS" ]; then
+            SEEDS="$SEEDS,$SEED_NODE_2_ID@$SEED_NODE_2_IP:26656"
+        else
+            SEEDS="$SEED_NODE_2_ID@$SEED_NODE_2_IP:26656"
+        fi
+        print_success "Added seed node 2: $SEED_NODE_2_IP"
+    fi
+    
+    # Build persistent peers list
+    PERSISTENT_PEERS=""
+    if [ -n "$PERSISTENT_PEER_ID" ]; then
+        PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
+        print_success "Added persistent peer: $PERSISTENT_PEER_IP"
+    fi
+    
+    # Validate we have at least one seed
+    if [ -z "$SEEDS" ]; then
+        error_exit "No seed nodes available! Check network connectivity."
+    fi
+    
+    # Apply configuration
+    print_info "Configuring P2P settings:"
+    print_info "Seeds: $SEEDS"
+    if [ -n "$PERSISTENT_PEERS" ]; then
+        print_info "Persistent Peers: $PERSISTENT_PEERS"
+    fi
+    
+    # Update config.toml with seeds and persistent peers
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
+        if [ -n "$PERSISTENT_PEERS" ]; then
+            sed -i '' "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+        fi
+    else
+        sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
+        if [ -n "$PERSISTENT_PEERS" ]; then
+            sed -i "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+        fi
+    fi
 
-    wget -qO- "http://$SEED_NODE_IP/genesis.json" > "$GENESIS"
+    # Download genesis file with fallback support
+    print_info "Downloading genesis file with fallback support"
+    GENESIS_DOWNLOADED=false
+    
+    # Try each seed node for genesis file
+    for ip in "$SEED_NODE_1_IP" "$SEED_NODE_2_IP"; do
+        if wget -qO- "http://$ip/genesis.json" > "$GENESIS" 2>/dev/null; then
+            print_success "Genesis file downloaded from $ip"
+            GENESIS_DOWNLOADED=true
+            break
+        else
+            print_warning "Failed to download genesis from $ip"
+        fi
+    done
+    
+    if [ "$GENESIS_DOWNLOADED" = false ]; then
+        error_exit "Could not download genesis file from any seed node!"
+    fi
 
-    nxqd validate-genesis --home "$HOMEDIR"
+    $NXQD_BIN validate-genesis --home "$HOMEDIR"
 
 else
     # Start the node
-    nxqd start \
+    $NXQD_BIN start \
         --metrics "$TRACE" \
         --log_level $LOGLEVEL \
         --minimum-gas-prices=0.0001nxq \

@@ -9,10 +9,10 @@ LOGLEVEL="info"
 HOMEDIR="$HOME/.nxqd"
 
 #for local testing
-# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
-NXQD_BIN="/usr/local/bin/nxqd"
+# NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
@@ -158,23 +158,23 @@ initialize_blockchain() {
     # Customize genesis settings
     print_info "Customizing genesis parameters"
     print_info "Disabling NFT validation for local testing"
-    
-    # Change parameter token denominations to nxq
-    jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["inflation"]["params"]["enable_inflation"]=false' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    
-    # Set gas limit in genesis
-    jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
-    # Set base fee in genesis
-    jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    
+	# Change parameter token denominations to nxq
+	jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+    jq '.app_state["inflation"]["params"]["enable_inflation"]=false' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
+	# Set gas limit in genesis
+	jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
+	# Set base fee in genesis
+	jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
     # Configure block time (1 block every 8 seconds)
     print_info "Setting block time to 8 seconds (0.125 blocks per second)"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
+		if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
         sed -i '' 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
     else
@@ -182,14 +182,96 @@ initialize_blockchain() {
         sed -i 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
     fi
     
+    # Configure seed node network connections
+    print_info "Configuring seed node network connections for redundancy"
+    
+    # Define other seed nodes (exclude current node based on environment or hostname)
+    OTHER_SEED_NODES="${OTHER_SEED_NODES:-}"
+    PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-96.30.197.66}"
+    
+    # If environment variable is not set, auto-detect based on common IPs
+    if [ -z "$OTHER_SEED_NODES" ]; then
+        # Get current external IP to exclude self
+        CURRENT_IP=$(wget -qO- ipinfo.io/ip 2>/dev/null || echo "unknown")
+        
+        # Define all known seed nodes
+        ALL_SEED_IPS="98.81.138.222 98.81.87.61"
+        
+        # Build list excluding current IP
+        for ip in $ALL_SEED_IPS; do
+            if [ "$ip" != "$CURRENT_IP" ]; then
+                if [ -z "$OTHER_SEED_NODES" ]; then
+                    OTHER_SEED_NODES="$ip"
+                else
+                    OTHER_SEED_NODES="$OTHER_SEED_NODES $ip"
+                fi
+            fi
+        done
+    fi
+    
+    # Function to safely get node ID
+    get_node_id() {
+        local ip=$1
+        local node_id
+        if node_id=$(wget -qO- "http://$ip/node-id" 2>/dev/null); then
+            echo "$node_id"
+        else
+            print_warning "Could not get node ID from $ip (may not be running yet)"
+            return 1
+        fi
+    }
+    
+    # Build persistent peers list for seed nodes
+    PERSISTENT_PEERS=""
+    
+    # Add other seed nodes as persistent peers
+    for ip in $OTHER_SEED_NODES; do
+        if get_node_id "$ip" >/dev/null 2>&1; then
+            NODE_ID=$(get_node_id "$ip")
+            if [ -n "$NODE_ID" ]; then
+                if [ -z "$PERSISTENT_PEERS" ]; then
+                    PERSISTENT_PEERS="$NODE_ID@$ip:26656"
+                else
+                    PERSISTENT_PEERS="$PERSISTENT_PEERS,$NODE_ID@$ip:26656"
+                fi
+                print_success "Added seed node peer: $ip"
+            fi
+        fi
+    done
+    
+    # Add dedicated persistent peer
+    if get_node_id "$PERSISTENT_PEER_IP" >/dev/null 2>&1; then
+        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_IP")
+        if [ -n "$PERSISTENT_PEER_ID" ]; then
+            if [ -z "$PERSISTENT_PEERS" ]; then
+                PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
+            else
+                PERSISTENT_PEERS="$PERSISTENT_PEERS,$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
+            fi
+            print_success "Added persistent peer: $PERSISTENT_PEER_IP"
+        fi
+    fi
+    
+    # Apply persistent peers configuration
+    if [ -n "$PERSISTENT_PEERS" ]; then
+        print_info "Configuring persistent peers: $PERSISTENT_PEERS"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+        else
+            sed -i "s/persistent_peers =.*/persistent_peers = \"$PERSISTENT_PEERS\"/g" "$CONFIG"
+        fi
+    else
+        print_warning "No persistent peers configured (other nodes may not be running yet)"
+    fi
+    
     # Prometheus
     print_info "Enabling Prometheus metrics and APIs"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
         sed -i '' 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
         sed -i '' 's/enabled = false/enabled = true/' "$APP_TOML"
-    else
-        sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
+	else
+		sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
         sed -i 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
         sed -i 's/enabled = false/enabled = true/' "$APP_TOML"
     fi
