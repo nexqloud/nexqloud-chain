@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# ============================================================================
+# NETWORK CONFIGURATION - Update these IPs as needed
+# ============================================================================
+SEED_NODE_1_IP="${SEED_NODE_1_IP:-98.81.138.222}"
+SEED_NODE_2_IP="${SEED_NODE_2_IP:-98.81.87.61}"
+PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-155.138.192.236}"
+
+# ============================================================================
+# NODE CONFIGURATION
+# ============================================================================
 CHAINID="nxqd_6000-1"
 
 # Set moniker if environment variable is not set
@@ -134,10 +144,7 @@ if [[ $1 == "init" ]]; then
     # Configure multiple seed nodes for redundancy
     print_info "Configuring multiple seed nodes and persistent peers"
     
-    # Default seed nodes - can be overridden by environment variables
-    SEED_NODE_1_IP="${SEED_NODE_1_IP:-98.81.138.222}"
-    SEED_NODE_2_IP="${SEED_NODE_2_IP:-98.81.87.61}"
-    PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-96.30.197.66}"
+    # Using seed nodes and persistent peer from top-level configuration
     
     # Function to safely get node ID with fallback
     get_node_id() {

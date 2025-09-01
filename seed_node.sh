@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-# Node configuration
+# ============================================================================
+# NETWORK CONFIGURATION - Update these IPs as needed
+# ============================================================================
+FIRST_SEED_IP="${FIRST_SEED_IP:-98.81.138.222}"
+SECOND_SEED_IP="${SECOND_SEED_IP:-98.81.87.61}"
+PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-155.138.192.236}"
+
+# ============================================================================
+# NODE CONFIGURATION
+# ============================================================================
 CHAINID="nxqd_6000-1"
 MONIKER="NexqloudSeedNode1"
 KEYALGO="eth_secp256k1"
@@ -187,7 +196,7 @@ initialize_blockchain() {
     
     # Define other seed nodes (exclude current node based on environment or hostname)
     OTHER_SEED_NODES="${OTHER_SEED_NODES:-}"
-    PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-96.30.197.66}"
+    # PERSISTENT_PEER_IP is defined at top of script
     
     # If environment variable is not set, auto-detect based on common IPs
     if [ -z "$OTHER_SEED_NODES" ]; then

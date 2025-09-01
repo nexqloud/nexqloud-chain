@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-# Second Seed Node Configuration
+# ============================================================================
+# NETWORK CONFIGURATION - Update these IPs as needed
+# ============================================================================
+FIRST_SEED_IP="${FIRST_SEED_IP:-98.81.138.222}"
+SECOND_SEED_IP="${SECOND_SEED_IP:-98.81.87.61}"
+PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-155.138.192.236}"
+
+# ============================================================================
+# NODE CONFIGURATION
+# ============================================================================
 CHAINID="nxqd_6000-1"
 MONIKER="NexqloudSeedNode2"
 KEYALGO="eth_secp256k1"
@@ -20,9 +29,6 @@ TRACE=""
 
 # Security configuration - use file-based keyring for better security
 KEYRING="file"
-
-# First seed node IP (where to get genesis from)
-FIRST_SEED_IP="${FIRST_SEED_IP:-98.81.138.222}"
 
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
@@ -81,8 +87,12 @@ usage() {
     echo "Environment variables:"
     echo "  KEYRING_PASSWORD       Set this to provide the keyring password (optional)"
     echo "  FIRST_SEED_IP          IP of the first seed node (default: 98.81.138.222)"
-    echo "  PERSISTENT_PEER_IP     IP of the persistent peer (default: 96.30.197.66)"
+    echo "  SECOND_SEED_IP         IP of the second seed node (default: 98.81.87.61)"  
+    echo "  PERSISTENT_PEER_IP     IP of the persistent peer (default: 155.138.192.236)"
     echo "  LOCAL_TESTING          Set to 'true' for local testing mode (skips genesis download)"
+    echo ""
+    echo "Network Configuration (edit at top of script):"
+    echo "  Lines 7-9: Update FIRST_SEED_IP, SECOND_SEED_IP, PERSISTENT_PEER_IP"
     echo
     echo "Examples:"
     echo "  $0 init                                    # Initialize second seed node"
@@ -209,9 +219,8 @@ initialize_second_seed() {
     # Configure second seed node network connections
     print_info "Configuring second seed node network connections"
     
-    # Define other seed nodes and persistent peer
+    # Define other seed nodes and persistent peer (using top-level configuration)
     OTHER_SEED_NODES="${OTHER_SEED_NODES:-$FIRST_SEED_IP}"
-    PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-96.30.197.66}"
     
     # Function to safely get node ID
     get_node_id() {

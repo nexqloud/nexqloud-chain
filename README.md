@@ -51,7 +51,7 @@ git reset --hard && git pull && rm -rf go.sum && make clean && make && sudo cp b
 ```
 ```
 replace the chain service 
-
+cd ~
 sudo cp seed_chain.service /etc/systemd/system/chain.service
 
 ```
