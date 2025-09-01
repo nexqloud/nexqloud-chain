@@ -146,14 +146,28 @@ if [[ $1 == "init" ]]; then
     
     # Using seed nodes and persistent peer from top-level configuration
     
-    # Function to safely get node ID with fallback
+    # Function to safely get node ID with fallback and timeout
     get_node_id() {
         local ip=$1
         local node_id
-        if node_id=$(wget -qO- "http://$ip/node-id" 2>/dev/null); then
-            echo "$node_id"
+        
+        # Try wget first (available on CentOS), then curl as fallback
+        if command -v wget >/dev/null 2>&1; then
+            if node_id=$(timeout 10 wget -qO- "http://$ip/node-id" 2>/dev/null); then
+                echo "$node_id"
+            else
+                print_warning "Could not get node ID from $ip (may not be running yet)"
+                return 1
+            fi
+        elif command -v curl >/dev/null 2>&1; then
+            if node_id=$(timeout 10 curl -s "http://$ip/node-id" 2>/dev/null); then
+                echo "$node_id"
+            else
+                print_warning "Could not get node ID from $ip (may not be running yet)"
+                return 1
+            fi
         else
-            print_warning "Failed to get node ID from $ip"
+            print_warning "Neither wget nor curl found for getting node ID from $ip"
             return 1
         fi
     }
