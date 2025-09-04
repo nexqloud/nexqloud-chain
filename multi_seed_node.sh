@@ -291,11 +291,19 @@ initialize_second_seed() {
         sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
         sed -i '' 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
         sed -i '' 's/enabled = false/enabled = true/' "$APP_TOML"
+        # Enable gRPC for validator operations and API access
+        sed -i '' '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     else
         sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
         sed -i 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
         sed -i 's/enabled = false/enabled = true/' "$APP_TOML"
+        # Enable gRPC for validator operations and API access
+        sed -i '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     fi
+    
+    # Verify gRPC is enabled
+    print_info "Verifying gRPC configuration:"
+    grep -A2 "\[grpc\]" "$APP_TOML" | grep "enable"
     
     # Set up node ID for sharing
     print_info "Setting up node ID"

@@ -148,12 +148,20 @@ if [[ $1 == "init" ]]; then
         sed -i '' 's|^laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
         # Configure Ethereum JSON-RPC to bind to all interfaces
         sed -i '' 's|^address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        # Enable gRPC for validator operations and API access
+        sed -i '' '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     else
         # Configure Tendermint RPC to bind to all interfaces
         sed -i 's|^laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
         # Configure Ethereum JSON-RPC to bind to all interfaces
         sed -i 's|^address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        # Enable gRPC for validator operations and API access
+        sed -i '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     fi
+    
+    # Verify gRPC is enabled
+    print_info "Verifying gRPC configuration:"
+    grep -A2 "\[grpc\]" "$APP_TOML" | grep "enable"
 
     # Configure multiple seed nodes for redundancy
     print_info "Configuring multiple seed nodes and persistent peers"

@@ -59,3 +59,7 @@ or
 sudo cp peer_chain.service /etc/systemd/system/chain.service
 
 ```
+
+If there is validator creation problem it might be becasue the grpc is disbaled please enter this command to enable it 
+
+sed -i 's/enable = false/enable = true/' /home/ec2-user/.nxqd/config/app.toml
