@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # ============================================================================
-# NETWORK CONFIGURATION - Update these IPs as needed
+# NETWORK CONFIGURATION - Production Setup with Domain Names
 # ============================================================================
-SEED_NODE_1_IP="${SEED_NODE_1_IP:-98.81.138.222}"
-SEED_NODE_2_IP="${SEED_NODE_2_IP:-98.81.87.61}"
-PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-155.138.192.236}"
+SEED_NODE_1_DOMAIN="${SEED_NODE_1_DOMAIN:-prod-node.nexqloudsite.com}"      # 107.21.198.76
+SEED_NODE_2_DOMAIN="${SEED_NODE_2_DOMAIN:-prod-node-1.nexqloudsite.com}"    # 54.161.133.227
+PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}" # 98.86.120.142
 
 # ============================================================================
 # NODE CONFIGURATION
@@ -162,26 +162,26 @@ if [[ $1 == "init" ]]; then
     
     # Function to safely get node ID with fallback and timeout
     get_node_id() {
-        local ip=$1
+        local host=$1
         local node_id
         
         # Try wget first (available on CentOS), then curl as fallback
         if command -v wget >/dev/null 2>&1; then
-            if node_id=$(timeout 10 wget -qO- "http://$ip/node-id" 2>/dev/null); then
+            if node_id=$(timeout 10 wget -qO- "http://$host/node-id" 2>/dev/null); then
                 echo "$node_id"
             else
-                print_warning "Could not get node ID from $ip (may not be running yet)"
+                print_warning "Could not get node ID from $host (may not be running yet)"
                 return 1
             fi
         elif command -v curl >/dev/null 2>&1; then
-            if node_id=$(timeout 10 curl -s "http://$ip/node-id" 2>/dev/null); then
+            if node_id=$(timeout 10 curl -s "http://$host/node-id" 2>/dev/null); then
                 echo "$node_id"
             else
-                print_warning "Could not get node ID from $ip (may not be running yet)"
+                print_warning "Could not get node ID from $host (may not be running yet)"
                 return 1
             fi
         else
-            print_warning "Neither wget nor curl found for getting node ID from $ip"
+            print_warning "Neither wget nor curl found for getting node ID from $host"
             return 1
         fi
     }
@@ -191,39 +191,39 @@ if [[ $1 == "init" ]]; then
     SEED_NODE_2_ID=""
     PERSISTENT_PEER_ID=""
     
-    if get_node_id "$SEED_NODE_1_IP" >/dev/null 2>&1; then
-        SEED_NODE_1_ID=$(get_node_id "$SEED_NODE_1_IP")
+    if get_node_id "$SEED_NODE_1_DOMAIN" >/dev/null 2>&1; then
+        SEED_NODE_1_ID=$(get_node_id "$SEED_NODE_1_DOMAIN")
     fi
     
-    if get_node_id "$SEED_NODE_2_IP" >/dev/null 2>&1; then
-        SEED_NODE_2_ID=$(get_node_id "$SEED_NODE_2_IP")
+    if get_node_id "$SEED_NODE_2_DOMAIN" >/dev/null 2>&1; then
+        SEED_NODE_2_ID=$(get_node_id "$SEED_NODE_2_DOMAIN")
     fi
     
-    if get_node_id "$PERSISTENT_PEER_IP" >/dev/null 2>&1; then
-        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_IP")
+    if get_node_id "$PERSISTENT_PEER_DOMAIN" >/dev/null 2>&1; then
+        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_DOMAIN")
     fi
     
     # Build seeds list (only include available nodes)
     SEEDS=""
     if [ -n "$SEED_NODE_1_ID" ]; then
-        SEEDS="$SEED_NODE_1_ID@$SEED_NODE_1_IP:26656"
-        print_success "Added seed node 1: $SEED_NODE_1_IP"
+        SEEDS="$SEED_NODE_1_ID@$SEED_NODE_1_DOMAIN:26656"
+        print_success "Added seed node 1: $SEED_NODE_1_DOMAIN"
     fi
     
     if [ -n "$SEED_NODE_2_ID" ]; then
         if [ -n "$SEEDS" ]; then
-            SEEDS="$SEEDS,$SEED_NODE_2_ID@$SEED_NODE_2_IP:26656"
+            SEEDS="$SEEDS,$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
         else
-            SEEDS="$SEED_NODE_2_ID@$SEED_NODE_2_IP:26656"
+            SEEDS="$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
         fi
-        print_success "Added seed node 2: $SEED_NODE_2_IP"
+        print_success "Added seed node 2: $SEED_NODE_2_DOMAIN"
     fi
     
     # Build persistent peers list
     PERSISTENT_PEERS=""
     if [ -n "$PERSISTENT_PEER_ID" ]; then
-        PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
-        print_success "Added persistent peer: $PERSISTENT_PEER_IP"
+        PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
+        print_success "Added persistent peer: $PERSISTENT_PEER_DOMAIN"
     fi
     
     # Validate we have at least one seed
@@ -256,26 +256,26 @@ if [[ $1 == "init" ]]; then
     GENESIS_DOWNLOADED=false
     
     # Try each seed node for genesis file
-    for ip in "$SEED_NODE_1_IP" "$SEED_NODE_2_IP"; do
+    for host in "$SEED_NODE_1_DOMAIN" "$SEED_NODE_2_DOMAIN"; do
         # Try wget first (available on CentOS), then curl as fallback
         if command -v wget >/dev/null 2>&1; then
-            if wget -qO "$GENESIS" "http://$ip/genesis.json" 2>/dev/null; then
-                print_success "Genesis file downloaded from $ip (using wget)"
+            if wget -qO "$GENESIS" "http://$host/genesis.json" 2>/dev/null; then
+                print_success "Genesis file downloaded from $host (using wget)"
                 GENESIS_DOWNLOADED=true
                 break
             else
-                print_warning "Failed to download genesis from $ip using wget"
+                print_warning "Failed to download genesis from $host using wget"
             fi
         elif command -v curl >/dev/null 2>&1; then
-            if curl -s -o "$GENESIS" "http://$ip/genesis.json" 2>/dev/null; then
-                print_success "Genesis file downloaded from $ip (using curl)"
+            if curl -s -o "$GENESIS" "http://$host/genesis.json" 2>/dev/null; then
+                print_success "Genesis file downloaded from $host (using curl)"
                 GENESIS_DOWNLOADED=true
                 break
             else
-                print_warning "Failed to download genesis from $ip using curl"
+                print_warning "Failed to download genesis from $host using curl"
             fi
         else
-            print_warning "Neither wget nor curl available for downloading from $ip"
+            print_warning "Neither wget nor curl available for downloading from $host"
         fi
     done
     

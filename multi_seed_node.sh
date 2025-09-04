@@ -2,11 +2,11 @@
 set -e
 
 # ============================================================================
-# NETWORK CONFIGURATION - Update these IPs as needed
+# NETWORK CONFIGURATION - Production Setup with Domain Names
 # ============================================================================
-FIRST_SEED_IP="${FIRST_SEED_IP:-98.81.138.222}"
-SECOND_SEED_IP="${SECOND_SEED_IP:-98.81.87.61}"
-PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-155.138.192.236}"
+FIRST_SEED_DOMAIN="${FIRST_SEED_DOMAIN:-prod-node.nexqloudsite.com}"      # 107.21.198.76
+SECOND_SEED_DOMAIN="${SECOND_SEED_DOMAIN:-prod-node-1.nexqloudsite.com}"  # 54.161.133.227
+PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}" # 98.86.120.142
 
 # ============================================================================
 # NODE CONFIGURATION
@@ -86,17 +86,17 @@ usage() {
     echo
     echo "Environment variables:"
     echo "  KEYRING_PASSWORD       Set this to provide the keyring password (optional)"
-    echo "  FIRST_SEED_IP          IP of the first seed node (default: 98.81.138.222)"
-    echo "  SECOND_SEED_IP         IP of the second seed node (default: 98.81.87.61)"  
-    echo "  PERSISTENT_PEER_IP     IP of the persistent peer (default: 155.138.192.236)"
+    echo "  FIRST_SEED_DOMAIN      Domain of the first seed node (default: prod-node.nexqloudsite.com)"
+    echo "  SECOND_SEED_DOMAIN     Domain of the second seed node (default: prod-node-1.nexqloudsite.com)"  
+    echo "  PERSISTENT_PEER_DOMAIN Domain of the persistent peer (default: prod-node-2.nexqloudsite.com)"
     echo "  LOCAL_TESTING          Set to 'true' for local testing mode (skips genesis download)"
     echo ""
     echo "Network Configuration (edit at top of script):"
-    echo "  Lines 7-9: Update FIRST_SEED_IP, SECOND_SEED_IP, PERSISTENT_PEER_IP"
+    echo "  Lines 7-9: Update FIRST_SEED_DOMAIN, SECOND_SEED_DOMAIN, PERSISTENT_PEER_DOMAIN"
     echo
     echo "Examples:"
     echo "  $0 init                                    # Initialize second seed node"
-    echo "  FIRST_SEED_IP=custom-ip $0 init           # Initialize with custom first seed IP"
+    echo "  FIRST_SEED_DOMAIN=custom-domain $0 init   # Initialize with custom first seed domain"
     echo "  LOCAL_TESTING=true $0 init                # Initialize in local testing mode"
     echo "  $0 start                                   # Start the second seed node"
     echo
@@ -180,20 +180,20 @@ initialize_second_seed() {
         print_info "LOCAL_TESTING mode: Using default genesis file"
         print_success "Using locally generated genesis file for testing"
     else
-        print_info "Downloading genesis file from first seed node: $FIRST_SEED_IP"
+        print_info "Downloading genesis file from first seed node: $FIRST_SEED_DOMAIN"
         
         # Try wget first (available on CentOS), then curl as fallback
         if command -v wget >/dev/null 2>&1; then
-            if wget -qO "$GENESIS" "http://$FIRST_SEED_IP/genesis.json"; then
-                print_success "Downloaded genesis file from first seed node: $FIRST_SEED_IP"
+            if wget -qO "$GENESIS" "http://$FIRST_SEED_DOMAIN/genesis.json"; then
+                print_success "Downloaded genesis file from first seed node: $FIRST_SEED_DOMAIN"
             else
-                error_exit "Failed to download genesis file from first seed node: $FIRST_SEED_IP. Make sure the first seed node is running and accessible."
+                error_exit "Failed to download genesis file from first seed node: $FIRST_SEED_DOMAIN. Make sure the first seed node is running and accessible."
             fi
         elif command -v curl >/dev/null 2>&1; then
-            if curl -s -o "$GENESIS" "http://$FIRST_SEED_IP/genesis.json"; then
-                print_success "Downloaded genesis file from first seed node: $FIRST_SEED_IP"
+            if curl -s -o "$GENESIS" "http://$FIRST_SEED_DOMAIN/genesis.json"; then
+                print_success "Downloaded genesis file from first seed node: $FIRST_SEED_DOMAIN"
             else
-                error_exit "Failed to download genesis file from first seed node: $FIRST_SEED_IP. Make sure the first seed node is running and accessible."
+                error_exit "Failed to download genesis file from first seed node: $FIRST_SEED_DOMAIN. Make sure the first seed node is running and accessible."
             fi
         else
             error_exit "Neither wget nor curl found. Please install one of them."
@@ -220,30 +220,30 @@ initialize_second_seed() {
     print_info "Configuring second seed node network connections"
     
     # Define other seed nodes and persistent peer (using top-level configuration)
-    OTHER_SEED_NODES="${OTHER_SEED_NODES:-$FIRST_SEED_IP}"
+    OTHER_SEED_NODES="${OTHER_SEED_NODES:-$FIRST_SEED_DOMAIN}"
     
     # Function to safely get node ID
     get_node_id() {
-        local ip=$1
+        local host=$1
         local node_id
         
         # Try wget first (available on CentOS), then curl as fallback
         if command -v wget >/dev/null 2>&1; then
-            if node_id=$(wget -qO- "http://$ip/node-id" 2>/dev/null); then
+            if node_id=$(timeout 10 wget -qO- "http://$host/node-id" 2>/dev/null); then
                 echo "$node_id"
             else
-                print_warning "Could not get node ID from $ip (may not be running yet)"
+                print_warning "Could not get node ID from $host (may not be running yet)"
                 return 1
             fi
         elif command -v curl >/dev/null 2>&1; then
-            if node_id=$(curl -s "http://$ip/node-id" 2>/dev/null); then
+            if node_id=$(timeout 10 curl -s "http://$host/node-id" 2>/dev/null); then
                 echo "$node_id"
             else
-                print_warning "Could not get node ID from $ip (may not be running yet)"
+                print_warning "Could not get node ID from $host (may not be running yet)"
                 return 1
             fi
         else
-            print_warning "Neither wget nor curl found for getting node ID from $ip"
+            print_warning "Neither wget nor curl found for getting node ID from $host"
             return 1
         fi
     }
@@ -252,24 +252,24 @@ initialize_second_seed() {
     PERSISTENT_PEERS=""
     
     # Add first seed node as persistent peer
-    if get_node_id "$FIRST_SEED_IP" >/dev/null 2>&1; then
-        FIRST_SEED_ID=$(get_node_id "$FIRST_SEED_IP")
+    if get_node_id "$FIRST_SEED_DOMAIN" >/dev/null 2>&1; then
+        FIRST_SEED_ID=$(get_node_id "$FIRST_SEED_DOMAIN")
         if [ -n "$FIRST_SEED_ID" ]; then
-            PERSISTENT_PEERS="$FIRST_SEED_ID@$FIRST_SEED_IP:26656"
-            print_success "Added first seed node as peer: $FIRST_SEED_IP"
+            PERSISTENT_PEERS="$FIRST_SEED_ID@$FIRST_SEED_DOMAIN:26656"
+            print_success "Added first seed node as peer: $FIRST_SEED_DOMAIN"
         fi
     fi
     
     # Add dedicated persistent peer
-    if get_node_id "$PERSISTENT_PEER_IP" >/dev/null 2>&1; then
-        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_IP")
+    if get_node_id "$PERSISTENT_PEER_DOMAIN" >/dev/null 2>&1; then
+        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_DOMAIN")
         if [ -n "$PERSISTENT_PEER_ID" ]; then
             if [ -z "$PERSISTENT_PEERS" ]; then
-                PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
+                PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
             else
-                PERSISTENT_PEERS="$PERSISTENT_PEERS,$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
+                PERSISTENT_PEERS="$PERSISTENT_PEERS,$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
             fi
-            print_success "Added persistent peer: $PERSISTENT_PEER_IP"
+            print_success "Added persistent peer: $PERSISTENT_PEER_DOMAIN"
         fi
     fi
     
@@ -337,7 +337,7 @@ initialize_second_seed() {
     
     print_section "Initialization Complete"
     print_success "Second seed node has been successfully initialized!"
-    print_info "Genesis file downloaded from: $FIRST_SEED_IP"
+    print_info "Genesis file downloaded from: $FIRST_SEED_DOMAIN"
     print_info "To start the node, run: $0 start"
 }
 

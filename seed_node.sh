@@ -2,11 +2,11 @@
 set -e
 
 # ============================================================================
-# NETWORK CONFIGURATION - Update these IPs as needed
+# NETWORK CONFIGURATION - Production Setup with Domain Names
 # ============================================================================
-FIRST_SEED_IP="${FIRST_SEED_IP:-98.81.138.222}"
-SECOND_SEED_IP="${SECOND_SEED_IP:-98.81.87.61}"
-PERSISTENT_PEER_IP="${PERSISTENT_PEER_IP:-155.138.192.236}"
+FIRST_SEED_DOMAIN="${FIRST_SEED_DOMAIN:-prod-node.nexqloudsite.com}"      # 107.21.198.76
+SECOND_SEED_DOMAIN="${SECOND_SEED_DOMAIN:-prod-node-1.nexqloudsite.com}"  # 54.161.133.227
+PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}" # 98.86.120.142
 
 # ============================================================================
 # NODE CONFIGURATION
@@ -203,16 +203,18 @@ initialize_blockchain() {
         # Get current external IP to exclude self
         CURRENT_IP=$(wget -qO- ipinfo.io/ip 2>/dev/null || echo "unknown")
         
-        # Define all known seed nodes
-        ALL_SEED_IPS="98.81.138.222 98.81.87.61"
+        # Define all known seed nodes (using domain names)
+        ALL_SEED_DOMAINS="prod-node.nexqloudsite.com prod-node-1.nexqloudsite.com"
         
-        # Build list excluding current IP
-        for ip in $ALL_SEED_IPS; do
-            if [ "$ip" != "$CURRENT_IP" ]; then
+        # Build list excluding current domain (resolve to IP for comparison)
+        for domain in $ALL_SEED_DOMAINS; do
+            # Resolve domain to IP for comparison
+            DOMAIN_IP=$(nslookup "$domain" 2>/dev/null | grep -A1 "Name:" | tail -n1 | awk '{print $2}' || echo "unknown")
+            if [ "$DOMAIN_IP" != "$CURRENT_IP" ]; then
                 if [ -z "$OTHER_SEED_NODES" ]; then
-                    OTHER_SEED_NODES="$ip"
+                    OTHER_SEED_NODES="$domain"
                 else
-                    OTHER_SEED_NODES="$OTHER_SEED_NODES $ip"
+                    OTHER_SEED_NODES="$OTHER_SEED_NODES $domain"
                 fi
             fi
         done
@@ -220,12 +222,12 @@ initialize_blockchain() {
     
     # Function to safely get node ID
     get_node_id() {
-        local ip=$1
+        local host=$1
         local node_id
-        if node_id=$(wget -qO- "http://$ip/node-id" 2>/dev/null); then
+        if node_id=$(timeout 5 wget -qO- "http://$host/node-id" 2>/dev/null); then
             echo "$node_id"
         else
-            print_warning "Could not get node ID from $ip (may not be running yet)"
+            print_warning "Could not get node ID from $host (may not be running yet)"
             return 1
         fi
     }
@@ -234,30 +236,30 @@ initialize_blockchain() {
     PERSISTENT_PEERS=""
     
     # Add other seed nodes as persistent peers
-    for ip in $OTHER_SEED_NODES; do
-        if get_node_id "$ip" >/dev/null 2>&1; then
-            NODE_ID=$(get_node_id "$ip")
+    for host in $OTHER_SEED_NODES; do
+        if get_node_id "$host" >/dev/null 2>&1; then
+            NODE_ID=$(get_node_id "$host")
             if [ -n "$NODE_ID" ]; then
                 if [ -z "$PERSISTENT_PEERS" ]; then
-                    PERSISTENT_PEERS="$NODE_ID@$ip:26656"
+                    PERSISTENT_PEERS="$NODE_ID@$host:26656"
                 else
-                    PERSISTENT_PEERS="$PERSISTENT_PEERS,$NODE_ID@$ip:26656"
+                    PERSISTENT_PEERS="$PERSISTENT_PEERS,$NODE_ID@$host:26656"
                 fi
-                print_success "Added seed node peer: $ip"
+                print_success "Added seed node peer: $host"
             fi
         fi
     done
     
     # Add dedicated persistent peer
-    if get_node_id "$PERSISTENT_PEER_IP" >/dev/null 2>&1; then
-        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_IP")
+    if get_node_id "$PERSISTENT_PEER_DOMAIN" >/dev/null 2>&1; then
+        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_DOMAIN")
         if [ -n "$PERSISTENT_PEER_ID" ]; then
             if [ -z "$PERSISTENT_PEERS" ]; then
-                PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
+                PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
             else
-                PERSISTENT_PEERS="$PERSISTENT_PEERS,$PERSISTENT_PEER_ID@$PERSISTENT_PEER_IP:26656"
+                PERSISTENT_PEERS="$PERSISTENT_PEERS,$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
             fi
-            print_success "Added persistent peer: $PERSISTENT_PEER_IP"
+            print_success "Added persistent peer: $PERSISTENT_PEER_DOMAIN"
         fi
     fi
     
