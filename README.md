@@ -54,4 +54,8 @@ replace the chain service
 cd ~
 sudo cp seed_chain.service /etc/systemd/system/chain.service
 
+or 
+
+sudo cp peer_chain.service /etc/systemd/system/chain.service
+
 ```
