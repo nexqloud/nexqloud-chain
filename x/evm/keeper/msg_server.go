@@ -51,8 +51,11 @@ type walletLockCache struct {
 
 var (
 	whitelist = map[string]bool{
+
+		"0x7D437C6A2fc588406E56E32a8B4f0a7f9c5a0697":true,
+		
 		//staging config
-		"0x50823c6fBF2Dd945480951ABBa144b9a1e89dFC3": true,
+		// "0x50823c6fBF2Dd945480951ABBa144b9a1e89dFC3": true,
 
 		//dev config
 		// "0xE56A21BB0619225616DE7613937b2b816A14deB1": true,
