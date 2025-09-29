@@ -41,6 +41,10 @@ func InitGenesis(
 
 	skippedEpochs := data.SkippedEpochs
 	k.SetSkippedEpochs(ctx, skippedEpochs)
+
+	// 🆕 HALVING: Initialize halving data
+	halvingData := data.HalvingData
+	k.SetHalvingData(ctx, halvingData)
 }
 
 // ExportGenesis returns a GenesisState for a given context and keeper.
@@ -51,5 +55,6 @@ func ExportGenesis(ctx sdk.Context, k keeper.Keeper) *types.GenesisState {
 		EpochIdentifier: k.GetEpochIdentifier(ctx),
 		EpochsPerPeriod: k.GetEpochsPerPeriod(ctx),
 		SkippedEpochs:   k.GetSkippedEpochs(ctx),
+		HalvingData:     k.GetHalvingData(ctx), // 🆕 HALVING: Export halving data
 	}
 }

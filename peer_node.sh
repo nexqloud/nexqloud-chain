@@ -252,12 +252,24 @@ if [[ $1 == "init" ]]; then
         if [ -n "$PERSISTENT_PEERS" ]; then
             sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
         fi
+        # Improve network resilience settings
+        sed -i '' 's/^pex = .*/pex = true/' "$CONFIG"
+        sed -i '' 's/^addr_book_strict = .*/addr_book_strict = false/' "$CONFIG"
+        sed -i '' 's/^max_num_inbound_peers = .*/max_num_inbound_peers = 80/' "$CONFIG"
+        sed -i '' 's/^max_num_outbound_peers = .*/max_num_outbound_peers = 40/' "$CONFIG"
     else
         sed -i "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
         if [ -n "$PERSISTENT_PEERS" ]; then
             sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
         fi
+        # Improve network resilience settings
+        sed -i 's/^pex = .*/pex = true/' "$CONFIG"
+        sed -i 's/^addr_book_strict = .*/addr_book_strict = false/' "$CONFIG"
+        sed -i 's/^max_num_inbound_peers = .*/max_num_inbound_peers = 80/' "$CONFIG"
+        sed -i 's/^max_num_outbound_peers = .*/max_num_outbound_peers = 40/' "$CONFIG"
     fi
+    
+    print_info "Enhanced network resilience settings applied"
 
     # Download genesis file with fallback support
     print_info "Downloading genesis file with fallback support"

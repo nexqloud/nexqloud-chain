@@ -19,6 +19,7 @@ func (k Keeper) BeforeEpochStart(_ sdk.Context, _ string, _ int64) {
 }
 
 // AfterEpochEnd mints and allocates coins at the end of each epoch end
+// 🆕 UPDATED: Now implements Bitcoin-style halving with daily emission
 func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumber int64) {
 	params := k.GetParams(ctx)
 	skippedEpochs := k.GetSkippedEpochs(ctx)
@@ -42,89 +43,91 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 		return
 	}
 
-	expEpochID := k.GetEpochIdentifier(ctx)
-	if epochIdentifier != expEpochID {
+	// 🆕 HALVING: Only mint on daily epochs
+	if !types.IsValidEpochForHalving(epochIdentifier) {
+		k.Logger(ctx).Debug(
+			"skipping non-daily epoch for halving",
+			"epoch-id", epochIdentifier,
+		)
 		return
 	}
 
-	// mint coins, update supply
-	period := k.GetPeriod(ctx)
-	epochsPerPeriod := k.GetEpochsPerPeriod(ctx)
-	bondedRatio := k.BondedRatio(ctx)
+	// 🆕 HALVING: Get halving data and calculate current period
+	halvingData := k.GetHalvingData(ctx)
+	currentPeriod := types.CalculateHalvingPeriod(epochNumber, int64(halvingData.StartEpoch), params.HalvingIntervalEpochs)
 
-	epochMintProvision := types.CalculateEpochMintProvision(
-		params,
-		period,
-		epochsPerPeriod,
-		bondedRatio,
-	)
+	// 🆕 HALVING: Calculate daily emission with halving applied
+	dailyEmission := types.CalculateDailyEmission(params, currentPeriod)
 
-	if !epochMintProvision.IsPositive() {
+	if !dailyEmission.IsPositive() {
 		k.Logger(ctx).Error(
-			"SKIPPING INFLATION: zero or negative epoch mint provision",
-			"value", epochMintProvision.String(),
+			"SKIPPING HALVING MINT: zero or negative daily emission",
+			"period", currentPeriod,
+			"emission", dailyEmission.String(),
+		)
+		return
+	}
+
+	// 🆕 HALVING: Validate supply cap before minting
+	currentSupply := k.bankKeeper.GetSupply(ctx, params.MintDenom).Amount
+	if err := types.ValidateSupplyCap(currentSupply, dailyEmission, params.MaxSupply); err != nil {
+		k.Logger(ctx).Error(
+			"SUPPLY CAP REACHED: halving minting disabled",
+			"current-supply", currentSupply.String(),
+			"max-supply", params.MaxSupply.String(),
+			"error", err.Error(),
 		)
 		return
 	}
 
 	mintedCoin := sdk.Coin{
 		Denom:  params.MintDenom,
-		Amount: epochMintProvision.TruncateInt(),
+		Amount: dailyEmission,
 	}
 
-	staking, communityPool, err := k.MintAndAllocateInflation(ctx, mintedCoin, params)
-	if err != nil {
-		panic(err)
+	// 🆕 HALVING: Mint and send directly to multi-sig (no staking/community pool distribution)
+	if err := k.MintAndSendToMultiSig(ctx, mintedCoin, params); err != nil {
+		panic(fmt.Sprintf("failed to mint and send to multi-sig: %v", err))
 	}
 
-	// If period is passed, update the period. A period is
-	// passed if the current epoch number surpasses the epochsPerPeriod for the
-	// current period. Skipped epochs are subtracted to only account for epochs
-	// where inflation minted tokens.
-	//
-	// Examples:
-	// Given, epochNumber = 1, period = 0, epochPerPeriod = 365, skippedEpochs = 0
-	//   => 1 - 365 * 0 - 0 < 365 --- nothing to do here
-	// Given, epochNumber = 741, period = 1, epochPerPeriod = 365, skippedEpochs = 10
-	//   => 741 - 1 * 365 - 10 > 365 --- a period has passed! we set a new period
-	if epochNumber-epochsPerPeriod*int64(period)-int64(skippedEpochs) > epochsPerPeriod {
-		period++
-		k.SetPeriod(ctx, period)
+	// 🆕 HALVING: Update halving data if we crossed into a new period
+	if types.ShouldHalve(epochNumber, int64(halvingData.StartEpoch), halvingData.LastHalvingEpoch, params.HalvingIntervalEpochs) {
+		halvingData.CurrentPeriod = currentPeriod
+		halvingData.LastHalvingEpoch = uint64(epochNumber)
+		k.SetHalvingData(ctx, halvingData)
+
+		k.Logger(ctx).Info(
+			"HALVING EVENT: entered new period",
+			"previous-period", currentPeriod-1,
+			"new-period", currentPeriod,
+			"epoch", epochNumber,
+			"new-daily-emission", dailyEmission.String(),
+		)
 	}
 
+	// 🆕 HALVING: Telemetry for halving system
 	defer func() {
-		stakingAmt := staking.AmountOfNoDenomValidation(mintedCoin.Denom)
-		cpAmt := communityPool.AmountOfNoDenomValidation(mintedCoin.Denom)
-
 		if mintedCoin.Amount.IsInt64() && mintedCoin.Amount.IsPositive() {
 			telemetry.IncrCounterWithLabels(
-				[]string{types.ModuleName, "allocate", "total"},
+				[]string{types.ModuleName, "halving", "mint", "total"},
 				float32(mintedCoin.Amount.Int64()),
-				[]metrics.Label{telemetry.NewLabel("denom", mintedCoin.Denom)},
-			)
-		}
-		if stakingAmt.IsInt64() && stakingAmt.IsPositive() {
-			telemetry.IncrCounterWithLabels(
-				[]string{types.ModuleName, "allocate", "staking", "total"},
-				float32(stakingAmt.Int64()),
-				[]metrics.Label{telemetry.NewLabel("denom", mintedCoin.Denom)},
-			)
-		}
-		if cpAmt.IsInt64() && cpAmt.IsPositive() {
-			telemetry.IncrCounterWithLabels(
-				[]string{types.ModuleName, "allocate", "community_pool", "total"},
-				float32(cpAmt.Int64()),
-				[]metrics.Label{telemetry.NewLabel("denom", mintedCoin.Denom)},
+				[]metrics.Label{
+					telemetry.NewLabel("denom", mintedCoin.Denom),
+					telemetry.NewLabel("period", fmt.Sprintf("%d", currentPeriod)),
+				},
 			)
 		}
 	}()
 
+	// 🆕 HALVING: Emit halving-specific events
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			types.EventTypeMint,
 			sdk.NewAttribute(types.AttributeEpochNumber, fmt.Sprintf("%d", epochNumber)),
-			sdk.NewAttribute(types.AttributeKeyEpochProvisions, epochMintProvision.String()),
+			sdk.NewAttribute(types.AttributeKeyEpochProvisions, dailyEmission.String()),
 			sdk.NewAttribute(sdk.AttributeKeyAmount, mintedCoin.Amount.String()),
+			sdk.NewAttribute("halving_period", fmt.Sprintf("%d", currentPeriod)),
+			sdk.NewAttribute("multi_sig_address", params.MultiSigAddress),
 		),
 	)
 }

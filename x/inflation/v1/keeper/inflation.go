@@ -4,6 +4,8 @@
 package keeper
 
 import (
+	"fmt"
+
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
@@ -135,6 +137,56 @@ func (k Keeper) GetCirculatingSupply(ctx sdk.Context, mintDenom string) math.Leg
 	}
 
 	return circulatingSupply
+}
+
+// 🆕 MintAndSendToMultiSig mints tokens and sends them directly to the multi-sig address
+// This replaces the old exponential distribution system for halving
+func (k Keeper) MintAndSendToMultiSig(ctx sdk.Context, coin sdk.Coin, params types.Params) error {
+	// Skip if no coins need to be minted
+	if coin.Amount.IsNil() || !coin.Amount.IsPositive() {
+		return nil
+	}
+
+	// Validate multi-sig address
+	if params.MultiSigAddress == "" {
+		return fmt.Errorf("multi-sig address is not set")
+	}
+
+	// Validate the multi-sig address format
+	_, err := sdk.AccAddressFromBech32(params.MultiSigAddress)
+	if err != nil {
+		return fmt.Errorf("invalid multi-sig address: %w", err)
+	}
+
+	// Mint coins
+	if err := k.MintCoins(ctx, coin); err != nil {
+		return fmt.Errorf("failed to mint coins: %w", err)
+	}
+
+	// Send all minted coins to multi-sig address
+	multiSigAddr, err := sdk.AccAddressFromBech32(params.MultiSigAddress)
+	if err != nil {
+		return fmt.Errorf("failed to parse multi-sig address: %w", err)
+	}
+
+	coins := sdk.Coins{coin}
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(
+		ctx,
+		types.ModuleName,
+		multiSigAddr,
+		coins,
+	); err != nil {
+		return fmt.Errorf("failed to send coins to multi-sig: %w", err)
+	}
+
+	k.Logger(ctx).Info(
+		"halving mint completed",
+		"amount", coin.Amount.String(),
+		"denom", coin.Denom,
+		"multi-sig", params.MultiSigAddress,
+	)
+
+	return nil
 }
 
 // GetInflationRate returns the inflation rate for the current period.

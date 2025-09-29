@@ -22,7 +22,12 @@ func (suite *GenesisTestSuite) TestValidateGenesis() {
 	// Team Address needs to be set manually at Genesis
 	validParams := DefaultParams()
 
-	newGen := NewGenesisState(validParams, uint64(0), epochstypes.DayEpochID, 365, 0)
+	defaultHalvingData := HalvingData{
+		CurrentPeriod:    0,
+		LastHalvingEpoch: 0,
+		StartEpoch:       1,
+	}
+	newGen := NewGenesisState(validParams, uint64(0), epochstypes.DayEpochID, 365, 0, defaultHalvingData)
 
 	testCases := []struct {
 		name     string
