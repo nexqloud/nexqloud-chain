@@ -33,7 +33,7 @@ var (
 
 	// 🆕 Halving system default parameters
 	DefaultDailyEmission         = "7200000000000000000000"                     // 7200 tokens with 18 decimals
-	DefaultHalvingIntervalEpochs = uint64(1461)                                 // 4 years = 1461 daily epochs
+	DefaultHalvingIntervalEpochs = uint64(2)                                 // 4 years = 1461 daily epochs
 	DefaultMultiSigAddress       = "nxq12zprcmal9hv52jqf2x4m59ztng0gnh7r96muj5" // Multi-sig address for daily emissions
 	DefaultMaxSupply             = "21000000000000000000000000"                 // 21M tokens with 18 decimals
 )
