@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-# Node configuration
+# ============================================================================
+# NETWORK CONFIGURATION - Production Setup with Domain Names
+# ============================================================================
+FIRST_SEED_DOMAIN="${FIRST_SEED_DOMAIN:-prod-node.nexqloudsite.com}"      # 107.21.198.76
+SECOND_SEED_DOMAIN="${SECOND_SEED_DOMAIN:-prod-node-1.nexqloudsite.com}"  # 54.161.133.227
+PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}" # 98.86.120.142
+
+# ============================================================================
+# NODE CONFIGURATION
+# ============================================================================
 CHAINID="nxqd_6000-1"
 MONIKER="NexqloudSeedNode1"
 KEYALGO="eth_secp256k1"
@@ -119,7 +128,7 @@ generate_key() {
     print_warning "This password protects all your keys. Remember it well!"
     
     # Generate key
-    $NXQD_BIN keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+    $NXQD_BIN keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
     
     print_success "Key $key_name generated"
     print_warning "IMPORTANT: Make sure to securely write down the mnemonic phrase shown above!"
@@ -158,28 +167,122 @@ initialize_blockchain() {
     # Customize genesis settings
     print_info "Customizing genesis parameters"
     print_info "Disabling NFT validation for local testing"
-    
-    # Change parameter token denominations to nxq
-    jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    jq '.app_state["inflation"]["params"]["enable_inflation"]=false' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-    
-    # Set gas limit in genesis
-    jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
 
-    # Set base fee in genesis
-    jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	# Change parameter token denominations to nxq
+	jq '.app_state["staking"]["params"]["bond_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["gov"]["params"]["min_deposit"][0]["denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["evm"]["params"]["evm_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+	jq '.app_state["inflation"]["params"]["mint_denom"]="unxq"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+    jq '.app_state["inflation"]["params"]["enable_inflation"]=true' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
+	# Set gas limit in genesis
+	jq '.consensus_params["block"]["max_gas"]="10000000"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
+	# Set base fee in genesis
+	jq '.app_state["feemarket"]["params"]["base_fee"]="'${BASEFEE}'"' "$GENESIS" >"$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
+
+    # Configure block time (1 block every 8 seconds)
+    print_info "Setting block time to 8 seconds (0.125 blocks per second)"
+		if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i '' 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+    else
+        sed -i 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+    fi
+    
+    # Configure seed node network connections
+    print_info "Configuring seed node network connections for redundancy"
+    
+    # Define other seed nodes (exclude current node based on environment or hostname)
+    OTHER_SEED_NODES="${OTHER_SEED_NODES:-}"
+    # PERSISTENT_PEER_IP is defined at top of script
+    
+    # If environment variable is not set, auto-detect based on common IPs
+    if [ -z "$OTHER_SEED_NODES" ]; then
+        # Get current external IP to exclude self
+        CURRENT_IP=$(wget -qO- ipinfo.io/ip 2>/dev/null || echo "unknown")
+        
+        # Define all known seed nodes (using domain names)
+        ALL_SEED_DOMAINS="prod-node.nexqloudsite.com prod-node-1.nexqloudsite.com"
+        
+        # Build list excluding current domain (resolve to IP for comparison)
+        for domain in $ALL_SEED_DOMAINS; do
+            # Resolve domain to IP for comparison
+            DOMAIN_IP=$(nslookup "$domain" 2>/dev/null | grep -A1 "Name:" | tail -n1 | awk '{print $2}' || echo "unknown")
+            if [ "$DOMAIN_IP" != "$CURRENT_IP" ]; then
+                if [ -z "$OTHER_SEED_NODES" ]; then
+                    OTHER_SEED_NODES="$domain"
+                else
+                    OTHER_SEED_NODES="$OTHER_SEED_NODES $domain"
+                fi
+            fi
+        done
+    fi
+    
+    # Function to safely get node ID
+    get_node_id() {
+        local host=$1
+        local node_id
+        if node_id=$(timeout 5 wget -qO- "http://$host/node-id" 2>/dev/null); then
+            echo "$node_id"
+        else
+            print_warning "Could not get node ID from $host (may not be running yet)"
+            return 1
+        fi
+    }
+    
+    # Build persistent peers list for seed nodes
+    PERSISTENT_PEERS=""
+    
+    # Add other seed nodes as persistent peers
+    for host in $OTHER_SEED_NODES; do
+        if get_node_id "$host" >/dev/null 2>&1; then
+            NODE_ID=$(get_node_id "$host")
+            if [ -n "$NODE_ID" ]; then
+                if [ -z "$PERSISTENT_PEERS" ]; then
+                    PERSISTENT_PEERS="$NODE_ID@$host:26656"
+                else
+                    PERSISTENT_PEERS="$PERSISTENT_PEERS,$NODE_ID@$host:26656"
+                fi
+                print_success "Added seed node peer: $host"
+            fi
+        fi
+    done
+    
+    # Add dedicated persistent peer
+    if get_node_id "$PERSISTENT_PEER_DOMAIN" >/dev/null 2>&1; then
+        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_DOMAIN")
+        if [ -n "$PERSISTENT_PEER_ID" ]; then
+            if [ -z "$PERSISTENT_PEERS" ]; then
+                PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
+            else
+                PERSISTENT_PEERS="$PERSISTENT_PEERS,$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
+            fi
+            print_success "Added persistent peer: $PERSISTENT_PEER_DOMAIN"
+        fi
+    fi
+    
+    # Apply persistent peers configuration
+    if [ -n "$PERSISTENT_PEERS" ]; then
+        print_info "Configuring persistent peers: $PERSISTENT_PEERS"
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+        else
+            sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+        fi
+    else
+        print_warning "No persistent peers configured (other nodes may not be running yet)"
+    fi
     
     # Prometheus
     print_info "Enabling Prometheus metrics and APIs"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
+	if [[ "$OSTYPE" == "darwin"* ]]; then
+		sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
         sed -i '' 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
         sed -i '' 's/enabled = false/enabled = true/' "$APP_TOML"
-    else
-        sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
+	else
+		sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
         sed -i 's/prometheus-retention-time = 0/prometheus-retention-time = 1000/' "$APP_TOML"
         sed -i 's/enabled = false/enabled = true/' "$APP_TOML"
     fi
@@ -195,11 +298,11 @@ initialize_blockchain() {
     fi
     
     print_section "Setting Up Genesis Accounts"
-    # Add the primary key as a genesis account with the full token supply
-    print_info "Adding genesis account with all tokens"
+    # Add the primary key as a genesis account with 1 million tokens (leaving room for halving minting)
+    print_info "Adding genesis account with 1 million tokens"
     local address=$($NXQD_BIN keys show "primary" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-    $NXQD_BIN add-genesis-account "$address" "21000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
-    print_success "Added genesis account primary with balance 21000000000000000000000000unxq"
+    $NXQD_BIN add-genesis-account "$address" "1000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+    print_success "Added genesis account primary with balance 1000000000000000000000000unxq (1M NXQ)"
     
     # Create genesis transaction with validator key
     print_info "Creating genesis transaction with validator key (primary)"

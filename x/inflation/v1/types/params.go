@@ -17,7 +17,7 @@ var ParamsKey = []byte("Params")
 
 var (
 	DefaultInflationDenom         = evm.DefaultEVMDenom
-	DefaultInflation              = false //convert to true for inflation
+	DefaultInflation              = true // ✅ ENABLED for halving system
 	DefaultExponentialCalculation = ExponentialCalculation{
 		A:             math.LegacyNewDec(int64(300_000_000)),
 		R:             math.LegacyNewDecWithPrec(50, 2), // 50%
@@ -30,6 +30,12 @@ var (
 		CommunityPool:   math.LegacyNewDecWithPrec(466666666, 9), // 0.47
 		UsageIncentives: math.LegacyZeroDec(),                    // Deprecated
 	}
+
+	// 🆕 Halving system default parameters
+	DefaultDailyEmission         = "7200000000000000000000"                     // 7200 tokens with 18 decimals
+	DefaultHalvingIntervalEpochs = uint64(2)                                 // 4 years = 1461 daily epochs
+	DefaultMultiSigAddress       = "nxq12zprcmal9hv52jqf2x4m59ztng0gnh7r96muj5" // Multi-sig address for daily emissions
+	DefaultMaxSupply             = "21000000000000000000000000"                 // 21M tokens with 18 decimals
 )
 
 func NewParams(
@@ -48,11 +54,18 @@ func NewParams(
 
 // default minting module parameters
 func DefaultParams() Params {
+	dailyEmission, _ := math.NewIntFromString(DefaultDailyEmission)
+	maxSupply, _ := math.NewIntFromString(DefaultMaxSupply)
+
 	return Params{
 		MintDenom:              DefaultInflationDenom,
 		ExponentialCalculation: DefaultExponentialCalculation,
 		InflationDistribution:  DefaultInflationDistribution,
 		EnableInflation:        DefaultInflation,
+		DailyEmission:          dailyEmission,
+		HalvingIntervalEpochs:  DefaultHalvingIntervalEpochs,
+		MultiSigAddress:        DefaultMultiSigAddress,
+		MaxSupply:              maxSupply,
 	}
 }
 

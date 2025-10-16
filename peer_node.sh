@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# ============================================================================
+# NETWORK CONFIGURATION - Production Setup with Domain Names
+# ============================================================================
+SEED_NODE_1_DOMAIN="${SEED_NODE_1_DOMAIN:-prod-node.nexqloudsite.com}"      # 107.21.198.76
+SEED_NODE_2_DOMAIN="${SEED_NODE_2_DOMAIN:-prod-node-1.nexqloudsite.com}"    # 54.161.133.227
+PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}" # 98.86.120.142
+
+# ============================================================================
+# NODE CONFIGURATION
+# ============================================================================
 CHAINID="nxqd_6000-1"
 
 # Set moniker if environment variable is not set
@@ -7,17 +17,7 @@ if [ -z "$MONIKER" ]; then
 	MONIKER="NexQloudPeer"
 fi
 
-#dev
-if [ -z "$SEED_NODE_IP" ]; then
-    SEED_NODE_IP="13.203.229.219"
-fi
-
-# #staging
-# if [ -z "$SEED_NODE_IP" ]; then
-#     SEED_NODE_IP="stage-node.nexqloud.net"
-# fi
-
-# Set the path to the nxqd binary
+#for local testing
 # NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
 
 #for remote testing
@@ -47,140 +47,264 @@ command -v jq >/dev/null 2>&1 || {
 	exit 1
 }
 
-# Function to download file based on OS
-download_file() {
-    local url=$1
-    local output=$2
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        curl -s "$url" > "$output"
-    else
-        wget -qO- "$url" > "$output"
-    fi
-    return $?
-}
-
 # used to exit on first error (any non-zero exit code)
 set -e
 
-# Initialize the node
-init() {
-    echo "Initializing node..."
-    
-    # Remove the previous folder
-    rm -rf "$HOMEDIR"
-    
-    # Set client config
-    $NXQD_BIN config keyring-backend "$KEYRING" --home "$HOMEDIR"
-    $NXQD_BIN config chain-id "$CHAINID" --home "$HOMEDIR"
-    $NXQD_BIN config node tcp://$SEED_NODE_IP:26657 --home "$HOMEDIR"
+# Colors for better UX
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-    # Generate a new key
-    $NXQD_BIN keys add "$MONIKER" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
-    VAL_ADDRESS=$($NXQD_BIN keys show "$MONIKER" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-    echo "Validator address: $VAL_ADDRESS"
+# Display an informative message with color
+print_message() {
+    local color=$1
+    local message=$2
+    echo -e "${color}${message}${NC}"
+}
 
-    # Initialize the node
-    $NXQD_BIN init "$MONIKER" -o --chain-id "$CHAINID" --home "$HOMEDIR"
+# Display error and exit
+error_exit() {
+    print_message "$RED" "ERROR: $1"
+    exit 1
+}
 
-    # Configure timeouts and settings based on OS
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # Create temporary files for macOS sed
-        TMP_CONFIG=$(mktemp)
-        TMP_APP_TOML=$(mktemp)
-        
-        # Modify config.toml
-        sed 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        sed 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        sed 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        sed 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        sed 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        sed 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        sed 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        sed 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        
-        # Enable prometheus metrics
-        sed 's/prometheus = false/prometheus = true/' "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        
-        # Enable RPC
-        sed '/^\[json-rpc\]/,/^\[/ s|enable = false|enable = true|' "$APP_TOML" > "$TMP_APP_TOML" && mv "$TMP_APP_TOML" "$APP_TOML"
-        sed 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML" > "$TMP_APP_TOML" && mv "$TMP_APP_TOML" "$APP_TOML"
-        sed 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML" > "$TMP_APP_TOML" && mv "$TMP_APP_TOML" "$APP_TOML"
-        
-        # Clean up temporary files
-        rm -f "$TMP_CONFIG" "$TMP_APP_TOML"
-    else
-        # Linux sed commands
-        sed -i 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
-        sed -i 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
-        sed -i 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
-        sed -i 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
-        sed -i 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
-        sed -i 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
-        sed -i 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
-        sed -i 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
-        
-        # Enable prometheus metrics
-        sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
-        
-        # Enable RPC
-        sed -i '/^\[json-rpc\]/,/^\[/ s|enable = false|enable = true|' "$APP_TOML"
-        sed -i 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/g' "$APP_TOML"
-        sed -i 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/g' "$APP_TOML"
-    fi
+# Display a warning
+print_warning() {
+    print_message "$YELLOW" "WARNING: $1"
+}
 
-    # Download genesis file from seed node
-    echo "Downloading genesis file from seed node..."
-    if ! download_file "http://$SEED_NODE_IP:26657/genesis" "$GENESIS"; then
-        echo "Failed to download genesis file from seed node"
-        exit 1
-    fi
+# Display info
+print_info() {
+    print_message "$BLUE" "INFO: $1"
+}
 
-    # Extract the genesis data from the JSON-RPC response
-    jq '.result.genesis' "$GENESIS" > "$TMP_GENESIS" && mv "$TMP_GENESIS" "$GENESIS"
-
-    # Verify the genesis file has gentxs
-    if ! jq -e '.app_state.genutil.gen_txs | length > 0' "$GENESIS" > /dev/null; then
-        echo "Warning: Genesis file does not contain any gentxs"
-    fi
-
-    # Verify the genesis file has the correct bond denomination
-    if ! jq -e '.app_state.staking.params.bond_denom == "unxq"' "$GENESIS" > /dev/null; then
-        echo "Error: Genesis file has incorrect bond denomination"
-        exit 1
-    fi
-
-    # Validate the genesis file
-    echo "Validating genesis file..."
-    $NXQD_BIN validate-genesis --home "$HOMEDIR"
-
-    # Set up node ID for sharing
-    echo "Setting up node ID..."
-    $NXQD_BIN tendermint show-node-id --home "$HOMEDIR" > "$HOMEDIR/node-id"
-
-    # Set seed node info
-    echo "Getting seed node ID..."
-    SEED_NODE_ID=$(curl -s http://$SEED_NODE_IP:26657/status | jq -r '.result.node_info.id')
-    if [ -z "$SEED_NODE_ID" ]; then
-        echo "Failed to get seed node ID"
-        exit 1
-    fi
-    echo "Using seed node ID: $SEED_NODE_ID"
-    SEEDS="$SEED_NODE_ID@$SEED_NODE_IP:26656"
-
-    # Update seeds in config
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        TMP_CONFIG=$(mktemp)
-        sed "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG" > "$TMP_CONFIG" && mv "$TMP_CONFIG" "$CONFIG"
-        rm -f "$TMP_CONFIG"
-    else
-        sed -i "s/seeds =.*/seeds = \"$SEEDS\"/g" "$CONFIG"
-    fi
-
-    echo "Node initialized successfully!"
+# Display success
+print_success() {
+    print_message "$GREEN" "SUCCESS: $1"
 }
 
 if [[ $1 == "init" ]]; then
-    init
+
+    # Remove the previous folder
+    rm -rf "$HOMEDIR"
+
+    # Set client config
+    $NXQD_BIN config keyring-backend "$KEYRING" --home "$HOMEDIR"
+    $NXQD_BIN config chain-id "$CHAINID" --home "$HOMEDIR"
+
+    VAL_KEY="mykey"
+    VAL_MNEMONIC="copper push brief egg scan entry inform record adjust fossil boss egg comic alien upon aspect dry avoid interest fury window hint race symptom"
+
+    # Import keys from mnemonics
+    echo "$VAL_MNEMONIC" | $NXQD_BIN keys add "$VAL_KEY" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+
+    # Set moniker and chain-id for Evmos (Moniker can be anything, chain-id must be an integer)
+    $NXQD_BIN init $MONIKER -o --chain-id "$CHAINID" --home "$HOMEDIR"
+
+    if [[ $1 == "pending" ]]; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
+            sed -i '' 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
+            sed -i '' 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
+            sed -i '' 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
+            sed -i '' 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
+            sed -i '' 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
+            sed -i '' 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
+            sed -i '' 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
+        else
+            sed -i 's/timeout_propose = "3s"/timeout_propose = "30s"/g' "$CONFIG"
+            sed -i 's/timeout_propose_delta = "500ms"/timeout_propose_delta = "5s"/g' "$CONFIG"
+            sed -i 's/timeout_prevote = "1s"/timeout_prevote = "10s"/g' "$CONFIG"
+            sed -i 's/timeout_prevote_delta = "500ms"/timeout_prevote_delta = "5s"/g' "$CONFIG"
+            sed -i 's/timeout_precommit = "1s"/timeout_precommit = "10s"/g' "$CONFIG"
+            sed -i 's/timeout_precommit_delta = "500ms"/timeout_precommit_delta = "5s"/g' "$CONFIG"
+            sed -i 's/timeout_commit = "5s"/timeout_commit = "150s"/g' "$CONFIG"
+            sed -i 's/timeout_broadcast_tx_commit = "10s"/timeout_broadcast_tx_commit = "150s"/g' "$CONFIG"
+        fi
+    fi
+
+    # enable prometheus metrics and all APIs for dev node
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/prometheus = false/prometheus = true/' "$CONFIG"
+    else
+        sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
+    fi
+
+    # Configure block time (1 block every 8 seconds)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i '' 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+    else
+        sed -i 's/timeout_commit = "5s"/timeout_commit = "8s"/g' "$CONFIG"
+        sed -i 's/timeout_commit = "3s"/timeout_commit = "8s"/g' "$CONFIG"
+    fi
+
+    # Configure RPC endpoints to bind to all interfaces for external access
+    print_info "Configuring RPC endpoints for external access"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # Configure Tendermint RPC to bind to all interfaces
+        sed -i '' 's|^laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        # Configure Ethereum JSON-RPC to bind to all interfaces
+        sed -i '' 's|^address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        # Enable gRPC for validator operations and API access
+        sed -i '' '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
+    else
+        # Configure Tendermint RPC to bind to all interfaces
+        sed -i 's|^laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
+        # Configure Ethereum JSON-RPC to bind to all interfaces
+        sed -i 's|^address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        # Enable gRPC for validator operations and API access
+        sed -i '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
+    fi
+    
+    # Verify gRPC is enabled
+    print_info "Verifying gRPC configuration:"
+    grep -A2 "\[grpc\]" "$APP_TOML" | grep "enable"
+
+    # Configure multiple seed nodes for redundancy
+    print_info "Configuring multiple seed nodes and persistent peers"
+    
+    # Using seed nodes and persistent peer from top-level configuration
+    
+    # Function to safely get node ID with fallback and timeout
+    get_node_id() {
+        local host=$1
+        local node_id
+        
+        # Try wget first (available on CentOS), then curl as fallback
+        if command -v wget >/dev/null 2>&1; then
+            if node_id=$(timeout 10 wget -qO- "http://$host/node-id" 2>/dev/null); then
+                echo "$node_id"
+            else
+                print_warning "Could not get node ID from $host (may not be running yet)"
+                return 1
+            fi
+        elif command -v curl >/dev/null 2>&1; then
+            if node_id=$(timeout 10 curl -s "http://$host/node-id" 2>/dev/null); then
+                echo "$node_id"
+            else
+                print_warning "Could not get node ID from $host (may not be running yet)"
+                return 1
+            fi
+        else
+            print_warning "Neither wget nor curl found for getting node ID from $host"
+            return 1
+        fi
+    }
+    
+    # Get node IDs from all available seed nodes
+    SEED_NODE_1_ID=""
+    SEED_NODE_2_ID=""
+    PERSISTENT_PEER_ID=""
+    
+    if get_node_id "$SEED_NODE_1_DOMAIN" >/dev/null 2>&1; then
+        SEED_NODE_1_ID=$(get_node_id "$SEED_NODE_1_DOMAIN")
+    fi
+    
+    if get_node_id "$SEED_NODE_2_DOMAIN" >/dev/null 2>&1; then
+        SEED_NODE_2_ID=$(get_node_id "$SEED_NODE_2_DOMAIN")
+    fi
+    
+    if get_node_id "$PERSISTENT_PEER_DOMAIN" >/dev/null 2>&1; then
+        PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_DOMAIN")
+    fi
+    
+    # Build seeds list (only include available nodes)
+    SEEDS=""
+    if [ -n "$SEED_NODE_1_ID" ]; then
+        SEEDS="$SEED_NODE_1_ID@$SEED_NODE_1_DOMAIN:26656"
+        print_success "Added seed node 1: $SEED_NODE_1_DOMAIN"
+    fi
+    
+    if [ -n "$SEED_NODE_2_ID" ]; then
+        if [ -n "$SEEDS" ]; then
+            SEEDS="$SEEDS,$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
+        else
+            SEEDS="$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
+        fi
+        print_success "Added seed node 2: $SEED_NODE_2_DOMAIN"
+    fi
+    
+    # Build persistent peers list
+    PERSISTENT_PEERS=""
+    if [ -n "$PERSISTENT_PEER_ID" ]; then
+        PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
+        print_success "Added persistent peer: $PERSISTENT_PEER_DOMAIN"
+    fi
+    
+    # Validate we have at least one seed
+    if [ -z "$SEEDS" ]; then
+        error_exit "No seed nodes available! Check network connectivity."
+    fi
+    
+    # Apply configuration
+    print_info "Configuring P2P settings:"
+    print_info "Seeds: $SEEDS"
+    if [ -n "$PERSISTENT_PEERS" ]; then
+        print_info "Persistent Peers: $PERSISTENT_PEERS"
+    fi
+    
+    # Update config.toml with seeds and persistent peers
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
+        if [ -n "$PERSISTENT_PEERS" ]; then
+            sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+        fi
+        # Improve network resilience settings
+        sed -i '' 's/^pex = .*/pex = true/' "$CONFIG"
+        sed -i '' 's/^addr_book_strict = .*/addr_book_strict = false/' "$CONFIG"
+        sed -i '' 's/^max_num_inbound_peers = .*/max_num_inbound_peers = 80/' "$CONFIG"
+        sed -i '' 's/^max_num_outbound_peers = .*/max_num_outbound_peers = 40/' "$CONFIG"
+    else
+        sed -i "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
+        if [ -n "$PERSISTENT_PEERS" ]; then
+            sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+        fi
+        # Improve network resilience settings
+        sed -i 's/^pex = .*/pex = true/' "$CONFIG"
+        sed -i 's/^addr_book_strict = .*/addr_book_strict = false/' "$CONFIG"
+        sed -i 's/^max_num_inbound_peers = .*/max_num_inbound_peers = 80/' "$CONFIG"
+        sed -i 's/^max_num_outbound_peers = .*/max_num_outbound_peers = 40/' "$CONFIG"
+    fi
+    
+    print_info "Enhanced network resilience settings applied"
+
+    # Download genesis file with fallback support
+    print_info "Downloading genesis file with fallback support"
+    GENESIS_DOWNLOADED=false
+    
+    # Try each seed node for genesis file
+    for host in "$SEED_NODE_1_DOMAIN" "$SEED_NODE_2_DOMAIN"; do
+        # Try wget first (available on CentOS), then curl as fallback
+        if command -v wget >/dev/null 2>&1; then
+            if wget -qO "$GENESIS" "http://$host/genesis.json" 2>/dev/null; then
+                print_success "Genesis file downloaded from $host (using wget)"
+                GENESIS_DOWNLOADED=true
+                break
+            else
+                print_warning "Failed to download genesis from $host using wget"
+            fi
+        elif command -v curl >/dev/null 2>&1; then
+            if curl -s -o "$GENESIS" "http://$host/genesis.json" 2>/dev/null; then
+                print_success "Genesis file downloaded from $host (using curl)"
+                GENESIS_DOWNLOADED=true
+                break
+            else
+                print_warning "Failed to download genesis from $host using curl"
+            fi
+        else
+            print_warning "Neither wget nor curl available for downloading from $host"
+        fi
+    done
+    
+    if [ "$GENESIS_DOWNLOADED" = false ]; then
+        error_exit "Could not download genesis file from any seed node!"
+    fi
+
+    $NXQD_BIN validate-genesis --home "$HOMEDIR"
+
 else
     # Start the node
     $NXQD_BIN start \
@@ -190,4 +314,5 @@ else
         --json-rpc.api eth,txpool,personal,net,debug,web3 \
         --home "$HOMEDIR" \
         --chain-id "$CHAINID"
+    
 fi

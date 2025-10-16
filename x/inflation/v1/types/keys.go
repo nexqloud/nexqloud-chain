@@ -22,6 +22,7 @@ const (
 	prefixEpochIdentifier
 	prefixEpochsPerPeriod
 	prefixSkippedEpochs
+	prefixHalvingData //Added for halving data storage
 )
 
 // KVStore key prefixes
@@ -30,4 +31,5 @@ var (
 	KeyPrefixEpochIdentifier = []byte{prefixEpochIdentifier}
 	KeyPrefixEpochsPerPeriod = []byte{prefixEpochsPerPeriod}
 	KeyPrefixSkippedEpochs   = []byte{prefixSkippedEpochs}
+	KeyPrefixHalvingData     = []byte{prefixHalvingData} // 🆕 Added for halving data storage
 )

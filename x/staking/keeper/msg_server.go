@@ -54,7 +54,7 @@ func (k msgServer) Delegate(goCtx context.Context, msg *types.MsgDelegate) (*typ
 // customValidatorChecks performs custom validation checks for validators
 // This includes NFT ownership validation and minimum self-delegation requirements
 func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateValidator) error {
-	
+
 	// Check if we're in a genesis block (height <= 1)
 	// During initialization, bypass all validation
 	if ctx.BlockHeight() <= 1 {
@@ -101,7 +101,7 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
 	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, walletStateContract)
 	if err != nil {
-	
+
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
 		requiredNXQNFTs = big.NewInt(5)                           // Default: 5 NFT
 	}
@@ -119,6 +119,8 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 
 	// Check if the NFT balance meets the requirement
 	if nftBalance.Cmp(requiredNXQNFTs) < 0 {
+		log.Printf("NFT balance check failed: required %s, found %s",
+			requiredNXQNFTs.String(), nftBalance.String())
 		return errorsmod.Wrap(
 			errortypes.ErrUnauthorized,
 			fmt.Sprintf("must own ≥%s NXQNFT, found %s",
@@ -133,12 +135,16 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 
 	// Ensure minimum self delegation meets the requirement
 	if msg.MinSelfDelegation.LT(requiredMinSelfDelegation) {
+		log.Printf("Minimum self delegation check failed: required %s, found %s",
+			requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String())
 		return errorsmod.Wrap(
 			errortypes.ErrInvalidRequest,
 			fmt.Sprintf("minimum self delegation must be at least %s NXQ, got %s",
 				requiredMinSelfDelegation.String(), msg.MinSelfDelegation.String()),
 		)
 	}
+	log.Printf("✅ Minimum self delegation requirement met: %s ≥ %s",
+		msg.MinSelfDelegation.String(), requiredMinSelfDelegation.String())
 
 	return nil
 }
@@ -161,7 +167,6 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		log.Printf("ERROR: Delegation validation failed: %v", err)
 		return nil, err
 	}
-
 
 	return k.MsgServer.CreateValidator(goCtx, msg)
 }

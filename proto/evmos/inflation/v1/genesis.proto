@@ -21,6 +21,8 @@ message GenesisState {
   int64 epochs_per_period = 4;
   // skipped_epochs is the number of epochs that have passed while inflation is disabled
   uint64 skipped_epochs = 5;
+  // halving_data stores the current halving period and epoch tracking
+  HalvingData halving_data = 6 [(gogoproto.nullable) = false];
 }
 
 // Params holds parameters for the inflation module.
@@ -33,4 +35,12 @@ message Params {
   InflationDistribution inflation_distribution = 3 [(gogoproto.nullable) = false];
   // enable_inflation is the parameter that enables inflation and halts increasing the skipped_epochs
   bool enable_inflation = 4;
+  // daily_emission specifies the base amount of tokens to mint per day (before halving)
+  string daily_emission = 5 [(gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
+  // halving_interval_epochs specifies how many epochs until the next halving (1461 for 4 years)
+  uint64 halving_interval_epochs = 6;
+  // multi_sig_address is the address that receives all newly minted tokens
+  string multi_sig_address = 7;
+  // max_supply is the absolute maximum supply cap (21M tokens with 18 decimals)
+  string max_supply = 8 [(gogoproto.customtype) = "cosmossdk.io/math.Int", (gogoproto.nullable) = false];
 }
