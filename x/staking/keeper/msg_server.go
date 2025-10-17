@@ -54,7 +54,7 @@ func (k msgServer) Delegate(goCtx context.Context, msg *types.MsgDelegate) (*typ
 // customValidatorChecks performs custom validation checks for validators
 // This includes NFT ownership validation and minimum self-delegation requirements
 func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateValidator) error {
-	
+
 	// Check if we're in a genesis block (height <= 1)
 	// During initialization, bypass all validation
 	if ctx.BlockHeight() <= 1 {
@@ -101,7 +101,7 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
 	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, walletStateContract)
 	if err != nil {
-	
+
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
 		requiredNXQNFTs = big.NewInt(5)                           // Default: 5 NFT
 	}
@@ -167,7 +167,6 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		log.Printf("ERROR: Delegation validation failed: %v", err)
 		return nil, err
 	}
-
 
 	return k.MsgServer.CreateValidator(goCtx, msg)
 }
