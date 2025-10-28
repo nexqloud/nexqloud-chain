@@ -3,11 +3,11 @@ package config
 // Contract addresses and other configuration constants for the staking module
 const (
 	ChainID                   = 6000
-	OnlineServerCountContract = "0x37D7f1e155bd96528C9232855058e8a9C8Bff1bc"
+	OnlineServerCountContract = "0x3f8fBb2a27c6cD37d65403FDe994dD82f56e1583"
 	// NFTContractAddress is the address of the NFT contract that validators must own tokens from
-	NFTContractAddress = "0xb1E62bff2501953064E7Aaf12C5d65aA439B8884"
+	NFTContractAddress = "0x1c09B13B4Ea885CAF8b07a69231Ace3B0cCd91Bf"
 	// WalletStateContractAddress is the address of the contract that stores validator requirements
-	WalletStateContractAddress = "0x81C00FE47b085aCDf88C0Fa30437A3b8F39F4Eb6"
+	WalletStateContractAddress = "0x54Bb36Ac0887242D6d77562Acf2f34c68477b99C"
 
-	ValidatorApprovalContractAddress = "0x6D6b3e29137B69D6bb0d6706E4D1d20CD8aCbFFD"
+	ValidatorApprovalContractAddress = "0x9C72445A145f6C45D02188074F3338a65D0b6c9C"
 )
