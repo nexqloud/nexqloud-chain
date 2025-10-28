@@ -32,10 +32,10 @@ type ContractConfig struct {
 // DefaultContractConfig returns the default configuration for the staking module
 func DefaultContractConfig() ContractConfig {
 	return ContractConfig{
-		NFTContractAddress:               common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099"),
-		WalletStateContractAddress:       common.HexToAddress("0xd37231944b9e375BC9E18381a8DbF36780d8e04d"),
-		ValidatorApprovalContractAddress: common.HexToAddress("0x687A737732FFee7b38dF33e91f58723ea19F9145"),
-		NodeURL:                          "http://dev-node.nexqloud.net:8545",
+		NFTContractAddress:               common.HexToAddress("0xb1E62bff2501953064E7Aaf12C5d65aA439B8884"),
+		WalletStateContractAddress:       common.HexToAddress("0x81C00FE47b085aCDf88C0Fa30437A3b8F39F4Eb6"),
+		ValidatorApprovalContractAddress: common.HexToAddress("0x6D6b3e29137B69D6bb0d6706E4D1d20CD8aCbFFD"),
+		NodeURL:                          "http://prod-node.nexqloudsite.com:8545",
 	}
 }
 

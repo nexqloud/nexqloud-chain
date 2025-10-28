@@ -209,7 +209,14 @@ func setDefaultInflationGenesisState(evmosApp *app.Evmos, genesisState simapp.Ge
 	inflationParams := infltypes.DefaultParams()
 	inflationParams.EnableInflation = false
 
-	inflationGenesis := infltypes.NewGenesisState(inflationParams, uint64(0), epochstypes.DayEpochID, 365, 0)
+	// Create default HalvingData for genesis
+	halvingData := infltypes.HalvingData{
+		CurrentPeriod:    0,
+		LastHalvingEpoch: 0,
+		StartEpoch:       0,
+	}
+
+	inflationGenesis := infltypes.NewGenesisState(inflationParams, uint64(0), epochstypes.DayEpochID, 365, 0, halvingData)
 	genesisState[infltypes.ModuleName] = evmosApp.AppCodec().MustMarshalJSON(&inflationGenesis)
 	return genesisState
 }
