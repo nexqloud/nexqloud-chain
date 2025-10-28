@@ -19,8 +19,11 @@ type ContractConfig struct {
 	// NFTContractAddress is the address of the NFT contract that validators must own tokens from
 	NFTContractAddress common.Address
 
-	// WalletStateContractAddress is the address of the contract that stores validator requirements
+	// WalletStateContractAddress is the address of the contract for wallet lock/unlock
 	WalletStateContractAddress common.Address
+
+	// ValidatorApprovalContractAddress is the address of the contract for validator approval
+	ValidatorApprovalContractAddress common.Address
 
 	// NodeURL is the URL of the Ethereum JSON-RPC endpoint for testing
 	NodeURL string
@@ -29,9 +32,10 @@ type ContractConfig struct {
 // DefaultContractConfig returns the default configuration for the staking module
 func DefaultContractConfig() ContractConfig {
 	return ContractConfig{
-		NFTContractAddress:         common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099"),
-		WalletStateContractAddress: common.HexToAddress("0xA912e0631f97e52e5fb8435e20f7B4c7755F7de3"),
-		NodeURL:                    "http://dev-node.nexqloud.net:8545",
+		NFTContractAddress:               common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099"),
+		WalletStateContractAddress:       common.HexToAddress("0xd37231944b9e375BC9E18381a8DbF36780d8e04d"),
+		ValidatorApprovalContractAddress: common.HexToAddress("0x687A737732FFee7b38dF33e91f58723ea19F9145"),
+		NodeURL:                          "http://dev-node.nexqloud.net:8545",
 	}
 }
 
@@ -52,17 +56,17 @@ func TestValidatorRequirements(t *testing.T) {
 	require.NoError(t, err, "Failed to get NFT contract code")
 	require.NotEmpty(t, code, "NFT contract has no code (not deployed)")
 
-	// Test WalletState contract connection
-	t.Log("WalletState Contract address:", config.WalletStateContractAddress.Hex())
-	code, err = client.CodeAt(context.Background(), config.WalletStateContractAddress, nil)
-	require.NoError(t, err, "Failed to get WalletState contract code")
-	require.NotEmpty(t, code, "WalletState contract has no code (not deployed)")
+	// Test ValidatorApproval contract connection
+	t.Log("ValidatorApproval Contract address:", config.ValidatorApprovalContractAddress.Hex())
+	code, err = client.CodeAt(context.Background(), config.ValidatorApprovalContractAddress, nil)
+	require.NoError(t, err, "Failed to get ValidatorApproval contract code")
+	require.NotEmpty(t, code, "ValidatorApproval contract has no code (not deployed)")
 
 	// Get validator requirements
-	requiredNXQTokens, requiredNXQNFTs, err := getValidatorRequirements(client, config.WalletStateContractAddress)
+	requiredNXQTokens, requiredNXQNFTs, err := getValidatorRequirements(client, config.ValidatorApprovalContractAddress)
 	if err != nil {
 		t.Logf("Error getting validator requirements: %v", err)
-		t.Logf("This is expected if the WalletState contract doesn't implement getValidatorRequirements()")
+		t.Logf("This is expected if the ValidatorApproval contract doesn't implement getValidatorRequirements()")
 		t.Logf("In a real implementation, the code would fall back to default values")
 		return
 	}
@@ -89,7 +93,7 @@ func TestNFTBalanceCheck(t *testing.T) {
 
 	// Use the specific address requested for testing
 	testAddress := common.HexToAddress("0xC6Fe5D33615a1C52c08018c47E8Bc53646A0E101")
-	
+
 	// Test with real NFT contract
 	// If this fails, the test will log but continue
 	balance, err := getNFTBalance(client, config.NFTContractAddress, testAddress)
@@ -97,9 +101,9 @@ func TestNFTBalanceCheck(t *testing.T) {
 		t.Logf("Error getting NFT balance: %v. Using default value 0.", err)
 		balance = big.NewInt(0)
 	}
-	
+
 	t.Logf("NFT Balance for address %s: %s", testAddress.Hex(), balance.String())
-	
+
 	// Test a different test address for comparison
 	alternateAddress := common.HexToAddress("0x0000000000000000000000000000000000000000")
 	alternateBalance, err := getNFTBalance(client, config.NFTContractAddress, alternateAddress)
@@ -107,24 +111,24 @@ func TestNFTBalanceCheck(t *testing.T) {
 		t.Logf("Error getting NFT balance for alternate address: %v. Using default value 0.", err)
 		alternateBalance = big.NewInt(0)
 	}
-	
+
 	t.Logf("NFT Balance for alternate address %s: %s", alternateAddress.Hex(), alternateBalance.String())
-	
+
 	// Fetch validator requirements
-	requiredNXQTokens, requiredNXQNFTs, err := getValidatorRequirements(client, config.WalletStateContractAddress)
+	requiredNXQTokens, requiredNXQNFTs, err := getValidatorRequirements(client, config.ValidatorApprovalContractAddress)
 	if err != nil {
 		t.Logf("Error getting validator requirements: %v. Using default values.", err)
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // 5 NXQ with 18 decimals
-		requiredNXQNFTs = big.NewInt(5)                          // Default: 5 NFT (as per current contract setting)
+		requiredNXQNFTs = big.NewInt(5)                           // Default: 5 NFT (as per current contract setting)
 	}
-	
+
 	t.Logf("Required NXQ Tokens: %s", requiredNXQTokens.String())
 	t.Logf("Required NXQNFTs: %s", requiredNXQNFTs.String())
-	
+
 	// Check if the address meets the NFT requirement
 	hasEnoughNFTs := balance.Cmp(requiredNXQNFTs) >= 0
-	t.Logf("Address %s meets NFT requirement: %v (%s >= %s)", 
-		testAddress.Hex(), 
+	t.Logf("Address %s meets NFT requirement: %v (%s >= %s)",
+		testAddress.Hex(),
 		hasEnoughNFTs,
 		balance.String(),
 		requiredNXQNFTs.String())
@@ -138,7 +142,7 @@ func getFunctionSelector(signature string) []byte {
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
 }
 
-// getValidatorRequirements queries the WalletState contract to get validator requirements
+// getValidatorRequirements queries the ValidatorApproval contract to get validator requirements
 func getValidatorRequirements(client *ethclient.Client, contractAddr common.Address) (*big.Int, *big.Int, error) {
 	// Calculate the function selector properly
 	functionSignature := "getValidatorRequirements()"
@@ -174,7 +178,7 @@ func getNFTBalance(client *ethclient.Client, contractAddr, ownerAddr common.Addr
 	// Function selector for balanceOf(address)
 	// This is the first 4 bytes of keccak256("balanceOf(address)")
 	selector := common.FromHex("0x70a08231")
-	
+
 	// Append the address parameter (padded to 32 bytes)
 	callData := append(selector, common.LeftPadBytes(ownerAddr.Bytes(), 32)...)
 
@@ -197,4 +201,4 @@ func getNFTBalance(client *ethclient.Client, contractAddr, ownerAddr common.Addr
 	// Convert the bytes response to a big.Int
 	balance := new(big.Int).SetBytes(result)
 	return balance, nil
-} 
+}

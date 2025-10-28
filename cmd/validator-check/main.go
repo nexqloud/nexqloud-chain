@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	
+
 	"golang.org/x/crypto/sha3"
 )
 
@@ -20,8 +20,8 @@ type ContractConfig struct {
 	// NFTContractAddress is the address of the NFT contract that validators must own tokens from
 	NFTContractAddress common.Address
 
-	// WalletStateContractAddress is the address of the contract that stores validator requirements
-	WalletStateContractAddress common.Address
+	// ValidatorApprovalContractAddress is the address of the contract for validator approval and requirements
+	ValidatorApprovalContractAddress common.Address
 
 	// NodeURL is the URL of the Ethereum JSON-RPC endpoint for testing
 	NodeURL string
@@ -30,9 +30,9 @@ type ContractConfig struct {
 // DefaultContractConfig returns the default configuration for the staking module
 func DefaultContractConfig() ContractConfig {
 	return ContractConfig{
-		NFTContractAddress:         common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099"),
-		WalletStateContractAddress: common.HexToAddress("0x687A737732FFee7b38dF33e91f58723ea19F9145"),
-		NodeURL:                    "http://dev-node.nexqloud.net:8545",
+		NFTContractAddress:               common.HexToAddress("0x816644F8bc4633D268842628EB10ffC0AdcB6099"),
+		ValidatorApprovalContractAddress: common.HexToAddress("0x687A737732FFee7b38dF33e91f58723ea19F9145"),
+		NodeURL:                          "http://dev-node.nexqloud.net:8545",
 	}
 }
 
@@ -57,7 +57,7 @@ func main() {
 	// Load config
 	config := DefaultContractConfig()
 	nftContractAddr := config.NFTContractAddress
-	walletStateContractAddr := config.WalletStateContractAddress
+	validatorApprovalContractAddr := config.ValidatorApprovalContractAddress
 	nodeURL := config.NodeURL
 
 	// Connect to Ethereum node
@@ -78,20 +78,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	code, err = client.CodeAt(context.Background(), walletStateContractAddr, nil)
+	code, err = client.CodeAt(context.Background(), validatorApprovalContractAddr, nil)
 	if err != nil || len(code) == 0 {
-		fmt.Printf("Error: WalletState contract at %s is not deployed\n", walletStateContractAddr.Hex())
+		fmt.Printf("Error: ValidatorApproval contract at %s is not deployed\n", validatorApprovalContractAddr.Hex())
 		os.Exit(1)
 	}
 
 	// Get validator requirements
 	fmt.Printf("\n=== Fetching Validator Requirements ===\n")
-	requiredNXQTokens, requiredNXQNFTs, err := getValidatorRequirements(client, walletStateContractAddr)
+	requiredNXQTokens, requiredNXQNFTs, err := getValidatorRequirements(client, validatorApprovalContractAddr)
 	if err != nil {
 		fmt.Printf("Warning: Failed to get validator requirements: %v\n", err)
 		fmt.Println("Using default values: 5 NXQ tokens, 5 NXQNFT")
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
-		requiredNXQNFTs = big.NewInt(5)                          // Default: 5 NFT (as per current contract setting)
+		requiredNXQNFTs = big.NewInt(5)                           // Default: 5 NFT (as per current contract setting)
 	}
 
 	fmt.Printf("Current validator requirements:\n")
@@ -101,13 +101,13 @@ func main() {
 	// Check if address is on the approved validators list
 	fmt.Printf("\n=== Checking Validator Approval Status ===\n")
 	fmt.Printf("Address to check: %s\n", checkAddr.Hex())
-	isApproved, err := isApprovedValidator(client, walletStateContractAddr, checkAddr)
+	isApproved, err := isApprovedValidator(client, validatorApprovalContractAddr, checkAddr)
 	approvalStatus := "UNKNOWN"
 	approvalCheck := false
-	
+
 	if err != nil {
-		if strings.Contains(err.Error(), "execution reverted") || 
-		   strings.Contains(err.Error(), "may not be implemented yet") {
+		if strings.Contains(err.Error(), "execution reverted") ||
+			strings.Contains(err.Error(), "may not be implemented yet") {
 			fmt.Printf("Note: Validator approval check is not available on this contract version.\n")
 			fmt.Printf("The smart contract function 'isApprovedValidator' may not be implemented yet.\n")
 			approvalStatus = "SKIPPED"
@@ -141,16 +141,16 @@ func main() {
 	nftCheckPassed := nftBalance.Cmp(requiredNXQNFTs) >= 0
 	fmt.Printf("\n=== Validator Eligibility Check ===\n")
 	if nftCheckPassed {
-		fmt.Printf("✅ NFT requirement met: Has %s NXQNFT (required: %s)\n", 
+		fmt.Printf("✅ NFT requirement met: Has %s NXQNFT (required: %s)\n",
 			nftBalance.String(), requiredNXQNFTs.String())
 	} else {
-		fmt.Printf("❌ NFT requirement NOT met: Has %s NXQNFT (required: %s)\n", 
+		fmt.Printf("❌ NFT requirement NOT met: Has %s NXQNFT (required: %s)\n",
 			nftBalance.String(), requiredNXQNFTs.String())
 	}
-	
+
 	// Summary of all checks
 	fmt.Printf("\n=== Overall Eligibility ===\n")
-	
+
 	// If approval check is skipped, only consider NFT balance
 	if approvalStatus == "SKIPPED" {
 		if nftCheckPassed {
@@ -221,7 +221,7 @@ func getNFTBalance(client *ethclient.Client, contractAddr, ownerAddr common.Addr
 	// Function selector for balanceOf(address)
 	// This is the first 4 bytes of keccak256("balanceOf(address)")
 	selector := common.FromHex("0x70a08231")
-	
+
 	// Append the address parameter (padded to 32 bytes)
 	callData := append(selector, common.LeftPadBytes(ownerAddr.Bytes(), 32)...)
 
@@ -250,19 +250,19 @@ func getNFTBalance(client *ethclient.Client, contractAddr, ownerAddr common.Addr
 func formatNXQ(tokens *big.Int) string {
 	// NXQ has 18 decimals
 	decimals := big.NewInt(1_000_000_000_000_000_000) // 10^18
-	
+
 	// If the tokens are less than 1 NXQ, return in smaller units
 	if tokens.Cmp(decimals) < 0 {
 		return fmt.Sprintf("%s wei", tokens.String())
 	}
-	
+
 	whole := new(big.Int).Div(tokens, decimals)
 	remainder := new(big.Int).Mod(tokens, decimals)
-	
+
 	if remainder.Cmp(big.NewInt(0)) == 0 {
 		return fmt.Sprintf("%s NXQ", whole.String())
 	}
-	
+
 	// Show with decimals
 	return fmt.Sprintf("%s.%018s NXQ", whole.String(), remainder.String())
 }
@@ -272,16 +272,16 @@ func isApprovedValidator(client *ethclient.Client, contractAddr, validatorAddr c
 	// Calculate the function selector for isApprovedValidator(address)
 	functionSignature := "isApprovedValidator(address)"
 	selector := getFunctionSelector(functionSignature)
-	
+
 	// Encode the address parameter
 	data := append(selector, common.LeftPadBytes(validatorAddr.Bytes(), 32)...)
-	
+
 	// Make the call
 	msg := ethereum.CallMsg{
 		To:   &contractAddr,
 		Data: data,
 	}
-	
+
 	result, err := client.CallContract(context.Background(), msg, nil)
 	if err != nil {
 		// If the error contains "execution reverted", it likely means the function doesn't exist
@@ -291,18 +291,18 @@ func isApprovedValidator(client *ethclient.Client, contractAddr, validatorAddr c
 		}
 		return false, fmt.Errorf("failed to call isApprovedValidator: %v", err)
 	}
-	
+
 	// Parse boolean result (should be a 32-byte word where any non-zero value is true)
 	if len(result) < 32 {
 		return false, fmt.Errorf("unexpected result length: got %d bytes, want 32", len(result))
 	}
-	
+
 	// Check if any byte in the result is non-zero (indicating true)
 	for _, b := range result {
 		if b != 0 {
 			return true, nil
 		}
 	}
-	
+
 	return false, nil
-} 
+}
