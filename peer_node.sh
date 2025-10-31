@@ -146,20 +146,26 @@ if [[ $1 == "init" ]]; then
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # Configure Tendermint RPC to bind to all interfaces
         sed -i '' 's|^laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-        # Configure Ethereum JSON-RPC to bind to all interfaces
+        # Enable JSON-RPC and configure to bind to all interfaces
+        sed -i '' '/^\[json-rpc\]/,/^\[/ s|enable = false|enable = true|' "$APP_TOML"
         sed -i '' 's|^address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        sed -i '' 's|^ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
         # Enable gRPC for validator operations and API access
         sed -i '' '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     else
         # Configure Tendermint RPC to bind to all interfaces
         sed -i 's|^laddr = "tcp://127.0.0.1:26657"|laddr = "tcp://0.0.0.0:26657"|g' "$CONFIG"
-        # Configure Ethereum JSON-RPC to bind to all interfaces
+        # Enable JSON-RPC and configure to bind to all interfaces
+        sed -i '/^\[json-rpc\]/,/^\[/ s|enable = false|enable = true|' "$APP_TOML"
         sed -i 's|^address = "127.0.0.1:8545"|address = "0.0.0.0:8545"|g' "$APP_TOML"
+        sed -i 's|^ws-address = "127.0.0.1:8546"|ws-address = "0.0.0.0:8546"|g' "$APP_TOML"
         # Enable gRPC for validator operations and API access
         sed -i '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     fi
     
-    # Verify gRPC is enabled
+    # Verify JSON-RPC and gRPC are enabled
+    print_info "Verifying JSON-RPC configuration:"
+    grep -A3 "\[json-rpc\]" "$APP_TOML" | grep "enable"
     print_info "Verifying gRPC configuration:"
     grep -A2 "\[grpc\]" "$APP_TOML" | grep "enable"
 

@@ -98,8 +98,8 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	}
 
 	// Get validator requirements (with fallback)
-	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
-	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, walletStateContract)
+	validatorApprovalContract := common.HexToAddress(config.ValidatorApprovalContractAddress)
+	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, validatorApprovalContract)
 	if err != nil {
 
 		requiredNXQTokens = big.NewInt(5_000_000_000_000_000_000) // Default: 5 NXQ with 18 decimals
@@ -245,7 +245,7 @@ func getFunctionSelector(signature string) []byte {
 	return selector
 }
 
-// getValidatorRequirements queries the WalletState contract to get the required number of
+// getValidatorRequirements queries the ValidatorApproval contract to get the required number of
 // NXQ tokens and NXQNFT's to become a validator
 func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common.Address) (*big.Int, *big.Int, error) {
 
@@ -273,7 +273,7 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 	}
 
 	// Make the EthCall
-	log.Printf("Making direct EthCall to WalletState contract %s", contractAddr.Hex())
+	log.Printf("Making direct EthCall to ValidatorApproval contract %s", contractAddr.Hex())
 
 	// Check if evmKeeper has EthCall method
 	ethCaller, ok := k.evmKeeper.(EvmEthCaller)
@@ -289,12 +289,12 @@ func (k msgServer) getValidatorRequirements(ctx sdk.Context, contractAddr common
 
 	// Parse the response
 	if response == nil || len(response.Ret) == 0 {
-		return nil, nil, fmt.Errorf("empty response from WalletState contract")
+		return nil, nil, fmt.Errorf("empty response from ValidatorApproval contract")
 	}
 
 	// The response contains two uint256 values packed together (each 32 bytes)
 	if len(response.Ret) < 64 {
-		return nil, nil, fmt.Errorf("invalid response length from WalletState contract: %d", len(response.Ret))
+		return nil, nil, fmt.Errorf("invalid response length from ValidatorApproval contract: %d", len(response.Ret))
 	}
 
 	// Extract the two uint256 values
@@ -372,8 +372,8 @@ type EvmEthCaller interface {
 // isApprovedValidator checks if an address is on the approved validators list
 func (k msgServer) isApprovedValidator(ctx sdk.Context, validatorAddr common.Address) (bool, error) {
 
-	// Get WalletState contract address
-	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
+	// Get ValidatorApproval contract address
+	validatorApprovalContract := common.HexToAddress(config.ValidatorApprovalContractAddress)
 
 	// Calculate the function selector for isApprovedValidator(address)
 	functionSignature := "isApprovedValidator(address)"
@@ -386,7 +386,7 @@ func (k msgServer) isApprovedValidator(ctx sdk.Context, validatorAddr common.Add
 	// Prepare the transaction arguments
 	hexData := hexutil.Bytes(callData)
 	args := evmtypes.TransactionArgs{
-		To:   &walletStateContract,
+		To:   &validatorApprovalContract,
 		Data: &hexData,
 	}
 
