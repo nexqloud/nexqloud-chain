@@ -296,13 +296,13 @@ initialize_blockchain() {
     fi
     
     # Change proposal periods
-    print_info "Setting up shortened proposal periods for testing"
+    print_info "Setting up proposal periods (5 minutes for voting)"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
-        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+        sed -i '' 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
     else
-        sed -i 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
-        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+        sed -i 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
     fi
     
     print_section "Setting Up Genesis Accounts"
