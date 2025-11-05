@@ -28,7 +28,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	config "github.com/evmos/evmos/v19/x/config"
 	"github.com/evmos/evmos/v19/x/evm/types"
 )
 
@@ -50,19 +49,7 @@ type walletLockCache struct {
 }
 
 var (
-	whitelist = map[string]bool{
-		//prod config
-		"0x7D437C6A2fc588406E56E32a8B4f0a7f9c5a0697": true,
-		"0x88BD53410Fa339d4E998a32a04E2110EA8d2c252": true,
-		"0x6dFf82d3E6396DEa085d36eCEa352BF101260601": true,
-		"0x334306e7F1e45E90EC5B0F377eED012dB681f89e": true,
-
-		//staging config
-		// "0x50823c6fBF2Dd945480951ABBa144b9a1e89dFC3": true,
-
-		//dev config
-		// "0xE56A21BB0619225616DE7613937b2b816A14deB1": true,
-	}
+	// Removed hardcoded whitelist - now loaded from chain params
 
 	// Cache with mutex for thread safety
 	chainStatusCacheMap = make(map[string]*chainStatusCache)
@@ -71,9 +58,6 @@ var (
 
 	// Cache duration - increased to 30 seconds for better cache hit rate
 	cacheDuration = 30 * time.Second
-
-	// Emergency mode - disable chain status checks during high load
-	emergencyMode = false
 
 	// Cache statistics
 	cleanupCounter = 0
@@ -122,6 +106,19 @@ func getFunctionSelector(signature string) []byte {
 	return hash.Sum(nil)[:4] // First 4 bytes of keccak256 hash
 }
 
+// isWhitelisted checks if an address is in the whitelist (loaded from params)
+func (k *Keeper) isWhitelisted(ctx sdk.Context, address common.Address) bool {
+	params := k.GetParams(ctx)
+	addrHex := address.Hex()
+
+	for _, whitelisted := range params.WhitelistedAddresses {
+		if whitelisted == addrHex {
+			return true
+		}
+	}
+	return false
+}
+
 // IsChainOpen checks if the chain is open for new transactions based on the
 // online server count from the contract. If the count is greater than or equal
 // to 1000, the chain is considered open. Otherwise, it is closed.
@@ -129,6 +126,20 @@ func getFunctionSelector(signature string) []byte {
 // response to get the count.
 // The function returns true if the chain is open and false if it is closed.
 func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error) {
+	params := k.GetParams(ctx)
+
+	// 🆕 BOOTSTRAP MODE: Skip check if disabled
+	if !params.EnableChainStatusCheck {
+		log.Println("⚠️  Chain status check DISABLED (bootstrap mode)")
+		return true, nil
+	}
+
+	// 🆕 BOOTSTRAP MODE: Skip if contract not set
+	if !types.IsContractSet(params.OnlineServerCountContract) {
+		log.Println("⚠️  Chain status contract not set (bootstrap mode)")
+		return true, nil
+	}
+
 	log.Println("🔍 Checking chain status")
 
 	currentHeight := ctx.BlockHeight()
@@ -184,7 +195,8 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	// Create context for the previous block
 	previousCtx := ctx.WithBlockHeader(previousHeader)
 
-	addr := common.HexToAddress(config.OnlineServerCountContract)
+	// Get contract address from params
+	addr := common.HexToAddress(params.OnlineServerCountContract)
 	data := hexutil.Bytes(getFunctionSelector("getOnlineServerCount()"))
 
 	// Prepare the EthCall request
@@ -202,7 +214,6 @@ func (k *Keeper) IsChainOpen(ctx sdk.Context, from common.Address) (bool, error)
 	req := &types.EthCallRequest{
 		Args:            argsBytes,
 		GasCap:          uint64(25000000),
-		ChainId:         config.ChainID,
 		ProposerAddress: previousHeader.ProposerAddress,
 	}
 
@@ -285,6 +296,20 @@ func abs(x int64) int64 {
 // amount locks. Returns true if the transaction can proceed, otherwise false.
 
 func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount *big.Int) (bool, error) {
+	params := k.GetParams(ctx)
+
+	// 🆕 BOOTSTRAP MODE: Skip check if disabled
+	if !params.EnableWalletLockCheck {
+		log.Println("⚠️  Wallet lock check DISABLED (bootstrap mode)")
+		return true, nil
+	}
+
+	// 🆕 BOOTSTRAP MODE: Skip if contract not set
+	if !types.IsContractSet(params.WalletStateContractAddress) {
+		log.Println("⚠️  Wallet state contract not set (bootstrap mode)")
+		return true, nil
+	}
+
 	log.Println("Enter IsWalletUnlocked() - Checking wallet lock status")
 
 	currentHeight := ctx.BlockHeight()
@@ -322,8 +347,8 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	}
 	cacheMutex.RUnlock()
 
-	// Define the WalletState contract address
-	walletStateContract := common.HexToAddress(config.WalletStateContractAddress)
+	// Get contract address from params
+	walletStateContract := common.HexToAddress(params.WalletStateContractAddress)
 
 	// Prepare the function selector for getWalletLock(address)
 	functionSelector := getFunctionSelector("getWalletLock(address)")
@@ -346,9 +371,8 @@ func (k *Keeper) IsWalletUnlocked(ctx sdk.Context, from common.Address, txAmount
 	}
 
 	req := &types.EthCallRequest{
-		Args:    argsBytes,
-		GasCap:  uint64(25000000), // Set a fixed gas cap
-		ChainId: config.ChainID,
+		Args:   argsBytes,
+		GasCap: uint64(25000000), // Set a fixed gas cap
 	}
 
 	// Call EthCall function
@@ -473,22 +497,30 @@ func (k *Keeper) EthereumTx(goCtx context.Context, msg *types.MsgEthereumTx) (*t
 	from := common.HexToAddress(msg.From)
 	log.Println("From:", from)
 
-	// Check whitelist first
-	if !whitelist[from.Hex()] {
-		// Only check chain status and wallet lock for non-whitelisted addresses
+	params := k.GetParams(ctx)
 
-		isOpen, err := k.IsChainOpen(ctx, from)
-		if err != nil {
-			return nil, errorsmod.Wrap(err, "failed to check if chain is open")
-		}
-		if !isOpen {
-			return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
-		}
+	// Log bootstrap mode status
+	if params.IsBootstrapMode() {
+		log.Println("⚠️  BOOTSTRAP MODE: All security checks are DISABLED")
+	}
 
-		txAmount := tx.Value()
-		isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
-		if err != nil || !isUnlocked {
-			return nil, fmt.Errorf("transaction rejected: wallet is locked")
+	// Check whitelist from params (not hardcoded map)
+	if !k.isWhitelisted(ctx, from) {
+		// Only check if NOT in bootstrap mode
+		if !params.IsBootstrapMode() {
+			isOpen, err := k.IsChainOpen(ctx, from)
+			if err != nil {
+				return nil, errorsmod.Wrap(err, "failed to check if chain is open")
+			}
+			if !isOpen {
+				return nil, errorsmod.Wrap(errors.New("deprecated"), "chain is closed")
+			}
+
+			txAmount := tx.Value()
+			isUnlocked, err := k.IsWalletUnlocked(ctx, from, txAmount)
+			if err != nil || !isUnlocked {
+				return nil, fmt.Errorf("transaction rejected: wallet is locked")
+			}
 		}
 	} else {
 		log.Println("Address is whitelisted, skipping chain open and wallet unlock checks")

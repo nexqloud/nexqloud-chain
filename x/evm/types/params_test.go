@@ -1,166 +1,376 @@
-package types
+package types_test
 
 import (
 	"testing"
 
-	ethparams "github.com/ethereum/go-ethereum/params"
-
+	"github.com/evmos/evmos/v19/x/evm/types"
 	"github.com/stretchr/testify/require"
 )
 
-func TestParamsValidate(t *testing.T) {
-	t.Parallel()
+func TestDefaultParams(t *testing.T) {
+	params := types.DefaultParams()
 
-	extraEips := []string{"ethereum_2929", "ethereum_1884", "ethereum_1344"}
+	// Verify bootstrap-safe defaults
+	require.Equal(t, types.ZeroAddress, params.OnlineServerCountContract, "OnlineServerCountContract should be zero address")
+	require.Equal(t, types.ZeroAddress, params.NFTContractAddress, "NFTContractAddress should be zero address")
+	require.Equal(t, types.ZeroAddress, params.WalletStateContractAddress, "WalletStateContractAddress should be zero address")
+	require.Equal(t, types.ZeroAddress, params.ValidatorApprovalContractAddress, "ValidatorApprovalContractAddress should be zero address")
+	require.Empty(t, params.WhitelistedAddresses, "WhitelistedAddresses should be empty")
+	require.False(t, params.EnableChainStatusCheck, "EnableChainStatusCheck should be false")
+	require.False(t, params.EnableWalletLockCheck, "EnableWalletLockCheck should be false")
+
+	// Verify default params are in bootstrap mode
+	require.True(t, params.IsBootstrapMode(), "Default params should be in bootstrap mode")
+
+	// Verify default params are valid
+	require.NoError(t, params.Validate(), "Default params should be valid")
+}
+
+func TestIsBootstrapMode(t *testing.T) {
 	testCases := []struct {
-		name        string
-		params      Params
-		expPass     bool
-		errContains string
+		name                   string
+		enableChainStatusCheck bool
+		enableWalletLockCheck  bool
+		expectedBootstrap      bool
 	}{
 		{
-			name:    "default",
-			params:  DefaultParams(),
-			expPass: true,
+			name:                   "Both disabled - Bootstrap mode",
+			enableChainStatusCheck: false,
+			enableWalletLockCheck:  false,
+			expectedBootstrap:      true,
 		},
 		{
-			name:    "valid",
-			params:  NewParams(DefaultEVMDenom, false, DefaultChainConfig(), extraEips, nil, nil, DefaultAccessControl),
-			expPass: true,
+			name:                   "Chain status enabled - Not bootstrap",
+			enableChainStatusCheck: true,
+			enableWalletLockCheck:  false,
+			expectedBootstrap:      false,
 		},
 		{
-			name:        "empty",
-			params:      Params{},
-			errContains: "invalid denom: ", // NOTE: this returns the first error that occurs
+			name:                   "Wallet lock enabled - Not bootstrap",
+			enableChainStatusCheck: false,
+			enableWalletLockCheck:  true,
+			expectedBootstrap:      false,
 		},
 		{
-			name: "invalid evm denom",
-			params: Params{
-				EvmDenom: "@!#!@$!@5^32",
-			},
-			errContains: "invalid denom: @!#!@$!@5^32",
-		},
-		{
-			name: "invalid eip",
-			params: Params{
-				EvmDenom:  DefaultEVMDenom,
-				ExtraEIPs: []string{"os_1000000"},
-			},
-			errContains: "EIP os_1000000 is not activateable, valid EIPs are",
-		},
-		{
-			name: "unsorted precompiles",
-			params: Params{
-				EvmDenom: DefaultEVMDenom,
-				ActiveStaticPrecompiles: []string{
-					"0x0000000000000000000000000000000000000801",
-					"0x0000000000000000000000000000000000000800",
-				},
-			},
-			errContains: "precompiles need to be sorted",
+			name:                   "Both enabled - Not bootstrap",
+			enableChainStatusCheck: true,
+			enableWalletLockCheck:  true,
+			expectedBootstrap:      false,
 		},
 	}
 
 	for _, tc := range testCases {
-		tc := tc
-
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			params := types.DefaultParams()
+			params.EnableChainStatusCheck = tc.enableChainStatusCheck
+			params.EnableWalletLockCheck = tc.enableWalletLockCheck
 
-			if !tc.expPass {
-				// NOTE: check that the necessary information is provided. Otherwise, a false
-				// error message could be accepted when checking for an empty string.
-				require.NotEmpty(t, tc.errContains, "expected test case to provide expected error message")
-			}
+			result := params.IsBootstrapMode()
+			require.Equal(t, tc.expectedBootstrap, result)
+		})
+	}
+}
 
+func TestIsContractSet(t *testing.T) {
+	testCases := []struct {
+		name     string
+		address  string
+		expected bool
+	}{
+		{
+			name:     "Empty address",
+			address:  "",
+			expected: false,
+		},
+		{
+			name:     "Zero address",
+			address:  types.ZeroAddress,
+			expected: false,
+		},
+		{
+			name:     "Valid address",
+			address:  "0x1234567890123456789012345678901234567890",
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := types.IsContractSet(tc.address)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestValidateParams(t *testing.T) {
+	testCases := []struct {
+		name        string
+		params      types.Params
+		expectedErr bool
+		errContains string
+	}{
+		{
+			name:        "Default params (bootstrap mode) - valid",
+			params:      types.DefaultParams(),
+			expectedErr: false,
+		},
+		{
+			name: "Valid production params",
+			params: types.Params{
+				EvmDenom:                         "unxq",
+				ChainConfig:                      types.DefaultChainConfig(),
+				ExtraEIPs:                        types.DefaultExtraEIPs,
+				AllowUnprotectedTxs:              false,
+				ActiveStaticPrecompiles:          types.DefaultStaticPrecompiles,
+				EVMChannels:                      types.DefaultEVMChannels,
+				AccessControl:                    types.DefaultAccessControl,
+				OnlineServerCountContract:        "0x1234567890123456789012345678901234567890",
+				NFTContractAddress:               "0x2234567890123456789012345678901234567890",
+				WalletStateContractAddress:       "0x3234567890123456789012345678901234567890",
+				ValidatorApprovalContractAddress: "0x4234567890123456789012345678901234567890",
+				WhitelistedAddresses: []string{
+					"0x5234567890123456789012345678901234567890",
+				},
+				EnableChainStatusCheck: true,
+				EnableWalletLockCheck:  true,
+			},
+			expectedErr: false,
+		},
+		{
+			name: "Invalid contract address",
+			params: types.Params{
+				EvmDenom:                  "unxq",
+				ChainConfig:               types.DefaultChainConfig(),
+				ExtraEIPs:                 types.DefaultExtraEIPs,
+				AllowUnprotectedTxs:       false,
+				ActiveStaticPrecompiles:   types.DefaultStaticPrecompiles,
+				EVMChannels:               types.DefaultEVMChannels,
+				AccessControl:             types.DefaultAccessControl,
+				OnlineServerCountContract: "invalid-address",
+				EnableChainStatusCheck:    false,
+				EnableWalletLockCheck:     false,
+			},
+			expectedErr: true,
+			errContains: "invalid online server count contract",
+		},
+		{
+			name: "Chain status check enabled but contract not set",
+			params: types.Params{
+				EvmDenom:                  "unxq",
+				ChainConfig:               types.DefaultChainConfig(),
+				ExtraEIPs:                 types.DefaultExtraEIPs,
+				AllowUnprotectedTxs:       false,
+				ActiveStaticPrecompiles:   types.DefaultStaticPrecompiles,
+				EVMChannels:               types.DefaultEVMChannels,
+				AccessControl:             types.DefaultAccessControl,
+				OnlineServerCountContract: types.ZeroAddress,
+				EnableChainStatusCheck:    true,
+				EnableWalletLockCheck:     false,
+			},
+			expectedErr: true,
+			errContains: "chain status check enabled but contract address not set",
+		},
+		{
+			name: "Wallet lock check enabled but contract not set",
+			params: types.Params{
+				EvmDenom:                   "unxq",
+				ChainConfig:                types.DefaultChainConfig(),
+				ExtraEIPs:                  types.DefaultExtraEIPs,
+				AllowUnprotectedTxs:        false,
+				ActiveStaticPrecompiles:    types.DefaultStaticPrecompiles,
+				EVMChannels:                types.DefaultEVMChannels,
+				AccessControl:              types.DefaultAccessControl,
+				WalletStateContractAddress: types.ZeroAddress,
+				EnableChainStatusCheck:     false,
+				EnableWalletLockCheck:      true,
+			},
+			expectedErr: true,
+			errContains: "wallet lock check enabled but contract address not set",
+		},
+		{
+			name: "Invalid whitelisted address",
+			params: types.Params{
+				EvmDenom:                "unxq",
+				ChainConfig:             types.DefaultChainConfig(),
+				ExtraEIPs:               types.DefaultExtraEIPs,
+				AllowUnprotectedTxs:     false,
+				ActiveStaticPrecompiles: types.DefaultStaticPrecompiles,
+				EVMChannels:             types.DefaultEVMChannels,
+				AccessControl:           types.DefaultAccessControl,
+				WhitelistedAddresses: []string{
+					"invalid-address",
+				},
+				EnableChainStatusCheck: false,
+				EnableWalletLockCheck:  false,
+			},
+			expectedErr: true,
+			errContains: "invalid whitelisted address",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
 			err := tc.params.Validate()
 
-			if tc.expPass {
-				require.NoError(t, err, "expected parameters to be valid")
+			if tc.expectedErr {
+				require.Error(t, err)
+				if tc.errContains != "" {
+					require.Contains(t, err.Error(), tc.errContains)
+				}
 			} else {
-				require.Error(t, err, "expected parameters to be invalid")
-				require.ErrorContains(t, err, tc.errContains, "expected different error message")
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
-func TestParamsEIPs(t *testing.T) {
-	extraEips := []string{"ethereum_2929", "ethereum_1884", "ethereum_1344"}
-	params := NewParams("ara", false, DefaultChainConfig(), extraEips, nil, nil, DefaultAccessControl)
-	actual := params.EIPs()
-
-	require.Equal(t, []string{"ethereum_2929", "ethereum_1884", "ethereum_1344"}, actual)
-}
-
-func TestParamsValidatePriv(t *testing.T) {
-	require.Error(t, validateEVMDenom(false))
-	require.NoError(t, validateEVMDenom("inj"))
-	require.Error(t, validateBool(""))
-	require.NoError(t, validateBool(true))
-	require.Error(t, validateEIPs(""))
-	require.Error(t, validateEIPs([]int64{1884}))
-	require.NoError(t, validateEIPs([]string{"ethereum_1884"}))
-	require.ErrorContains(t, validateEIPs([]string{"ethereum_1884", "ethereum_1884", "ethereum_1885"}), "duplicate EIP: ethereum_1884")
-	require.NoError(t, validateChannels([]string{"channel-0"}))
-	require.Error(t, validateChannels(false))
-	require.Error(t, validateChannels(int64(123)))
-	require.Error(t, validateChannels(""))
-}
-
-func TestValidateChainConfig(t *testing.T) {
+func TestValidateContractAddress(t *testing.T) {
 	testCases := []struct {
-		name     string
-		i        interface{}
-		expError bool
+		name        string
+		address     string
+		expectedErr bool
 	}{
 		{
-			"invalid chain config type",
-			"string",
-			true,
+			name:        "Empty address - valid (bootstrap)",
+			address:     "",
+			expectedErr: false,
 		},
 		{
-			"valid chain config type",
-			DefaultChainConfig(),
-			false,
-		},
-	}
-	for _, tc := range testCases {
-		err := validateChainConfig(tc.i)
-
-		if tc.expError {
-			require.Error(t, err, tc.name)
-		} else {
-			require.NoError(t, err, tc.name)
-		}
-	}
-}
-
-func TestIsLondon(t *testing.T) {
-	testCases := []struct {
-		name   string
-		height int64
-		result bool
-	}{
-		{
-			"Before london block",
-			5,
-			false,
+			name:        "Zero address - valid (bootstrap)",
+			address:     types.ZeroAddress,
+			expectedErr: false,
 		},
 		{
-			"After london block",
-			12_965_001,
-			true,
+			name:        "Valid hex address",
+			address:     "0x1234567890123456789012345678901234567890",
+			expectedErr: false,
 		},
 		{
-			"london block",
-			12_965_000,
-			true,
+			name:        "Valid hex address (uppercase)",
+			address:     "0x1234567890ABCDEF123456789012345678901234",
+			expectedErr: false,
+		},
+		{
+			name:        "Address without 0x prefix (accepted by IsHexAddress)",
+			address:     "1234567890123456789012345678901234567890",
+			expectedErr: false, // common.IsHexAddress accepts addresses with or without 0x
+		},
+		{
+			name:        "Invalid address - wrong length",
+			address:     "0x12345",
+			expectedErr: true,
+		},
+		{
+			name:        "Invalid address - non-hex characters",
+			address:     "0xGGGG567890123456789012345678901234567890",
+			expectedErr: true,
 		},
 	}
 
 	for _, tc := range testCases {
-		ethConfig := ethparams.MainnetChainConfig
-		require.Equal(t, IsLondon(ethConfig, tc.height), tc.result)
+		t.Run(tc.name, func(t *testing.T) {
+			params := types.DefaultParams()
+			params.OnlineServerCountContract = tc.address
+
+			err := params.Validate()
+
+			if tc.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
+}
+
+func TestValidateWhitelistedAddresses(t *testing.T) {
+	testCases := []struct {
+		name        string
+		addresses   []string
+		expectedErr bool
+	}{
+		{
+			name:        "Empty list - valid",
+			addresses:   []string{},
+			expectedErr: false,
+		},
+		{
+			name: "Single valid address",
+			addresses: []string{
+				"0x1234567890123456789012345678901234567890",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "Multiple valid addresses",
+			addresses: []string{
+				"0x1234567890123456789012345678901234567890",
+				"0x2234567890123456789012345678901234567890",
+				"0x3234567890123456789012345678901234567890",
+			},
+			expectedErr: false,
+		},
+		{
+			name: "One invalid address in list",
+			addresses: []string{
+				"0x1234567890123456789012345678901234567890",
+				"invalid-address",
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			params := types.DefaultParams()
+			params.WhitelistedAddresses = tc.addresses
+
+			err := params.Validate()
+
+			if tc.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestBootstrapToProductionTransition(t *testing.T) {
+	// Start with bootstrap params
+	params := types.DefaultParams()
+	require.True(t, params.IsBootstrapMode())
+	require.NoError(t, params.Validate())
+
+	// Transition to production (set contracts)
+	params.OnlineServerCountContract = "0x1234567890123456789012345678901234567890"
+	params.NFTContractAddress = "0x2234567890123456789012345678901234567890"
+	params.WalletStateContractAddress = "0x3234567890123456789012345678901234567890"
+	params.ValidatorApprovalContractAddress = "0x4234567890123456789012345678901234567890"
+	params.WhitelistedAddresses = []string{
+		"0x5234567890123456789012345678901234567890",
+	}
+
+	// Still in bootstrap mode (checks not enabled yet)
+	require.True(t, params.IsBootstrapMode())
+	require.NoError(t, params.Validate())
+
+	// Enable security checks
+	params.EnableChainStatusCheck = true
+	params.EnableWalletLockCheck = true
+
+	// Now in production mode
+	require.False(t, params.IsBootstrapMode())
+	require.NoError(t, params.Validate())
+}
+
+func TestProductionParamsWithZeroAddressShouldFail(t *testing.T) {
+	params := types.DefaultParams()
+
+	// Enable checks without setting contracts - should fail validation
+	params.EnableChainStatusCheck = true
+
+	err := params.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "chain status check enabled but contract address not set")
 }

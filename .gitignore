@@ -84,3 +84,15 @@ dependency-graph.png
 # OpenZeppelin contracts
 contracts/@openzeppelin/*
 cmd/nxqd/nxqd
+
+QUICKSTART_DYNAMIC_PARAMS.md
+governance-proposals/*
+GOVERNANCE_WORKFLOW.md
+# Dynamic params - environment-specific files
+*-proposal.json
+
+# Test artifacts
+test-output.log
+params.json
+chain.log
+.nxqd-test/

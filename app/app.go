@@ -276,6 +276,14 @@ type evmKeeperAdapter struct {
 	app *Evmos // Store reference to the app instead of the keeper directly
 }
 
+// GetParams implements the EVMKeeper interface
+func (a evmKeeperAdapter) GetParams(ctx sdk.Context) evmtypes.Params {
+	if a.app.EvmKeeper == nil {
+		return evmtypes.DefaultParams()
+	}
+	return a.app.EvmKeeper.GetParams(ctx)
+}
+
 // CallEVM implements the EVMKeeper interface
 func (a evmKeeperAdapter) CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (evmtypes.MsgEthereumTxResponse, error) {
 	// Check if EVM keeper is available

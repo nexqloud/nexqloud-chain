@@ -19,7 +19,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	config "github.com/evmos/evmos/v19/x/config"
 	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 	vestingtypes "github.com/evmos/evmos/v19/x/vesting/types"
 	"golang.org/x/crypto/sha3"
@@ -70,8 +69,11 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 		)
 	}
 
+	// Get EVM params for contract addresses
+	evmParams := k.evmKeeper.GetParams(ctx)
+
 	// NFT Contract Check
-	nftContract := common.HexToAddress(config.NFTContractAddress)
+	nftContract := common.HexToAddress(evmParams.NFTContractAddress)
 	log.Printf("NFT Contract address: %s", nftContract.Hex())
 
 	// Convert validator address to correct account format
@@ -98,7 +100,7 @@ func (k msgServer) customValidatorChecks(ctx sdk.Context, msg *types.MsgCreateVa
 	}
 
 	// Get validator requirements (with fallback)
-	validatorApprovalContract := common.HexToAddress(config.ValidatorApprovalContractAddress)
+	validatorApprovalContract := common.HexToAddress(evmParams.ValidatorApprovalContractAddress)
 	requiredNXQTokens, requiredNXQNFTs, err := k.getValidatorRequirements(ctx, validatorApprovalContract)
 	if err != nil {
 
@@ -372,8 +374,11 @@ type EvmEthCaller interface {
 // isApprovedValidator checks if an address is on the approved validators list
 func (k msgServer) isApprovedValidator(ctx sdk.Context, validatorAddr common.Address) (bool, error) {
 
+	// Get EVM params for contract addresses
+	evmParams := k.evmKeeper.GetParams(ctx)
+
 	// Get ValidatorApproval contract address
-	validatorApprovalContract := common.HexToAddress(config.ValidatorApprovalContractAddress)
+	validatorApprovalContract := common.HexToAddress(evmParams.ValidatorApprovalContractAddress)
 
 	// Calculate the function selector for isApprovedValidator(address)
 	functionSignature := "isApprovedValidator(address)"
