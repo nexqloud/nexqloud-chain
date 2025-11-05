@@ -30,6 +30,10 @@ TRACE=""
 # Security configuration - use file-based keyring for better security
 KEYRING="file"
 
+# Genesis account balance configuration (in unxq, where 1 NXQ = 10^18 unxq)
+# Default: 3,200,000 NXQ = 3200000000000000000000000 unxq
+GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unxq}"
+
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
 APP_TOML=$HOMEDIR/config/app.toml
@@ -299,10 +303,10 @@ initialize_blockchain() {
     
     print_section "Setting Up Genesis Accounts"
     # Add the primary key as a genesis account with 1 million tokens (leaving room for halving minting)
-    print_info "Adding genesis account with 1 million tokens"
+    print_info "Adding genesis account with balance: $GENESIS_ACCOUNT_BALANCE"
     local address=$($NXQD_BIN keys show "primary" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-    $NXQD_BIN add-genesis-account "$address" "1000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
-    print_success "Added genesis account primary with balance 1000000000000000000000000unxq (1M NXQ)"
+    $NXQD_BIN add-genesis-account "$address" "$GENESIS_ACCOUNT_BALANCE" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+    print_success "Added genesis account primary with balance $GENESIS_ACCOUNT_BALANCE"
     
     # Create genesis transaction with validator key
     print_info "Creating genesis transaction with validator key (primary)"
