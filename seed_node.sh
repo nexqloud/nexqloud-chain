@@ -34,6 +34,10 @@ KEYRING="file"
 # Default: 3,200,000 NXQ = 3200000000000000000000000 unxq
 GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unxq}"
 
+# Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
+# Default: 100 NXQ = 100000000000000000000 unxq
+VALIDATOR_STAKE="${VALIDATOR_STAKE:-50000000000000000000unxq}"
+
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
 APP_TOML=$HOMEDIR/config/app.toml
@@ -309,8 +313,8 @@ initialize_blockchain() {
     print_success "Added genesis account primary with balance $GENESIS_ACCOUNT_BALANCE"
     
     # Create genesis transaction with validator key
-    print_info "Creating genesis transaction with validator key (primary)"
-    $NXQD_BIN gentx "primary" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+    print_info "Creating genesis transaction with validator key (primary) with stake: $VALIDATOR_STAKE"
+    $NXQD_BIN gentx "primary" "$VALIDATOR_STAKE" --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
     
     # Collect and validate genesis transactions
     print_info "Collecting genesis transactions"
