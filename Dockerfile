@@ -1,36 +1,44 @@
-FROM golang:1.22.5-alpine3.20 AS build-env
+FROM golang:1.23-alpine AS builder
 
-ARG DB_BACKEND=goleveldb
-ARG ROCKSDB_VERSION="9.2.1"
+# Install build dependencies
+RUN apk add --no-cache make gcc musl-dev linux-headers git
 
-WORKDIR /go/src/github.com/evmos/evmos
-
-COPY go.mod go.sum ./
-
-RUN set -eux; apk add --no-cache ca-certificates=20240705-r0 build-base=0.5-r3 git linux-headers=6.6-r0 bash=5.2.26-r0
-
-RUN go mod download
-
+WORKDIR /app
 COPY . .
 
-RUN mkdir -p /target/usr/lib /target/usr/local/lib /target/usr/include
+# Match server build workflow: remove go.sum, clean, then build
+RUN rm -rf go.sum && \
+    make clean && \
+    make build
 
-RUN make build
+# Runtime stage
+FROM alpine:latest
 
-RUN go install github.com/MinseokOh/toml-cli@latest
+# Install runtime dependencies including expect for password automation
+RUN apk add --no-cache \
+    bash \
+    jq \
+    curl \
+    wget \
+    expect \
+    ca-certificates \
+    bind-tools
 
-FROM alpine:3.20
+# Copy binary from builder
+COPY --from=builder /app/build/nxqd /usr/local/bin/
 
-WORKDIR /root
+# Copy production scripts
+COPY scripts/seed_node_prod.sh /usr/local/bin/
+COPY scripts/multi_seed_node_prod.sh /usr/local/bin/
+COPY scripts/peer_node_prod.sh /usr/local/bin/
 
-COPY --from=build-env /go/src/github.com/evmos/evmos/build/nxqd /usr/bin/nxqd
-COPY --from=build-env /go/bin/toml-cli /usr/bin/toml-cli
+RUN chmod +x /usr/local/bin/*.sh
 
-RUN apk add --no-cache jq curl bash vim lz4 rclone
+# Create entrypoint
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 26656 26657 1317 9090 8545 8546
-HEALTHCHECK CMD curl --fail http://localhost:26657 || exit 1
+# Expose ports
+EXPOSE 26656 26657 8545 8546 9090
 
-COPY peer_node.sh .
-
-CMD ["bash", "-c", "./peer_node.sh init && ./peer_node.sh"]
+ENTRYPOINT ["docker-entrypoint.sh"]
