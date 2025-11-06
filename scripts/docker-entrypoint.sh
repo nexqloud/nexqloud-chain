@@ -64,8 +64,6 @@ esac
 case "$NODE_TYPE" in
     seed)
         echo "🌱 Initializing First Seed Node"
-        /usr/local/bin/seed_node_prod.sh init
-        echo "✅ Initialization complete, starting node..."
         exec /usr/local/bin/seed_node_prod.sh start
         ;;
     multi-seed)

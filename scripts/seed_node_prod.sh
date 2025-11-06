@@ -12,25 +12,13 @@ set -e
 
 # 🔐 Docker Secrets Support
 # Secrets are mounted at /run/secrets/<secret_name>
-if [ -f "/run/secrets/seed1_password" ]; then
-    KEYRING_PASSWORD=$(cat /run/secrets/seed1_password)
-    export KEYRING_PASSWORD
-elif [ -f "/run/secrets/seed2_password" ]; then
-    KEYRING_PASSWORD=$(cat /run/secrets/seed2_password)
-    export KEYRING_PASSWORD
-elif [ -f "/run/secrets/seed3_password" ]; then
-    KEYRING_PASSWORD=$(cat /run/secrets/seed3_password)
+if [ -f "/run/secrets/seed_password" ]; then
+    KEYRING_PASSWORD=$(cat /run/secrets/seed_password)
     export KEYRING_PASSWORD
 fi
 
-if [ -f "/run/secrets/seed1_mnemonic" ]; then
-    MNEMONIC=$(cat /run/secrets/seed1_mnemonic)
-    export MNEMONIC
-elif [ -f "/run/secrets/seed2_mnemonic" ]; then
-    MNEMONIC=$(cat /run/secrets/seed2_mnemonic)
-    export MNEMONIC
-elif [ -f "/run/secrets/seed3_mnemonic" ]; then
-    MNEMONIC=$(cat /run/secrets/seed3_mnemonic)
+if [ -f "/run/secrets/seed_mnemonic" ]; then
+    MNEMONIC=$(cat /run/secrets/seed_mnemonic)
     export MNEMONIC
 fi
 
@@ -365,6 +353,12 @@ start_node() {
     print_info "Chain ID: $CHAINID"
     print_info "Moniker: $MONIKER"
     print_info "Home Dir: $HOMEDIR"
+
+    # If home directory doesn't exist, initialize first
+    if [ ! -d "$HOMEDIR" ] || [ ! -f "$GENESIS" ]; then
+        print_warning "Home directory or genesis file not found, initializing first..."
+        initialize_blockchain
+    fi
     
     # Auto-provide password if available
     if [ -n "$KEYRING_PASSWORD" ]; then
