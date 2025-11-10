@@ -37,6 +37,14 @@ TRACE=""
 # Keyring backend - use 'file' for production with Docker secrets
 KEYRING="${KEYRING:-file}"
 
+# Genesis account balance configuration (in unxq, where 1 NXQ = 10^18 unxq)
+# Default: 3,200,000 NXQ = 3200000000000000000000000 unxq
+GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unxq}"
+
+# Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
+# Default: 50 NXQ = 50000000000000000000 unxq
+VALIDATOR_STAKE="${VALIDATOR_STAKE:-50000000000000000000unxq}"
+
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
 APP_TOML=$HOMEDIR/config/app.toml
@@ -276,19 +284,19 @@ initialize_blockchain() {
         sed -i '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     fi
     
-    # Change proposal periods for faster testing
-    print_info "Setting up shortened proposal periods"
+    # Change proposal periods
+    print_info "Setting up proposal periods (5 minutes for voting)"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
-        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+        sed -i '' 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
     else
-        sed -i 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
-        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+        sed -i 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
     fi
     
     print_section "Setting Up Genesis Accounts"
-    # Add genesis account with 1M tokens (leaving room for halving minting)
-    print_info "Adding genesis account with 1 million tokens"
+    # Add the primary key as a genesis account
+    print_info "Adding genesis account with balance: $GENESIS_ACCOUNT_BALANCE"
     
     # Get address - for test keyring, no password needed
     local address
@@ -303,31 +311,44 @@ initialize_blockchain() {
     
     # Add genesis account - test keyring doesn't need password
     if [ "$KEYRING" = "test" ]; then
-        $NXQD_BIN add-genesis-account "$address" "1000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+        $NXQD_BIN add-genesis-account "$address" "$GENESIS_ACCOUNT_BALANCE" --keyring-backend "$KEYRING" --home "$HOMEDIR"
     elif [ -n "$KEYRING_PASSWORD" ]; then
-        echo "$KEYRING_PASSWORD" | $NXQD_BIN add-genesis-account "$address" "1000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+        echo "$KEYRING_PASSWORD" | $NXQD_BIN add-genesis-account "$address" "$GENESIS_ACCOUNT_BALANCE" --keyring-backend "$KEYRING" --home "$HOMEDIR"
     else
-        $NXQD_BIN add-genesis-account "$address" "1000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+        $NXQD_BIN add-genesis-account "$address" "$GENESIS_ACCOUNT_BALANCE" --keyring-backend "$KEYRING" --home "$HOMEDIR"
     fi
     
-    print_success "Added genesis account with 1M NXQ"
+    print_success "Added genesis account primary with balance $GENESIS_ACCOUNT_BALANCE"
     
-    # Create genesis transaction
-    print_info "Creating genesis transaction"
+    # Create genesis transaction with validator key
+    print_info "Creating genesis transaction with validator key (primary) with stake: $VALIDATOR_STAKE"
     if [ "$KEYRING" = "test" ]; then
-        $NXQD_BIN gentx "primary" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+        $NXQD_BIN gentx "primary" "$VALIDATOR_STAKE" --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
     elif [ -n "$KEYRING_PASSWORD" ]; then
-        echo "$KEYRING_PASSWORD" | $NXQD_BIN gentx "primary" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+        echo "$KEYRING_PASSWORD" | $NXQD_BIN gentx "primary" "$VALIDATOR_STAKE" --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
     else
-        $NXQD_BIN gentx "primary" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+        $NXQD_BIN gentx "primary" "$VALIDATOR_STAKE" --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
     fi
     
-    # Collect and validate genesis
+    # Collect and validate genesis transactions
     print_info "Collecting genesis transactions"
     $NXQD_BIN collect-gentxs --home "$HOMEDIR"
     
     print_info "Validating genesis"
     $NXQD_BIN validate-genesis --home "$HOMEDIR"
+    
+    # Set up node ID for sharing
+    print_info "Setting up node ID"
+    $NXQD_BIN tendermint show-node-id --home "$HOMEDIR" > "$HOMEDIR/node-id"
+    
+    # Copy files for sharing (if nginx is available)
+    if [ -d "/usr/share/nginx/html" ]; then
+        print_info "Copying genesis and node-id for sharing via nginx"
+	sudo cp $GENESIS /usr/share/nginx/html/
+	sudo cp "$HOMEDIR/node-id" /usr/share/nginx/html/node-id
+    else
+        print_warning "Nginx directory not found, skipping file copying"
+    fi
     
     # Configure RPC access (bind to all interfaces for Docker)
     print_info "Enabling RPC services"
