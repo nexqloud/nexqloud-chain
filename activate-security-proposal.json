@@ -1,0 +1,70 @@
+{
+  "messages": [
+    {
+      "@type": "/ethermint.evm.v1.MsgUpdateParams",
+      "authority": "nxq10d07y265gmmuvt4z0w9aw880jnsr700jdvzlfj",
+      "params": {
+        "evm_denom": "unxq",
+        "allow_unprotected_txs": false,
+        "extra_eips": [],
+        "chain_config": {
+          "homestead_block": "0",
+          "dao_fork_block": "0",
+          "dao_fork_support": true,
+          "eip150_block": "0",
+          "eip150_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "eip155_block": "0",
+          "eip158_block": "0",
+          "byzantium_block": "0",
+          "constantinople_block": "0",
+          "petersburg_block": "0",
+          "istanbul_block": "0",
+          "muir_glacier_block": "0",
+          "berlin_block": "0",
+          "london_block": "0",
+          "arrow_glacier_block": "0",
+          "gray_glacier_block": "0",
+          "merge_netsplit_block": "0",
+          "shanghai_block": "0",
+          "cancun_block": "0"
+        },
+        "active_static_precompiles": [
+          "0x0000000000000000000000000000000000000400",
+          "0x0000000000000000000000000000000000000800",
+          "0x0000000000000000000000000000000000000801",
+          "0x0000000000000000000000000000000000000802",
+          "0x0000000000000000000000000000000000000803",
+          "0x0000000000000000000000000000000000000804"
+        ],
+        "evm_channels": [
+          "channel-0",
+          "channel-3"
+        ],
+        "access_control": {
+          "create": {
+            "access_type": "ACCESS_TYPE_PERMISSIONLESS",
+            "access_control_list": []
+          },
+          "call": {
+            "access_type": "ACCESS_TYPE_PERMISSIONLESS",
+            "access_control_list": []
+          }
+        },
+        "online_server_count_contract": "0x37D7f1e155bd96528C9232855058e8a9C8Bff1bc",
+        "nft_contract_address": "0xb1E62bff2501953064E7Aaf12C5d65aA439B8884",
+        "wallet_state_contract_address": "0x81C00FE47b085aCDf88C0Fa30437A3b8F39F4Eb6",
+        "validator_approval_contract_address": "0x6D6b3e29137B69D6bb0d6706E4D1d20CD8aCbFFD",
+        "whitelisted_addresses": [
+          "0x7D437C6A2fc588406E56E32a8B4f0a7f9c5a0697",
+          "0x98E23A37bb957b9C8BebEf8072FCf514d19955e9"
+        ],
+        "enable_chain_status_check": true,
+        "enable_wallet_lock_check": true
+      }
+    }
+  ],
+  "metadata": "ipfs://CID",
+  "deposit": "10000000000000000000unxq",
+  "title": "Activate Chain Security Features",
+  "summary": "Enable wallet lock and chain status checks with deployed contract addresses. This transitions the chain from bootstrap mode to production mode with full security enforcement."
+}
