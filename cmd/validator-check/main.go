@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	
+
 	"golang.org/x/crypto/sha3"
 )
 
@@ -104,10 +104,10 @@ func main() {
 	isApproved, err := isApprovedValidator(client, validatorApprovalContractAddr, checkAddr)
 	approvalStatus := "UNKNOWN"
 	approvalCheck := false
-	
+
 	if err != nil {
-		if strings.Contains(err.Error(), "execution reverted") || 
-		   strings.Contains(err.Error(), "may not be implemented yet") {
+		if strings.Contains(err.Error(), "execution reverted") ||
+			strings.Contains(err.Error(), "may not be implemented yet") {
 			fmt.Printf("Note: Validator approval check is not available on this contract version.\n")
 			fmt.Printf("The smart contract function 'isApprovedValidator' may not be implemented yet.\n")
 			approvalStatus = "SKIPPED"
@@ -141,16 +141,16 @@ func main() {
 	nftCheckPassed := nftBalance.Cmp(requiredNXQNFTs) >= 0
 	fmt.Printf("\n=== Validator Eligibility Check ===\n")
 	if nftCheckPassed {
-		fmt.Printf("✅ NFT requirement met: Has %s NXQNFT (required: %s)\n", 
+		fmt.Printf("✅ NFT requirement met: Has %s NXQNFT (required: %s)\n",
 			nftBalance.String(), requiredNXQNFTs.String())
 	} else {
-		fmt.Printf("❌ NFT requirement NOT met: Has %s NXQNFT (required: %s)\n", 
+		fmt.Printf("❌ NFT requirement NOT met: Has %s NXQNFT (required: %s)\n",
 			nftBalance.String(), requiredNXQNFTs.String())
 	}
-	
+
 	// Summary of all checks
 	fmt.Printf("\n=== Overall Eligibility ===\n")
-	
+
 	// If approval check is skipped, only consider NFT balance
 	if approvalStatus == "SKIPPED" {
 		if nftCheckPassed {
@@ -221,7 +221,7 @@ func getNFTBalance(client *ethclient.Client, contractAddr, ownerAddr common.Addr
 	// Function selector for balanceOf(address)
 	// This is the first 4 bytes of keccak256("balanceOf(address)")
 	selector := common.FromHex("0x70a08231")
-	
+
 	// Append the address parameter (padded to 32 bytes)
 	callData := append(selector, common.LeftPadBytes(ownerAddr.Bytes(), 32)...)
 
@@ -250,19 +250,19 @@ func getNFTBalance(client *ethclient.Client, contractAddr, ownerAddr common.Addr
 func formatNXQ(tokens *big.Int) string {
 	// NXQ has 18 decimals
 	decimals := big.NewInt(1_000_000_000_000_000_000) // 10^18
-	
+
 	// If the tokens are less than 1 NXQ, return in smaller units
 	if tokens.Cmp(decimals) < 0 {
 		return fmt.Sprintf("%s wei", tokens.String())
 	}
-	
+
 	whole := new(big.Int).Div(tokens, decimals)
 	remainder := new(big.Int).Mod(tokens, decimals)
-	
+
 	if remainder.Cmp(big.NewInt(0)) == 0 {
 		return fmt.Sprintf("%s NXQ", whole.String())
 	}
-	
+
 	// Show with decimals
 	return fmt.Sprintf("%s.%018s NXQ", whole.String(), remainder.String())
 }
@@ -272,16 +272,16 @@ func isApprovedValidator(client *ethclient.Client, contractAddr, validatorAddr c
 	// Calculate the function selector for isApprovedValidator(address)
 	functionSignature := "isApprovedValidator(address)"
 	selector := getFunctionSelector(functionSignature)
-	
+
 	// Encode the address parameter
 	data := append(selector, common.LeftPadBytes(validatorAddr.Bytes(), 32)...)
-	
+
 	// Make the call
 	msg := ethereum.CallMsg{
 		To:   &contractAddr,
 		Data: data,
 	}
-	
+
 	result, err := client.CallContract(context.Background(), msg, nil)
 	if err != nil {
 		// If the error contains "execution reverted", it likely means the function doesn't exist
@@ -291,18 +291,18 @@ func isApprovedValidator(client *ethclient.Client, contractAddr, validatorAddr c
 		}
 		return false, fmt.Errorf("failed to call isApprovedValidator: %v", err)
 	}
-	
+
 	// Parse boolean result (should be a 32-byte word where any non-zero value is true)
 	if len(result) < 32 {
 		return false, fmt.Errorf("unexpected result length: got %d bytes, want 32", len(result))
 	}
-	
+
 	// Check if any byte in the result is non-zero (indicating true)
 	for _, b := range result {
 		if b != 0 {
 			return true, nil
 		}
 	}
-	
+
 	return false, nil
 } 

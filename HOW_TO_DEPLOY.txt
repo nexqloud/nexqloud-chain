@@ -1,2 +1,0 @@
-helm upgrade --install  -n stage-nexqloud-chain nexqloud-chain   oci://815483408161.dkr.ecr.us-east-1.amazonaws.com/nexqloud -f values.yaml -f stage.yaml --set-literal image.tag=<<tag>>
-(values.yaml and stage.yaml are in the helm-values repo in the nexqloud-chain directory)
