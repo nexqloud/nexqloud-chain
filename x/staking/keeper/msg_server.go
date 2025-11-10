@@ -373,7 +373,6 @@ type EvmEthCaller interface {
 
 // isApprovedValidator checks if an address is on the approved validators list
 func (k msgServer) isApprovedValidator(ctx sdk.Context, validatorAddr common.Address) (bool, error) {
-
 	// Get EVM params for contract addresses
 	evmParams := k.evmKeeper.GetParams(ctx)
 
