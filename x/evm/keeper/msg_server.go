@@ -51,17 +51,7 @@ type walletLockCache struct {
 
 var (
 	whitelist = map[string]bool{
-		//prod config
-		"0x7D437C6A2fc588406E56E32a8B4f0a7f9c5a0697": true,
-		"0x88BD53410Fa339d4E998a32a04E2110EA8d2c252": true,
-		"0x6dFf82d3E6396DEa085d36eCEa352BF101260601": true,
-		"0x334306e7F1e45E90EC5B0F377eED012dB681f89e": true,
-
-		//staging config
-		// "0x50823c6fBF2Dd945480951ABBa144b9a1e89dFC3": true,
-
-		//dev config
-		// "0xE56A21BB0619225616DE7613937b2b816A14deB1": true,
+		"0x6cFdA199B02527Adf9a4C0F31425Dba48e10276B": true,
 	}
 
 	// Cache with mutex for thread safety
