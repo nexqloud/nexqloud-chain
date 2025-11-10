@@ -276,8 +276,10 @@ initialize_blockchain() {
         print_info "Configuring persistent peers: $PERSISTENT_PEERS"
         if [[ "$OSTYPE" == "darwin"* ]]; then
             sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i '' "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         else
             sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         fi
     else
         print_warning "No persistent peers configured (other nodes may not be running yet)"

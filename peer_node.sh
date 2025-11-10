@@ -217,57 +217,56 @@ if [[ $1 == "init" ]]; then
         PERSISTENT_PEER_ID=$(get_node_id "$PERSISTENT_PEER_DOMAIN")
     fi
     
-    # Build seeds list (only include available nodes)
-    SEEDS=""
-    if [ -n "$SEED_NODE_1_ID" ]; then
-        SEEDS="$SEED_NODE_1_ID@$SEED_NODE_1_DOMAIN:26656"
-        print_success "Added seed node 1: $SEED_NODE_1_DOMAIN"
-    fi
-    
-    if [ -n "$SEED_NODE_2_ID" ]; then
-        if [ -n "$SEEDS" ]; then
-            SEEDS="$SEEDS,$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
-        else
-            SEEDS="$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
-        fi
-        print_success "Added seed node 2: $SEED_NODE_2_DOMAIN"
-    fi
-    
-    # Build persistent peers list
+    # Build persistent peers list (connect to ALL available nodes as persistent peers)
     PERSISTENT_PEERS=""
+    
+    # Add seed node 1 as persistent peer
+    if [ -n "$SEED_NODE_1_ID" ]; then
+        PERSISTENT_PEERS="$SEED_NODE_1_ID@$SEED_NODE_1_DOMAIN:26656"
+        print_success "Added seed node 1 as persistent peer: $SEED_NODE_1_DOMAIN"
+    fi
+    
+    # Add seed node 2 as persistent peer
+    if [ -n "$SEED_NODE_2_ID" ]; then
+        if [ -n "$PERSISTENT_PEERS" ]; then
+            PERSISTENT_PEERS="$PERSISTENT_PEERS,$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
+        else
+            PERSISTENT_PEERS="$SEED_NODE_2_ID@$SEED_NODE_2_DOMAIN:26656"
+        fi
+        print_success "Added seed node 2 as persistent peer: $SEED_NODE_2_DOMAIN"
+    fi
+    
+    # Add other persistent peer
     if [ -n "$PERSISTENT_PEER_ID" ]; then
-        PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
+        if [ -n "$PERSISTENT_PEERS" ]; then
+            PERSISTENT_PEERS="$PERSISTENT_PEERS,$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
+        else
+            PERSISTENT_PEERS="$PERSISTENT_PEER_ID@$PERSISTENT_PEER_DOMAIN:26656"
+        fi
         print_success "Added persistent peer: $PERSISTENT_PEER_DOMAIN"
     fi
     
-    # Validate we have at least one seed
-    if [ -z "$SEEDS" ]; then
-        error_exit "No seed nodes available! Check network connectivity."
+    # Validate we have at least one persistent peer
+    if [ -z "$PERSISTENT_PEERS" ]; then
+        error_exit "No persistent peers available! Check network connectivity."
     fi
     
     # Apply configuration
     print_info "Configuring P2P settings:"
-    print_info "Seeds: $SEEDS"
-    if [ -n "$PERSISTENT_PEERS" ]; then
-        print_info "Persistent Peers: $PERSISTENT_PEERS"
-    fi
+    print_info "Persistent Peers: $PERSISTENT_PEERS"
     
-    # Update config.toml with seeds and persistent peers
+    # Update config.toml with persistent peers (no seeds, all persistent peers)
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
-        if [ -n "$PERSISTENT_PEERS" ]; then
-            sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
-        fi
+        sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+        sed -i '' "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         # Improve network resilience settings
         sed -i '' 's/^pex = .*/pex = true/' "$CONFIG"
         sed -i '' 's/^addr_book_strict = .*/addr_book_strict = false/' "$CONFIG"
         sed -i '' 's/^max_num_inbound_peers = .*/max_num_inbound_peers = 80/' "$CONFIG"
         sed -i '' 's/^max_num_outbound_peers = .*/max_num_outbound_peers = 40/' "$CONFIG"
     else
-        sed -i "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
-        if [ -n "$PERSISTENT_PEERS" ]; then
-            sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
-        fi
+        sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+        sed -i "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         # Improve network resilience settings
         sed -i 's/^pex = .*/pex = true/' "$CONFIG"
         sed -i 's/^addr_book_strict = .*/addr_book_strict = false/' "$CONFIG"
