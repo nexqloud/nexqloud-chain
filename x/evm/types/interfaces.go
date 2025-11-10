@@ -57,7 +57,8 @@ type Erc20Keeper interface {
 
 // EVMKeeper defines the expected EVM keeper interface
 type EVMKeeper interface {
-	// ... existing methods
+	// GetParams retrieves the EVM module parameters
+	GetParams(ctx sdk.Context) Params
 
 	// CallEVM performs a smart contract method call using given parameters
 	CallEVM(ctx sdk.Context, abiJSON string, method string, contract common.Address, args ...interface{}) (MsgEthereumTxResponse, error)

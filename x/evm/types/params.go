@@ -55,6 +55,24 @@ var (
 			AccessControlList: DefaultCreateAllowlistAddresses,
 		},
 	}
+	
+	// NexQloud custom defaults - Bootstrap mode (all checks disabled, zero addresses)
+	// ZeroAddress represents unset contract address
+	ZeroAddress = "0x0000000000000000000000000000000000000000"
+	// DefaultOnlineServerCountContract is zero during bootstrap
+	DefaultOnlineServerCountContract = ZeroAddress
+	// DefaultNFTContractAddress is zero during bootstrap
+	DefaultNFTContractAddress = ZeroAddress
+	// DefaultWalletStateContractAddress is zero during bootstrap
+	DefaultWalletStateContractAddress = ZeroAddress
+	// DefaultValidatorApprovalContractAddress is zero during bootstrap
+	DefaultValidatorApprovalContractAddress = ZeroAddress
+	// DefaultWhitelistedAddresses is empty during bootstrap
+	DefaultWhitelistedAddresses = []string{}
+	// DefaultEnableChainStatusCheck is false during bootstrap (permissive mode)
+	DefaultEnableChainStatusCheck = false
+	// DefaultEnableWalletLockCheck is false during bootstrap (permissive mode)
+	DefaultEnableWalletLockCheck = false
 )
 
 // NewParams creates a new Params instance
@@ -79,15 +97,23 @@ func NewParams(
 }
 
 // DefaultParams returns default evm parameters
+// NOTE: Returns bootstrap-safe params (zero addresses, checks disabled)
 func DefaultParams() Params {
 	return Params{
-		EvmDenom:                DefaultEVMDenom,
-		ChainConfig:             DefaultChainConfig(),
-		ExtraEIPs:               DefaultExtraEIPs,
-		AllowUnprotectedTxs:     DefaultAllowUnprotectedTxs,
-		ActiveStaticPrecompiles: DefaultStaticPrecompiles,
-		EVMChannels:             DefaultEVMChannels,
-		AccessControl:           DefaultAccessControl,
+		EvmDenom:                         DefaultEVMDenom,
+		ChainConfig:                      DefaultChainConfig(),
+		ExtraEIPs:                        DefaultExtraEIPs,
+		AllowUnprotectedTxs:              DefaultAllowUnprotectedTxs,
+		ActiveStaticPrecompiles:          DefaultStaticPrecompiles,
+		EVMChannels:                      DefaultEVMChannels,
+		AccessControl:                    DefaultAccessControl,
+		OnlineServerCountContract:        DefaultOnlineServerCountContract,
+		NFTContractAddress:               DefaultNFTContractAddress,
+		WalletStateContractAddress:       DefaultWalletStateContractAddress,
+		ValidatorApprovalContractAddress: DefaultValidatorApprovalContractAddress,
+		WhitelistedAddresses:             DefaultWhitelistedAddresses,
+		EnableChainStatusCheck:           DefaultEnableChainStatusCheck,
+		EnableWalletLockCheck:            DefaultEnableWalletLockCheck,
 	}
 }
 
@@ -135,7 +161,41 @@ func (p Params) Validate() error {
 		return err
 	}
 
-	return validateChannels(p.EVMChannels)
+	if err := validateChannels(p.EVMChannels); err != nil {
+		return err
+	}
+
+	// NexQloud custom validation - allow zero addresses during bootstrap
+	if err := validateContractAddress(p.OnlineServerCountContract); err != nil {
+		return fmt.Errorf("invalid online server count contract: %w", err)
+	}
+
+	if err := validateContractAddress(p.NFTContractAddress); err != nil {
+		return fmt.Errorf("invalid NFT contract address: %w", err)
+	}
+
+	if err := validateContractAddress(p.WalletStateContractAddress); err != nil {
+		return fmt.Errorf("invalid wallet state contract address: %w", err)
+	}
+
+	if err := validateContractAddress(p.ValidatorApprovalContractAddress); err != nil {
+		return fmt.Errorf("invalid validator approval contract address: %w", err)
+	}
+
+	if err := validateWhitelistedAddresses(p.WhitelistedAddresses); err != nil {
+		return err
+	}
+
+	// Validate that if checks are enabled, contracts must be set
+	if p.EnableChainStatusCheck && !IsContractSet(p.OnlineServerCountContract) {
+		return fmt.Errorf("chain status check enabled but contract address not set")
+	}
+
+	if p.EnableWalletLockCheck && !IsContractSet(p.WalletStateContractAddress) {
+		return fmt.Errorf("wallet lock check enabled but contract address not set")
+	}
+
+	return nil
 }
 
 // EIPs returns the ExtraEIPS as a slice.
@@ -297,4 +357,51 @@ func ValidatePrecompiles(i interface{}) error {
 // IsLondon returns if london hardfork is enabled.
 func IsLondon(ethConfig *params.ChainConfig, height int64) bool {
 	return ethConfig.IsLondon(big.NewInt(height))
+}
+
+// NexQloud custom helper functions
+
+// IsBootstrapMode returns true if the chain is in bootstrap mode (checks disabled)
+func (p Params) IsBootstrapMode() bool {
+	return !p.EnableChainStatusCheck && !p.EnableWalletLockCheck
+}
+
+// IsContractSet checks if a contract address is properly set (not zero)
+func IsContractSet(addr string) bool {
+	return addr != "" && addr != ZeroAddress
+}
+
+// validateContractAddress validates contract address, allowing zero address
+func validateContractAddress(i interface{}) error {
+	addr, ok := i.(string)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	// Allow empty or zero address during bootstrap
+	if addr == "" || addr == ZeroAddress {
+		return nil
+	}
+
+	if !common.IsHexAddress(addr) {
+		return fmt.Errorf("invalid ethereum address: %s", addr)
+	}
+
+	return nil
+}
+
+// validateWhitelistedAddresses validates the list of whitelisted addresses
+func validateWhitelistedAddresses(i interface{}) error {
+	addresses, ok := i.([]string)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	for idx, addr := range addresses {
+		if !common.IsHexAddress(addr) {
+			return fmt.Errorf("invalid whitelisted address at index %d: %s", idx, addr)
+		}
+	}
+
+	return nil
 }

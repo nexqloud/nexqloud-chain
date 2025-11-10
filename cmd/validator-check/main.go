@@ -305,4 +305,4 @@ func isApprovedValidator(client *ethclient.Client, contractAddr, validatorAddr c
 	}
 
 	return false, nil
-}
+} 

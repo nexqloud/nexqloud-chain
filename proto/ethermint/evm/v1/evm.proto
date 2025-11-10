@@ -30,6 +30,22 @@ message Params {
   // active_static_precompiles defines the slice of hex addresses of the precompiled
   // contracts that are active
   repeated string active_static_precompiles = 10;
+  
+  // NexQloud custom contract addresses and security settings
+  // online_server_count_contract is the address of the contract that provides chain status
+  string online_server_count_contract = 11 [(gogoproto.moretags) = "yaml:\"online_server_count_contract\""];
+  // nft_contract_address is the address of the NFT contract for validator requirements
+  string nft_contract_address = 12 [(gogoproto.customname) = "NFTContractAddress", (gogoproto.moretags) = "yaml:\"nft_contract_address\""];
+  // wallet_state_contract_address is the address of the contract that manages wallet locks
+  string wallet_state_contract_address = 13 [(gogoproto.moretags) = "yaml:\"wallet_state_contract_address\""];
+  // validator_approval_contract_address is the address of the contract that manages validator approvals
+  string validator_approval_contract_address = 14 [(gogoproto.moretags) = "yaml:\"validator_approval_contract_address\""];
+  // whitelisted_addresses is the list of addresses that bypass security checks
+  repeated string whitelisted_addresses = 15 [(gogoproto.moretags) = "yaml:\"whitelisted_addresses\""];
+  // enable_chain_status_check enables/disables chain status verification (false during bootstrap)
+  bool enable_chain_status_check = 16 [(gogoproto.moretags) = "yaml:\"enable_chain_status_check\""];
+  // enable_wallet_lock_check enables/disables wallet lock verification (false during bootstrap)
+  bool enable_wallet_lock_check = 17 [(gogoproto.moretags) = "yaml:\"enable_wallet_lock_check\""];
 }
 
 // AccessControl defines the permission policy of the EVM

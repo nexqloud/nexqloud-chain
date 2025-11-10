@@ -30,6 +30,14 @@ TRACE=""
 # Security configuration - use file-based keyring for better security
 KEYRING="file"
 
+# Genesis account balance configuration (in unxq, where 1 NXQ = 10^18 unxq)
+# Default: 3,200,000 NXQ = 3200000000000000000000000 unxq
+GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unxq}"
+
+# Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
+# Default: 100 NXQ = 100000000000000000000 unxq
+VALIDATOR_STAKE="${VALIDATOR_STAKE:-50000000000000000000unxq}"
+
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
 APP_TOML=$HOMEDIR/config/app.toml
@@ -288,25 +296,25 @@ initialize_blockchain() {
     fi
     
     # Change proposal periods
-    print_info "Setting up shortened proposal periods for testing"
+    print_info "Setting up proposal periods (5 minutes for voting)"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
-        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+        sed -i '' 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
     else
-        sed -i 's/"voting_period": "172800s"/"voting_period": "60s"/g' "$GENESIS"
-        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "60s"/g' "$GENESIS"
+        sed -i 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
     fi
     
     print_section "Setting Up Genesis Accounts"
     # Add the primary key as a genesis account with 1 million tokens (leaving room for halving minting)
-    print_info "Adding genesis account with 1 million tokens"
+    print_info "Adding genesis account with balance: $GENESIS_ACCOUNT_BALANCE"
     local address=$($NXQD_BIN keys show "primary" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
-    $NXQD_BIN add-genesis-account "$address" "1000000000000000000000000unxq" --keyring-backend "$KEYRING" --home "$HOMEDIR"
-    print_success "Added genesis account primary with balance 1000000000000000000000000unxq (1M NXQ)"
+    $NXQD_BIN add-genesis-account "$address" "$GENESIS_ACCOUNT_BALANCE" --keyring-backend "$KEYRING" --home "$HOMEDIR"
+    print_success "Added genesis account primary with balance $GENESIS_ACCOUNT_BALANCE"
     
     # Create genesis transaction with validator key
-    print_info "Creating genesis transaction with validator key (primary)"
-    $NXQD_BIN gentx "primary" 100000000000000000000unxq --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
+    print_info "Creating genesis transaction with validator key (primary) with stake: $VALIDATOR_STAKE"
+    $NXQD_BIN gentx "primary" "$VALIDATOR_STAKE" --gas-prices ${BASEFEE}unxq --keyring-backend "$KEYRING" --chain-id "$CHAINID" --home "$HOMEDIR"
     
     # Collect and validate genesis transactions
     print_info "Collecting genesis transactions"
