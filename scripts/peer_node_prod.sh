@@ -315,6 +315,12 @@ start_node() {
     print_info "Moniker: $MONIKER"
     print_info "Home Dir: $HOMEDIR"
     print_info "PEX enabled for automatic peer discovery"
+
+    # If home directory doesn't exist, initialize first
+    if [ ! -d "$HOMEDIR" ] || [ ! -f "$GENESIS" ]; then
+        print_warning "Home directory or genesis file not found, initializing first..."
+        initialize_peer
+    fi
     
     $NXQD_BIN start \
         --metrics "$TRACE" \

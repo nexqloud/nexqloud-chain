@@ -68,14 +68,10 @@ case "$NODE_TYPE" in
         ;;
     multi-seed)
         echo "🌱 Initializing Additional Seed Node"
-        /usr/local/bin/multi_seed_node_prod.sh init
-        echo "✅ Initialization complete, starting node..."
         exec /usr/local/bin/multi_seed_node_prod.sh start
         ;;
     peer|persistent-peer)
         echo "🔗 Initializing Peer Node"
-        /usr/local/bin/peer_node_prod.sh init
-        echo "✅ Initialization complete, starting node..."
         exec /usr/local/bin/peer_node_prod.sh start
         ;;
     *)
