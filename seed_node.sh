@@ -276,8 +276,10 @@ initialize_blockchain() {
         print_info "Configuring persistent peers: $PERSISTENT_PEERS"
         if [[ "$OSTYPE" == "darwin"* ]]; then
             sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i '' "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         else
             sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         fi
     else
         print_warning "No persistent peers configured (other nodes may not be running yet)"
@@ -300,9 +302,13 @@ initialize_blockchain() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
         sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
+        # Disable veto by setting threshold to 100% (impossible to reach)
+        sed -i '' 's/"veto_threshold": "0.334000000000000000"/"veto_threshold": "1.000000000000000000"/g' "$GENESIS"
     else
         sed -i 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
         sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
+        # Disable veto by setting threshold to 100% (impossible to reach)
+        sed -i 's/"veto_threshold": "0.334000000000000000"/"veto_threshold": "1.000000000000000000"/g' "$GENESIS"
     fi
     
     print_section "Setting Up Genesis Accounts"

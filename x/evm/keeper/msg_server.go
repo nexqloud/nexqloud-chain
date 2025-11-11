@@ -49,6 +49,8 @@ type walletLockCache struct {
 }
 
 var (
+	// Removed hardcoded whitelist - now loaded from chain params
+
 	// Cache with mutex for thread safety
 	chainStatusCacheMap = make(map[string]*chainStatusCache)
 	walletLockCacheMap  = make(map[string]*walletLockCache)
