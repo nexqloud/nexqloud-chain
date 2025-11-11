@@ -240,19 +240,18 @@ initialize_multi_seed() {
     # 🔌 Configure network connections using Docker service discovery
     print_section "Configuring Network (Plug-and-Play)"
     
-    SEEDS=""
     PERSISTENT_PEERS=""
     
-    # Add first seed node
+    # Add first seed node as persistent peer
     print_info "Discovering first seed node..."
     if node_id=$(get_node_id_from_service "$FIRST_SEED_SERVICE"); then
-        SEEDS="$node_id@$FIRST_SEED_SERVICE:26656"
-        print_success "Added first seed: $FIRST_SEED_SERVICE"
+        PERSISTENT_PEERS="$node_id@$FIRST_SEED_SERVICE:26656"
+        print_success "Added first seed as persistent peer: $FIRST_SEED_SERVICE"
     else
         print_warning "Could not get node ID from $FIRST_SEED_SERVICE"
     fi
     
-    # Add other seed nodes
+    # Add other seed nodes as persistent peers
     if [ -n "$OTHER_SEED_SERVICES" ]; then
         print_info "Discovering other seed nodes..."
         for service in $OTHER_SEED_SERVICES; do
@@ -262,12 +261,12 @@ initialize_multi_seed() {
             fi
             
             if node_id=$(get_node_id_from_service "$service"); then
-                if [ -z "$SEEDS" ]; then
-                    SEEDS="$node_id@$service:26656"
+                if [ -z "$PERSISTENT_PEERS" ]; then
+                    PERSISTENT_PEERS="$node_id@$service:26656"
                 else
-                    SEEDS="$SEEDS,$node_id@$service:26656"
+                    PERSISTENT_PEERS="$PERSISTENT_PEERS,$node_id@$service:26656"
                 fi
-                print_success "Added seed peer: $service"
+                print_success "Added seed node as persistent peer: $service"
             else
                 print_warning "Could not connect to $service (may not be running yet)"
             fi
@@ -291,31 +290,24 @@ initialize_multi_seed() {
         done
     fi
     
-    # Apply network configuration
-    if [ -n "$SEEDS" ]; then
-        print_info "Configuring seeds: $SEEDS"
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
-        else
-            sed -i "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
-        fi
-    fi
-    
+    # Apply network configuration - use persistent_peers only, clear seeds
     if [ -n "$PERSISTENT_PEERS" ]; then
         print_info "Configuring persistent peers: $PERSISTENT_PEERS"
         if [[ "$OSTYPE" == "darwin"* ]]; then
             sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i '' "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         else
             sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         fi
-    fi
-    
-    # Enable seed mode
-    print_info "Enabling seed mode"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/^seed_mode = false/seed_mode = true/' "$CONFIG"
     else
-        sed -i 's/^seed_mode = false/seed_mode = true/' "$CONFIG"
+        print_warning "No persistent peers configured (other nodes may not be running yet)"
+        # Still clear seeds even if no peers found
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
+        else
+            sed -i "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
+        fi
     fi
     
     # Enable PEX for automatic peer discovery

@@ -169,20 +169,19 @@ initialize_peer() {
     # 🔌 Configure network connections using Docker service discovery
     print_section "Configuring Network (Plug-and-Play)"
     
-    SEEDS=""
     PERSISTENT_PEERS=""
     
-    # Add seed nodes
+    # Add seed nodes as persistent peers (not seeds)
     if [ -n "$SEED_SERVICES" ]; then
-        print_info "Discovering seed nodes..."
+        print_info "Discovering seed nodes (adding as persistent peers)..."
         for service in $SEED_SERVICES; do
             if node_id=$(get_node_id_from_service "$service"); then
-                if [ -z "$SEEDS" ]; then
-                    SEEDS="$node_id@$service:26656"
+                if [ -z "$PERSISTENT_PEERS" ]; then
+                    PERSISTENT_PEERS="$node_id@$service:26656"
                 else
-                    SEEDS="$SEEDS,$node_id@$service:26656"
+                    PERSISTENT_PEERS="$PERSISTENT_PEERS,$node_id@$service:26656"
                 fi
-                print_success "Added seed: $service"
+                print_success "Added seed node as persistent peer: $service"
             else
                 print_warning "Could not connect to seed $service (may not be running yet)"
             fi
@@ -223,24 +222,23 @@ initialize_peer() {
         done
     fi
     
-    # Apply network configuration
-    if [ -n "$SEEDS" ]; then
-        print_info "Configuring seeds: $SEEDS"
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
-        else
-            sed -i "s/^seeds = .*/seeds = \"$SEEDS\"/" "$CONFIG"
-        fi
-    else
-        print_warning "No seeds configured - node may have difficulty connecting"
-    fi
-    
+    # Apply network configuration - use persistent_peers only, clear seeds
     if [ -n "$PERSISTENT_PEERS" ]; then
         print_info "Configuring persistent peers: $PERSISTENT_PEERS"
         if [[ "$OSTYPE" == "darwin"* ]]; then
             sed -i '' "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i '' "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         else
             sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CONFIG"
+            sed -i "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
+        fi
+    else
+        print_warning "No persistent peers configured - node may have difficulty connecting"
+        # Still clear seeds even if no peers found
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
+        else
+            sed -i "s/^seeds = .*/seeds = \"\"/" "$CONFIG"
         fi
     fi
     
