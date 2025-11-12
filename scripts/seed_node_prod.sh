@@ -25,7 +25,7 @@ fi
 # ============================================================================
 # NODE CONFIGURATION
 # ============================================================================
-CHAINID="${CHAINID:-nxqd_6000-1}"
+CHAINID="${CHAINID:-nxqd_90000-1}"
 MONIKER="${MONIKER:-NexqloudSeedNode}"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="${LOGLEVEL:-info}"
@@ -43,7 +43,7 @@ GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unx
 
 # Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
 # Default: 50 NXQ = 50000000000000000000 unxq
-VALIDATOR_STAKE="${VALIDATOR_STAKE:-50000000000000000000unxq}"
+VALIDATOR_STAKE="${VALIDATOR_STAKE:-25000000000000000000unxq}"
 
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
