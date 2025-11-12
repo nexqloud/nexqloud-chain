@@ -11,7 +11,7 @@ PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}"
 # ============================================================================
 # NODE CONFIGURATION
 # ============================================================================
-CHAINID="nxqd_90000-1"
+CHAINID="nxqd_90009-1"
 MONIKER="NexqloudSeedNode1"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"
@@ -31,12 +31,12 @@ TRACE=""
 KEYRING="file"
 
 # Genesis account balance configuration (in unxq, where 1 NXQ = 10^18 unxq)
-# Default: 3,200,000 NXQ = 3200000000000000000000000 unxq
-GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unxq}"
+# will change on the day of mainnet release with the actual amount of tokens in the snapshot
+GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-2100000000000000000000000unxq}"
 
 # Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
 # Default: 100 NXQ = 100000000000000000000 unxq
-VALIDATOR_STAKE="${VALIDATOR_STAKE:-50000000000000000000unxq}"
+VALIDATOR_STAKE="${VALIDATOR_STAKE:-25000000000000000000unxq}"
 
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
@@ -300,19 +300,19 @@ initialize_blockchain() {
     # Change proposal periods
     print_info "Setting up proposal periods (5 minutes for voting)"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
-        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
-        # Disable veto by setting threshold to 100% (impossible to reach)
+        sed -i '' 's/"voting_period": "172800s"/"voting_period": "86400s"/g' "$GENESIS"
+        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "86400s"/g' "$GENESIS"
+
         sed -i '' 's/"veto_threshold": "0.334000000000000000"/"veto_threshold": "1.000000000000000000"/g' "$GENESIS"
     else
-        sed -i 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
-        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
-        # Disable veto by setting threshold to 100% (impossible to reach)
+        sed -i 's/"voting_period": "172800s"/"voting_period": "86400s"/g' "$GENESIS"
+        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "86400s"/g' "$GENESIS"
+
         sed -i 's/"veto_threshold": "0.334000000000000000"/"veto_threshold": "1.000000000000000000"/g' "$GENESIS"
     fi
     
     print_section "Setting Up Genesis Accounts"
-    # Add the primary key as a genesis account with 1 million tokens (leaving room for halving minting)
+    # Add the primary key as a genesis account with <snapshotted> million tokens (leaving room for halving minting)
     print_info "Adding genesis account with balance: $GENESIS_ACCOUNT_BALANCE"
     local address=$($NXQD_BIN keys show "primary" -a --keyring-backend "$KEYRING" --home "$HOMEDIR")
     $NXQD_BIN add-genesis-account "$address" "$GENESIS_ACCOUNT_BALANCE" --keyring-backend "$KEYRING" --home "$HOMEDIR"

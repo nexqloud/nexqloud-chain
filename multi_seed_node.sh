@@ -11,7 +11,7 @@ PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}"
 # ============================================================================
 # NODE CONFIGURATION
 # ============================================================================
-CHAINID="nxqd_90000-1"
+CHAINID="nxqd_90009-1"
 MONIKER="NexqloudSeedNode2"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="info"

@@ -291,7 +291,7 @@ main() {
     print_info "To submit:"
     echo "nxqd tx gov submit-proposal param-change <proposal-file>.json \\"
     echo "  --from=validator1 \\"
-    echo "  --chain-id=nxqd_90000-1 \\"
+    echo "  --chain-id=nxqd_90009-1 \\"
     echo "  --gas=auto \\"
     echo "  --gas-prices=1000000000unxq"
 }

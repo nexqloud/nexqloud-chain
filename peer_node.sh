@@ -10,7 +10,7 @@ PERSISTENT_PEER_DOMAIN="${PERSISTENT_PEER_DOMAIN:-prod-node-2.nexqloudsite.com}"
 # ============================================================================
 # NODE CONFIGURATION
 # ============================================================================
-CHAINID="nxqd_90000-1"
+CHAINID="nxqd_90009-1"
 
 # Set moniker if environment variable is not set
 if [ -z "$MONIKER" ]; then

@@ -25,7 +25,7 @@ fi
 # ============================================================================
 # NODE CONFIGURATION
 # ============================================================================
-CHAINID="${CHAINID:-nxqd_90000-1}"
+CHAINID="${CHAINID:-nxqd_90009-1}"
 MONIKER="${MONIKER:-NexqloudSeedNode}"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="${LOGLEVEL:-info}"
@@ -38,8 +38,8 @@ TRACE=""
 KEYRING="${KEYRING:-file}"
 
 # Genesis account balance configuration (in unxq, where 1 NXQ = 10^18 unxq)
-# Default: 3,200,000 NXQ = 3200000000000000000000000 unxq
-GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unxq}"
+# will change on the day of mainnet release with the actual amount of tokens in the snapshot
+GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-2100000000000000000000000unxq}"
 
 # Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
 # Default: 50 NXQ = 50000000000000000000 unxq
@@ -295,11 +295,11 @@ initialize_blockchain() {
     # Change proposal periods
     print_info "Setting up proposal periods (5 minutes for voting)"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
-        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
+        sed -i '' 's/"voting_period": "172800s"/"voting_period": "86400s"/g' "$GENESIS"
+        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "86400s"/g' "$GENESIS"
     else
-        sed -i 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
-        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
+        sed -i 's/"voting_period": "172800s"/"voting_period": "86400s"/g' "$GENESIS"
+        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "86400s"/g' "$GENESIS"
     fi
     
     print_section "Setting Up Genesis Accounts"

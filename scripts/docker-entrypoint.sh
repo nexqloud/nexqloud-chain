@@ -5,7 +5,7 @@ echo "🚀 Starting NexQloud Chain Node"
 echo "================================================"
 echo "Node Type: ${NODE_TYPE:-peer}"
 echo "Moniker: ${MONIKER:-NexQloudNode}"
-echo "Chain ID: ${CHAINID:-nxqd_90000-1}"
+echo "Chain ID: ${CHAINID:-nxqd_90009-1}"
 echo "Keyring: ${KEYRING:-test}"
 echo "================================================"
 
