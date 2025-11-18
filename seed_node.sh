@@ -300,13 +300,13 @@ initialize_blockchain() {
     # Change proposal periods
     print_info "Setting up proposal periods (5 minutes for voting)"
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' 's/"voting_period": "172800s"/"voting_period": "86400s"/g' "$GENESIS"
-        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "86400s"/g' "$GENESIS"
+        sed -i '' 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i '' 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
 
         sed -i '' 's/"veto_threshold": "0.334000000000000000"/"veto_threshold": "1.000000000000000000"/g' "$GENESIS"
     else
-        sed -i 's/"voting_period": "172800s"/"voting_period": "86400s"/g' "$GENESIS"
-        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "86400s"/g' "$GENESIS"
+        sed -i 's/"voting_period": "172800s"/"voting_period": "300s"/g' "$GENESIS"
+        sed -i 's/"max_deposit_period": "172800s"/"max_deposit_period": "300s"/g' "$GENESIS"
 
         sed -i 's/"veto_threshold": "0.334000000000000000"/"veto_threshold": "1.000000000000000000"/g' "$GENESIS"
     fi
