@@ -135,8 +135,8 @@ generate_key() {
     print_warning "You will be prompted to create a password for your keyring."
     print_warning "This password protects all your keys. Remember it well!"
     
-    # Generate key
-    $NXQD_BIN keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+    # Generate new key (not recover)
+    $NXQD_BIN keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
     
     print_success "Key $key_name generated"
     print_warning "IMPORTANT: Make sure to securely write down the mnemonic phrase shown above!"
