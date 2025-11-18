@@ -1,39 +1,28 @@
 {
     "messages": [
-        {
-            "@type": "/cosmos.gov.v1.MsgUpdateParams",
-            "authority": "nxq10d07y265gmmuvt4z0w9aw880jnsr700jdvzlfj",
-            "params": {
-                "min_deposit": [
-                    {
-                        "denom": "unxq",
-                        "amount": "10000000000000000000"
-                    }
-                ],
-                "max_deposit_period": "86400s",
-                "voting_period": "86400s",
-                "quorum": "0.334000000000000000",
-                "threshold": "0.500000000000000000",
-                "veto_threshold": "1.000000000000000000",
-                "min_initial_deposit_ratio": "0.000000000000000000",
-                "proposal_cancel_ratio": "0.500000000000000000",
-                "proposal_cancel_dest": "deposit",
-                "expedited_voting_period": "86400s",
-                "expedited_threshold": "0.667000000000000000",
-                "expedited_min_deposit": [
-                    {
-                        "denom": "unxq",
-                        "amount": "50000000000000000000"
-                    }
-                ],
-                "burn_vote_quorum": false,
-                "burn_proposal_deposit_prevote": false,
-                "burn_vote_veto": true
+      {
+        "@type": "/cosmos.gov.v1.MsgUpdateParams",
+        "authority": "nxq10d07y265gmmuvt4z0w9aw880jnsr700jdvzlfj",
+        "params": {
+          "min_deposit": [
+            {
+              "denom": "unxq",
+              "amount": "10000000000000000000"
             }
+          ],
+          "max_deposit_period": "86400s",
+          "voting_period": "86400s",
+          "quorum": "0.334000000000000000",
+          "threshold": "0.500000000000000000",
+          "veto_threshold": "1.000000000000000000",
+          "min_initial_deposit_ratio": "0.000000000000000000"
         }
+      }
     ],
     "metadata": "ipfs://CID",
     "deposit": "10000000000000000000unxq",
     "title": "Update Governance Voting Period to 24 Hours",
     "summary": "Change the governance voting period from 5 minutes (300s) to 24 hours (86400s) and max deposit period to 24 hours (86400s) for production stability. This allows sufficient time for validators and token holders to review and vote on proposals."
-}
+  }
+  
+  
