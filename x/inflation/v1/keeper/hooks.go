@@ -85,9 +85,38 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 		Amount: dailyEmission,
 	}
 
+	// 🆕 HALVING: Get MultiSigAddress from EVM params (dynamic, not hardcoded)
+	// Fallback to inflation params default if EVM params not set
+	var multiSigAddress string
+	if k.evmKeeper != nil {
+		evmParams := k.evmKeeper.GetParams(ctx)
+		multiSigAddress = evmParams.GetMultiSigAddress()
+	}
+	// Fallback to inflation params default if EVM params is empty (backward compatibility)
+	if multiSigAddress == "" {
+		multiSigAddress = params.MultiSigAddress
+	}
+
 	// 🆕 HALVING: Mint and send directly to multi-sig (no staking/community pool distribution)
-	if err := k.MintAndSendToMultiSig(ctx, mintedCoin, params); err != nil {
-		panic(fmt.Sprintf("failed to mint and send to multi-sig: %v", err))
+	// Use MultiSigAddress from EVM params instead of inflation params
+	if multiSigAddress != "" {
+		// Create a temporary params struct with the MultiSigAddress from EVM params
+		tempParams := params
+		tempParams.MultiSigAddress = multiSigAddress
+		if err := k.MintAndSendToMultiSig(ctx, mintedCoin, tempParams); err != nil {
+			panic(fmt.Sprintf("failed to mint and send to multi-sig: %v", err))
+		}
+	} else {
+		// Fallback to standard distribution if multi-sig not set
+		staking, communityPool, err := k.MintAndAllocateInflation(ctx, mintedCoin, params)
+		if err != nil {
+			panic(fmt.Sprintf("failed to allocate inflation: %v", err))
+		}
+		k.Logger(ctx).Info(
+			"allocated inflation (multi-sig not set)",
+			"staking", staking.String(),
+			"community_pool", communityPool.String(),
+		)
 	}
 
 	// 🆕 HALVING: Update halving data if we crossed into a new period
@@ -127,9 +156,21 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 			sdk.NewAttribute(types.AttributeKeyEpochProvisions, dailyEmission.String()),
 			sdk.NewAttribute(sdk.AttributeKeyAmount, mintedCoin.Amount.String()),
 			sdk.NewAttribute("halving_period", fmt.Sprintf("%d", currentPeriod)),
-			sdk.NewAttribute("multi_sig_address", params.MultiSigAddress),
 		),
 	)
+
+	// Add multi-sig address to event if available
+	if k.evmKeeper != nil {
+		evmParams := k.evmKeeper.GetParams(ctx)
+		if multiSigAddr := evmParams.GetMultiSigAddress(); multiSigAddr != "" {
+			ctx.EventManager().EmitEvent(
+				sdk.NewEvent(
+					types.EventTypeMint,
+					sdk.NewAttribute("multi_sig_address", multiSigAddr),
+				),
+			)
+		}
+	}
 }
 
 // ___________________________________________________________________________________________________

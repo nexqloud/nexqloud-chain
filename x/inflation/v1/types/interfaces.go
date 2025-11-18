@@ -8,6 +8,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/auth/types"
 	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
+	evmtypes "github.com/evmos/evmos/v19/x/evm/types"
 )
 
 // AccountKeeper defines the contract required for account APIs.
@@ -36,6 +37,11 @@ type StakingKeeper interface {
 	// BondedRatio the fraction of the staking tokens which are currently bonded
 	StakingTokenSupply(ctx sdk.Context) math.Int
 	TotalBondedTokens(ctx sdk.Context) math.Int
+}
+
+// EVMKeeper expected EVM keeper (for accessing MultiSigAddress from EVM params)
+type EVMKeeper interface {
+	GetParams(ctx sdk.Context) evmtypes.Params
 }
 
 type (
