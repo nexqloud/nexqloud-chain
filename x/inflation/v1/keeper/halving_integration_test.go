@@ -13,13 +13,13 @@ import (
 // TestHalvingIntegrationAfterEpochEnd tests the complete halving integration
 func (suite *KeeperTestSuite) TestHalvingIntegrationAfterEpochEnd() {
 	testCases := []struct {
-		name               string
-		currentEpoch       int64
-		setupHalvingData   types.HalvingData
-		expectedMint       bool
-		expectedEmission   string
-		expectedNewPeriod  uint64
-		expectedHalving    bool
+		name              string
+		currentEpoch      int64
+		setupHalvingData  types.HalvingData
+		expectedMint      bool
+		expectedEmission  string
+		expectedNewPeriod uint64
+		expectedHalving   bool
 	}{
 		{
 			name:         "first epoch - no halving",
@@ -97,7 +97,7 @@ func (suite *KeeperTestSuite) TestHalvingIntegrationAfterEpochEnd() {
 			params.EnableInflation = true
 			params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000") // 7200 tokens
 			params.HalvingIntervalEpochs = 1461
-			params.MultiSigAddress = "evmos1test" // Set a test address
+			params.MultiSigAddress = "evmos1test"                                     // Set a test address
 			params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000") // 21M tokens
 			err := suite.app.InflationKeeper.SetParams(suite.ctx, params)
 			suite.Require().NoError(err)
@@ -116,11 +116,11 @@ func (suite *KeeperTestSuite) TestHalvingIntegrationAfterEpochEnd() {
 
 			// Check if minting occurred
 			newSupply := suite.app.BankKeeper.GetSupply(futureCtx, denomMint)
-			
+
 			if tc.expectedMint {
-				suite.Require().True(newSupply.Amount.GT(initialSupply.Amount), 
+				suite.Require().True(newSupply.Amount.GT(initialSupply.Amount),
 					"Expected minting to occur")
-				
+
 				// Check the exact amount minted
 				minted := newSupply.Amount.Sub(initialSupply.Amount)
 				suite.Require().Equal(tc.expectedEmission, minted.String(),
@@ -176,7 +176,7 @@ func (suite *KeeperTestSuite) TestHalvingSupplyCapIntegration() {
 
 	// Try to mint 7200 tokens (should fail due to supply cap)
 	futureCtx := suite.ctx.WithBlockHeight(1).WithBlockTime(time.Now().Add(time.Hour))
-	
+
 	// This should not mint because it would exceed the cap
 	suite.app.InflationKeeper.AfterEpochEnd(futureCtx, epochstypes.DayEpochID, 1)
 
@@ -193,7 +193,7 @@ func (suite *KeeperTestSuite) TestHalvingInvalidEpochIdentifier() {
 	// Enable inflation
 	params := suite.app.InflationKeeper.GetParams(suite.ctx)
 	params.EnableInflation = true
-		params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 1461
 	params.MultiSigAddress = "evmos1test"
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
@@ -209,9 +209,9 @@ func (suite *KeeperTestSuite) TestHalvingInvalidEpochIdentifier() {
 	suite.app.InflationKeeper.SetHalvingData(suite.ctx, halvingData)
 
 	testCases := []struct {
-		name           string
-		epochID        string
-		shouldMint     bool
+		name       string
+		epochID    string
+		shouldMint bool
 	}{
 		{
 			name:       "day epoch - should mint",
@@ -260,7 +260,7 @@ func (suite *KeeperTestSuite) TestHalvingDisabledInflation() {
 	// Disable inflation
 	params := suite.app.InflationKeeper.GetParams(suite.ctx)
 	params.EnableInflation = false // This should prevent minting
-		params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 1461
 	params.MultiSigAddress = "evmos1test"
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
@@ -295,7 +295,7 @@ func (suite *KeeperTestSuite) TestHalvingMultipleEpochs() {
 	// Enable inflation
 	params := suite.app.InflationKeeper.GetParams(suite.ctx)
 	params.EnableInflation = true
-		params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 4 // Small interval for testing
 	params.MultiSigAddress = "evmos1test"
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
@@ -335,7 +335,7 @@ func (suite *KeeperTestSuite) TestHalvingMultipleEpochs() {
 			// Check minted amount
 			supplyAfter := suite.app.BankKeeper.GetSupply(futureCtx, denomMint)
 			minted := supplyAfter.Amount.Sub(supplyBefore.Amount)
-			
+
 			expectedEmission := expectedEmissions[epoch-1]
 			suite.Require().Equal(expectedEmission, minted.String(),
 				"Epoch %d should mint %s tokens", epoch, expectedEmission)
@@ -348,7 +348,7 @@ func (suite *KeeperTestSuite) TestHalvingMultipleEpochs() {
 
 	// Verify total minted follows expected pattern
 	// Period 0: 4 epochs * 7200 = 28800
-	// Period 1: 4 epochs * 3600 = 14400  
+	// Period 1: 4 epochs * 3600 = 14400
 	// Total: 43200 tokens
 	expectedTotal, _ := math.NewIntFromString("43200000000000000000000")
 	suite.Require().Equal(expectedTotal.String(), totalMinted.String(),
@@ -362,7 +362,7 @@ func (suite *KeeperTestSuite) TestHalvingEventEmission() {
 	// Enable inflation
 	params := suite.app.InflationKeeper.GetParams(suite.ctx)
 	params.EnableInflation = true
-		params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 2 // Very small for testing
 	params.MultiSigAddress = "evmos1test"
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
@@ -386,4 +386,330 @@ func (suite *KeeperTestSuite) TestHalvingEventEmission() {
 	finalHalvingData := suite.app.InflationKeeper.GetHalvingData(futureCtx)
 	suite.Require().Equal(uint64(1), finalHalvingData.CurrentPeriod, "Should be in period 1")
 	suite.Require().Equal(uint64(2), finalHalvingData.LastHalvingEpoch, "Last halving epoch should be 2")
+}
+
+// TestMultiSigAddressFromEVMParams tests that MultiSigAddress is read from EVM params (primary source)
+func (suite *KeeperTestSuite) TestMultiSigAddressFromEVMParams() {
+	suite.SetupTest()
+
+	// Generate valid bech32 addresses for testing
+	primaryAddr := sdk.AccAddress("primary12345678901234") // 20 bytes
+	primaryAddrStr, err := sdk.Bech32ifyAddressBytes("nxq", primaryAddr)
+	suite.Require().NoError(err)
+
+	fallbackAddr := sdk.AccAddress("fallback12345678901") // 20 bytes
+	fallbackAddrStr, err := sdk.Bech32ifyAddressBytes("nxq", fallbackAddr)
+	suite.Require().NoError(err)
+
+	// Set up inflation params with a different address (fallback)
+	inflationParams := suite.app.InflationKeeper.GetParams(suite.ctx)
+	inflationParams.EnableInflation = true
+	inflationParams.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	inflationParams.HalvingIntervalEpochs = 1461
+	inflationParams.MultiSigAddress = fallbackAddrStr // Fallback address
+	inflationParams.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
+	err = suite.app.InflationKeeper.SetParams(suite.ctx, inflationParams)
+	suite.Require().NoError(err)
+
+	// Set EVM params with MultiSigAddress (primary source)
+	evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
+	evmParams.MultiSigAddress = primaryAddrStr // Primary address
+	err = suite.app.EvmKeeper.SetParams(suite.ctx, evmParams)
+	suite.Require().NoError(err)
+
+	// Set halving data
+	halvingData := types.HalvingData{
+		CurrentPeriod:    0,
+		LastHalvingEpoch: 0,
+		StartEpoch:       1,
+	}
+	suite.app.InflationKeeper.SetHalvingData(suite.ctx, halvingData)
+
+	// Get initial multi-sig balance
+	multiSigAddr, err := sdk.AccAddressFromBech32(primaryAddrStr)
+	suite.Require().NoError(err)
+	initialBalance := suite.app.BankKeeper.GetBalance(suite.ctx, multiSigAddr, denomMint)
+
+	// Trigger epoch end - should use EVM params address (primary source)
+	futureCtx := suite.ctx.WithBlockHeight(1).WithBlockTime(time.Now().Add(time.Hour))
+	suite.app.InflationKeeper.AfterEpochEnd(futureCtx, epochstypes.DayEpochID, 1)
+
+	// Verify tokens were sent to EVM params address (not fallback)
+	finalBalance := suite.app.BankKeeper.GetBalance(futureCtx, multiSigAddr, denomMint)
+	minted := finalBalance.Amount.Sub(initialBalance.Amount)
+	suite.Require().True(minted.IsPositive(), "Tokens should be minted to EVM params address")
+	suite.Require().Equal("7200000000000000000000", minted.String(), "Should mint 7200 tokens")
+
+	// Verify fallback address did NOT receive tokens
+	fallbackAddrParsed, err := sdk.AccAddressFromBech32(fallbackAddrStr)
+	suite.Require().NoError(err)
+	fallbackBalance := suite.app.BankKeeper.GetBalance(futureCtx, fallbackAddrParsed, denomMint)
+	suite.Require().True(fallbackBalance.Amount.IsZero(), "Fallback address should not receive tokens")
+}
+
+// TestMultiSigAddressFallbackToInflationParams tests fallback to inflation params when EVM params is empty
+func (suite *KeeperTestSuite) TestMultiSigAddressFallbackToInflationParams() {
+	suite.SetupTest()
+
+	// Generate valid bech32 address for testing
+	fallbackAddr := sdk.AccAddress("fallback12345678901") // 20 bytes
+	fallbackAddrStr, err := sdk.Bech32ifyAddressBytes("nxq", fallbackAddr)
+	suite.Require().NoError(err)
+
+	// Set up inflation params with MultiSigAddress (fallback)
+	inflationParams := suite.app.InflationKeeper.GetParams(suite.ctx)
+	inflationParams.EnableInflation = true
+	inflationParams.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	inflationParams.HalvingIntervalEpochs = 1461
+	inflationParams.MultiSigAddress = fallbackAddrStr // Fallback address
+	inflationParams.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
+	err = suite.app.InflationKeeper.SetParams(suite.ctx, inflationParams)
+	suite.Require().NoError(err)
+
+	// Set EVM params with empty MultiSigAddress (bootstrap mode)
+	evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
+	evmParams.MultiSigAddress = "" // Empty (bootstrap mode)
+	err = suite.app.EvmKeeper.SetParams(suite.ctx, evmParams)
+	suite.Require().NoError(err)
+
+	// Set halving data
+	halvingData := types.HalvingData{
+		CurrentPeriod:    0,
+		LastHalvingEpoch: 0,
+		StartEpoch:       1,
+	}
+	suite.app.InflationKeeper.SetHalvingData(suite.ctx, halvingData)
+
+	// Get initial multi-sig balance
+	multiSigAddr, err := sdk.AccAddressFromBech32(fallbackAddrStr)
+	suite.Require().NoError(err)
+	initialBalance := suite.app.BankKeeper.GetBalance(suite.ctx, multiSigAddr, denomMint)
+
+	// Trigger epoch end - should use inflation params address (fallback)
+	futureCtx := suite.ctx.WithBlockHeight(1).WithBlockTime(time.Now().Add(time.Hour))
+	suite.app.InflationKeeper.AfterEpochEnd(futureCtx, epochstypes.DayEpochID, 1)
+
+	// Verify tokens were sent to inflation params address (fallback)
+	finalBalance := suite.app.BankKeeper.GetBalance(futureCtx, multiSigAddr, denomMint)
+	minted := finalBalance.Amount.Sub(initialBalance.Amount)
+	suite.Require().True(minted.IsPositive(), "Tokens should be minted to inflation params address (fallback)")
+	suite.Require().Equal("7200000000000000000000", minted.String(), "Should mint 7200 tokens")
+}
+
+// TestMultiSigAddressGovernanceUpdate tests that updating EVM params via governance changes the address
+func (suite *KeeperTestSuite) TestMultiSigAddressGovernanceUpdate() {
+	suite.SetupTest()
+
+	// Generate valid bech32 addresses for testing
+	firstAddr := sdk.AccAddress("first123456789012345") // 20 bytes
+	firstAddrStr, err := sdk.Bech32ifyAddressBytes("nxq", firstAddr)
+	suite.Require().NoError(err)
+
+	newAddr := sdk.AccAddress("new12345678901234567") // 20 bytes
+	newAddrStr, err := sdk.Bech32ifyAddressBytes("nxq", newAddr)
+	suite.Require().NoError(err)
+
+	// Set up inflation params
+	inflationParams := suite.app.InflationKeeper.GetParams(suite.ctx)
+	inflationParams.EnableInflation = true
+	inflationParams.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	inflationParams.HalvingIntervalEpochs = 1461
+	inflationParams.MultiSigAddress = "nxq12zprcmal9hv52jqf2x4m59ztng0gnh7r96muj5" // Old fallback
+	inflationParams.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
+	err = suite.app.InflationKeeper.SetParams(suite.ctx, inflationParams)
+	suite.Require().NoError(err)
+
+	// Initially set EVM params with first address
+	evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
+	evmParams.MultiSigAddress = firstAddrStr // First address
+	err = suite.app.EvmKeeper.SetParams(suite.ctx, evmParams)
+	suite.Require().NoError(err)
+
+	// Set halving data
+	halvingData := types.HalvingData{
+		CurrentPeriod:    0,
+		LastHalvingEpoch: 0,
+		StartEpoch:       1,
+	}
+	suite.app.InflationKeeper.SetHalvingData(suite.ctx, halvingData)
+
+	// First mint - should go to first address
+	addr1, err := sdk.AccAddressFromBech32(firstAddrStr)
+	suite.Require().NoError(err)
+	initialBalance1 := suite.app.BankKeeper.GetBalance(suite.ctx, addr1, denomMint)
+
+	futureCtx1 := suite.ctx.WithBlockHeight(1).WithBlockTime(time.Now().Add(time.Hour))
+	suite.app.InflationKeeper.AfterEpochEnd(futureCtx1, epochstypes.DayEpochID, 1)
+
+	balance1After := suite.app.BankKeeper.GetBalance(futureCtx1, addr1, denomMint)
+	minted1 := balance1After.Amount.Sub(initialBalance1.Amount)
+	suite.Require().Equal("7200000000000000000000", minted1.String(), "First mint should go to first address")
+
+	// Simulate governance update - change EVM params MultiSigAddress
+	evmParams = suite.app.EvmKeeper.GetParams(futureCtx1)
+	evmParams.MultiSigAddress = newAddrStr // New address via governance
+	err = suite.app.EvmKeeper.SetParams(futureCtx1, evmParams)
+	suite.Require().NoError(err)
+
+	// Second mint - should now go to new address
+	addr2, err := sdk.AccAddressFromBech32(newAddrStr)
+	suite.Require().NoError(err)
+	initialBalance2 := suite.app.BankKeeper.GetBalance(futureCtx1, addr2, denomMint)
+
+	futureCtx2 := futureCtx1.WithBlockHeight(2).WithBlockTime(time.Now().Add(2 * time.Hour))
+	suite.app.InflationKeeper.AfterEpochEnd(futureCtx2, epochstypes.DayEpochID, 2)
+
+	balance2After := suite.app.BankKeeper.GetBalance(futureCtx2, addr2, denomMint)
+	minted2 := balance2After.Amount.Sub(initialBalance2.Amount)
+	suite.Require().Equal("7200000000000000000000", minted2.String(), "Second mint should go to new address")
+
+	// Verify first address did NOT receive second mint
+	balance1Final := suite.app.BankKeeper.GetBalance(futureCtx2, addr1, denomMint)
+	suite.Require().Equal(balance1After.Amount.String(), balance1Final.Amount.String(),
+		"First address should not receive tokens after governance update")
+}
+
+// TestMultiSigAddressEmptyBothParams tests behavior when both EVM and inflation params are empty
+func (suite *KeeperTestSuite) TestMultiSigAddressEmptyBothParams() {
+	suite.SetupTest()
+
+	// Set up inflation params with empty MultiSigAddress
+	inflationParams := suite.app.InflationKeeper.GetParams(suite.ctx)
+	inflationParams.EnableInflation = true
+	inflationParams.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+	inflationParams.HalvingIntervalEpochs = 1461
+	inflationParams.MultiSigAddress = "" // Empty
+	inflationParams.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
+	err := suite.app.InflationKeeper.SetParams(suite.ctx, inflationParams)
+	suite.Require().NoError(err)
+
+	// Set EVM params with empty MultiSigAddress (bootstrap mode)
+	evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
+	evmParams.MultiSigAddress = "" // Empty (bootstrap mode)
+	err = suite.app.EvmKeeper.SetParams(suite.ctx, evmParams)
+	suite.Require().NoError(err)
+
+	// Set halving data
+	halvingData := types.HalvingData{
+		CurrentPeriod:    0,
+		LastHalvingEpoch: 0,
+		StartEpoch:       1,
+	}
+	suite.app.InflationKeeper.SetHalvingData(suite.ctx, halvingData)
+
+	// Get initial supply
+	initialSupply := suite.app.BankKeeper.GetSupply(suite.ctx, denomMint)
+
+	// Trigger epoch end - should fallback to standard distribution (no multi-sig)
+	futureCtx := suite.ctx.WithBlockHeight(1).WithBlockTime(time.Now().Add(time.Hour))
+	suite.app.InflationKeeper.AfterEpochEnd(futureCtx, epochstypes.DayEpochID, 1)
+
+	// Verify tokens were still minted (but distributed via standard mechanism, not multi-sig)
+	finalSupply := suite.app.BankKeeper.GetSupply(futureCtx, denomMint)
+	minted := finalSupply.Amount.Sub(initialSupply.Amount)
+	suite.Require().True(minted.IsPositive(), "Tokens should still be minted even without multi-sig address")
+	suite.Require().Equal("7200000000000000000000", minted.String(), "Should mint 7200 tokens")
+}
+
+// TestMultiSigAddressPriorityOrder tests the priority: EVM params > Inflation params > Standard distribution
+func (suite *KeeperTestSuite) TestMultiSigAddressPriorityOrder() {
+	testCases := []struct {
+		name                     string
+		evmMultiSigAddress       string
+		inflationMultiSigAddress string
+		expectedAddress          string
+		description              string
+	}{
+		{
+			name:                     "EVM params set, inflation params set - use EVM",
+			evmMultiSigAddress:       "", // Will be set in test
+			inflationMultiSigAddress: "", // Will be set in test
+			expectedAddress:          "", // Will be set in test
+			description:              "EVM params takes priority over inflation params",
+		},
+		{
+			name:                     "EVM params empty, inflation params set - use inflation",
+			evmMultiSigAddress:       "",
+			inflationMultiSigAddress: "", // Will be set in test
+			expectedAddress:          "", // Will be set in test
+			description:              "Fallback to inflation params when EVM params empty",
+		},
+		{
+			name:                     "Both empty - use standard distribution",
+			evmMultiSigAddress:       "",
+			inflationMultiSigAddress: "",
+			expectedAddress:          "", // Empty means standard distribution
+			description:              "Both empty triggers standard distribution",
+		},
+	}
+
+	for i, tc := range testCases {
+		suite.Run(tc.name, func() {
+			suite.SetupTest()
+
+			// Generate valid bech32 addresses for test cases that need them
+			var evmAddrStr, inflationAddrStr, expectedAddrStr string
+
+			if i == 0 {
+				// First case: EVM params set, inflation params set - use EVM
+				evmAddr := sdk.AccAddress(fmt.Sprintf("evmaddr%d123456789012", i))
+				evmAddrStr, _ = sdk.Bech32ifyAddressBytes("nxq", evmAddr)
+				inflationAddr := sdk.AccAddress(fmt.Sprintf("infaddr%d123456789012", i))
+				inflationAddrStr, _ = sdk.Bech32ifyAddressBytes("nxq", inflationAddr)
+				expectedAddrStr = evmAddrStr
+			} else if i == 1 {
+				// Second case: EVM params empty, inflation params set - use inflation
+				inflationAddr := sdk.AccAddress(fmt.Sprintf("infaddr%d123456789012", i))
+				inflationAddrStr, _ = sdk.Bech32ifyAddressBytes("nxq", inflationAddr)
+				expectedAddrStr = inflationAddrStr
+			}
+			// Third case: Both empty - no addresses needed
+
+			// Set up inflation params
+			inflationParams := suite.app.InflationKeeper.GetParams(suite.ctx)
+			inflationParams.EnableInflation = true
+			inflationParams.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
+			inflationParams.HalvingIntervalEpochs = 1461
+			inflationParams.MultiSigAddress = inflationAddrStr
+			inflationParams.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
+			err := suite.app.InflationKeeper.SetParams(suite.ctx, inflationParams)
+			suite.Require().NoError(err)
+
+			// Set EVM params
+			evmParams := suite.app.EvmKeeper.GetParams(suite.ctx)
+			evmParams.MultiSigAddress = evmAddrStr
+			err = suite.app.EvmKeeper.SetParams(suite.ctx, evmParams)
+			suite.Require().NoError(err)
+
+			// Set halving data
+			halvingData := types.HalvingData{
+				CurrentPeriod:    0,
+				LastHalvingEpoch: 0,
+				StartEpoch:       1,
+			}
+			suite.app.InflationKeeper.SetHalvingData(suite.ctx, halvingData)
+
+			// Get initial supply
+			initialSupply := suite.app.BankKeeper.GetSupply(suite.ctx, denomMint)
+
+			// Trigger epoch end
+			futureCtx := suite.ctx.WithBlockHeight(1).WithBlockTime(time.Now().Add(time.Hour))
+			suite.app.InflationKeeper.AfterEpochEnd(futureCtx, epochstypes.DayEpochID, 1)
+
+			// Verify minting occurred
+			finalSupply := suite.app.BankKeeper.GetSupply(futureCtx, denomMint)
+			minted := finalSupply.Amount.Sub(initialSupply.Amount)
+			suite.Require().True(minted.IsPositive(), tc.description)
+			suite.Require().Equal("7200000000000000000000", minted.String(), "Should mint 7200 tokens")
+
+			// If expected address is set, verify tokens went there
+			if expectedAddrStr != "" {
+				expectedAddr, err := sdk.AccAddressFromBech32(expectedAddrStr)
+				suite.Require().NoError(err)
+				balance := suite.app.BankKeeper.GetBalance(futureCtx, expectedAddr, denomMint)
+				suite.Require().Equal(minted.String(), balance.Amount.String(),
+					"Tokens should be sent to %s: %s", expectedAddrStr, tc.description)
+			}
+		})
+	}
 }

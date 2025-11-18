@@ -55,7 +55,7 @@ var (
 			AccessControlList: DefaultCreateAllowlistAddresses,
 		},
 	}
-	
+
 	// NexQloud custom defaults - Bootstrap mode (all checks disabled, zero addresses)
 	// ZeroAddress represents unset contract address
 	ZeroAddress = "0x0000000000000000000000000000000000000000"
@@ -73,6 +73,8 @@ var (
 	DefaultEnableChainStatusCheck = false
 	// DefaultEnableWalletLockCheck is false during bootstrap (permissive mode)
 	DefaultEnableWalletLockCheck = false
+	// DefaultMultiSigAddress is empty during bootstrap (must be set via governance)
+	DefaultMultiSigAddress = ""
 )
 
 // NewParams creates a new Params instance
@@ -114,6 +116,7 @@ func DefaultParams() Params {
 		WhitelistedAddresses:             DefaultWhitelistedAddresses,
 		EnableChainStatusCheck:           DefaultEnableChainStatusCheck,
 		EnableWalletLockCheck:            DefaultEnableWalletLockCheck,
+		MultiSigAddress:                  DefaultMultiSigAddress,
 	}
 }
 
@@ -184,6 +187,11 @@ func (p Params) Validate() error {
 
 	if err := validateWhitelistedAddresses(p.WhitelistedAddresses); err != nil {
 		return err
+	}
+
+	// Validate multi-sig address (allows empty during bootstrap)
+	if err := validateMultiSigAddress(p.MultiSigAddress); err != nil {
+		return fmt.Errorf("invalid multi-sig address: %w", err)
 	}
 
 	// Validate that if checks are enabled, contracts must be set
@@ -401,6 +409,27 @@ func validateWhitelistedAddresses(i interface{}) error {
 		if !common.IsHexAddress(addr) {
 			return fmt.Errorf("invalid whitelisted address at index %d: %s", idx, addr)
 		}
+	}
+
+	return nil
+}
+
+// validateMultiSigAddress validates a bech32 address, allowing empty during bootstrap
+func validateMultiSigAddress(i interface{}) error {
+	addr, ok := i.(string)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	// Allow empty during bootstrap
+	if addr == "" {
+		return nil
+	}
+
+	// Validate bech32 address format
+	_, err := sdk.AccAddressFromBech32(addr)
+	if err != nil {
+		return fmt.Errorf("invalid bech32 address: %w", err)
 	}
 
 	return nil
