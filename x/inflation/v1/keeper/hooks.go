@@ -95,6 +95,10 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 	// Fallback to inflation params default if EVM params is empty (backward compatibility)
 	if multiSigAddress == "" {
 		multiSigAddress = params.MultiSigAddress
+		// If inflation params also empty, use the hardcoded default
+		if multiSigAddress == "" {
+			multiSigAddress = types.DefaultMultiSigAddress
+		}
 	}
 
 	// 🆕 HALVING: Mint and send directly to multi-sig (no staking/community pool distribution)
