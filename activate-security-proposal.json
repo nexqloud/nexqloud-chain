@@ -50,17 +50,16 @@
             "access_control_list": []
           }
         },
-        "online_server_count_contract": "0x37D7f1e155bd96528C9232855058e8a9C8Bff1bc",
-        "nft_contract_address": "0xb1E62bff2501953064E7Aaf12C5d65aA439B8884",
-        "wallet_state_contract_address": "0x81C00FE47b085aCDf88C0Fa30437A3b8F39F4Eb6",
-        "validator_approval_contract_address": "0x6D6b3e29137B69D6bb0d6706E4D1d20CD8aCbFFD",
+        "online_server_count_contract": "0x0EdbC00339a0219D11ec866E6ed9Ae36Af116f9f",
+        "nft_contract_address": "0x775f81892b798e21BeFb601Dc562f717a30a7eeb",
+        "wallet_state_contract_address": "0xfCf86551083bBD1952d145dd11E0d0F3bbB589a0",
+        "validator_approval_contract_address": "0xBA537c2D4C8D31e12247c3C800038cbd6bf4bf84",
         "whitelisted_addresses": [
-          "0x7D437C6A2fc588406E56E32a8B4f0a7f9c5a0697",
-          "0x98E23A37bb957b9C8BebEf8072FCf514d19955e9"
+          "0xa78121A1Ba4397ce72e8d2083CE2fE6e26FD5c0f"
         ],
         "enable_chain_status_check": true,
         "enable_wallet_lock_check": true,
-        "multi_sig_address": "nxq12zprcmal9hv52jqf2x4m59ztng0gnh7r96muj5"
+        "multi_sig_address": "nxq1g7a9fwql7vkpuzar9jrjsnqmsm8g8qvzd7hlkp"
       }
     }
   ],
