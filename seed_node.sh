@@ -129,17 +129,18 @@ generate_key() {
     
     print_info "Processing key: $key_name"
     
-    print_info "Generating key for $key_name"
+    print_info "Generating new key for $key_name"
     
     # Instructive message about password
     print_warning "You will be prompted to create a password for your keyring."
     print_warning "This password protects all your keys. Remember it well!"
     
-    # Generate key
-    $NXQD_BIN keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+    # Generate new key (without --recover flag)
+    $NXQD_BIN keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
     
     print_success "Key $key_name generated"
     print_warning "IMPORTANT: Make sure to securely write down the mnemonic phrase shown above!"
+    print_warning "The mnemonic phrase is required to recover this key if you lose access!"
 }
 
 # Initialize the blockchain
