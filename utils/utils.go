@@ -24,11 +24,11 @@ import (
 
 const (
 	// MainnetChainID defines the Evmos EIP155 chain ID for mainnet
-	MainnetChainID = "nxqd_6001"
+	MainnetChainID = "nxqd_90009"
 	// TestnetChainID defines the Evmos EIP155 chain ID for testnet
-	TestnetChainID = "nxqd_6000"
+	TestnetChainID = "nxqd_90000"
 	// TestingChainID defines the Evmos EIP155 chain ID for integration test
-	TestingChainID = "test_6000"
+	TestingChainID = "test_90000"
 	// BaseDenom defines the Evmos mainnet denomination
 	BaseDenom = "unxq"
 )

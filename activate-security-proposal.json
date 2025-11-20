@@ -59,7 +59,8 @@
           "0x98E23A37bb957b9C8BebEf8072FCf514d19955e9"
         ],
         "enable_chain_status_check": true,
-        "enable_wallet_lock_check": true
+        "enable_wallet_lock_check": true,
+        "multi_sig_address": "nxq12zprcmal9hv52jqf2x4m59ztng0gnh7r96muj5"
       }
     }
   ],

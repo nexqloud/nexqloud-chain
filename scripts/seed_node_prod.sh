@@ -17,15 +17,11 @@ if [ -f "/run/secrets/seed_password" ]; then
     export KEYRING_PASSWORD
 fi
 
-if [ -f "/run/secrets/seed_mnemonic" ]; then
-    MNEMONIC=$(cat /run/secrets/seed_mnemonic)
-    export MNEMONIC
-fi
 
 # ============================================================================
 # NODE CONFIGURATION
 # ============================================================================
-CHAINID="${CHAINID:-nxqd_6000-1}"
+CHAINID="${CHAINID:-nxqd_90009-1}"
 MONIKER="${MONIKER:-NexqloudSeedNode}"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="${LOGLEVEL:-info}"
@@ -38,12 +34,12 @@ TRACE=""
 KEYRING="${KEYRING:-file}"
 
 # Genesis account balance configuration (in unxq, where 1 NXQ = 10^18 unxq)
-# Default: 3,200,000 NXQ = 3200000000000000000000000 unxq
-GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-3200000000000000000000000unxq}"
+# will change on the day of mainnet release with the actual amount of tokens in the snapshot
+GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-2100000000000000000000000unxq}"
 
 # Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
 # Default: 50 NXQ = 50000000000000000000 unxq
-VALIDATOR_STAKE="${VALIDATOR_STAKE:-50000000000000000000unxq}"
+VALIDATOR_STAKE="${VALIDATOR_STAKE:-25000000000000000000unxq}"
 
 # Path variables
 CONFIG=$HOMEDIR/config/config.toml
@@ -112,19 +108,15 @@ generate_key() {
     print_info "Processing key: $key_name"
     
     # Check if running in Docker with secrets
-    if [ -n "$KEYRING_PASSWORD" ] && [ -n "$MNEMONIC" ]; then
+    if [ -n "$KEYRING_PASSWORD" ]; then
         print_info "Using Docker secrets for key generation"
         
-        # Use expect for automated input
+        # Use expect for automated input (generate new key, not recover)
         expect << EOF
 set timeout 60
 log_user 0
-spawn $NXQD_BIN keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+spawn $NXQD_BIN keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
 expect {
-    "Enter your bip39 mnemonic" {
-        send "$MNEMONIC\r"
-        exp_continue
-    }
     "Enter keyring passphrase" {
         send "$KEYRING_PASSWORD\r"
         exp_continue
@@ -138,14 +130,16 @@ expect {
 EOF
         
         print_success "Key $key_name generated from Docker secrets"
+        print_warning "IMPORTANT: Make sure to securely backup the mnemonic phrase shown above!"
     else
         # Interactive mode (fallback)
         print_warning "No Docker secrets found, using interactive mode"
         print_warning "You will be prompted to create a password for your keyring."
         
-        $NXQD_BIN keys add "$key_name" --recover --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
+        $NXQD_BIN keys add "$key_name" --keyring-backend "$KEYRING" --algo "$KEYALGO" --home "$HOMEDIR"
         
         print_success "Key $key_name generated"
+        print_warning "IMPORTANT: Make sure to securely backup the mnemonic phrase shown above!"
     fi
 }
 

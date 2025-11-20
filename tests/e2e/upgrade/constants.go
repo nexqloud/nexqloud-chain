@@ -5,7 +5,7 @@ package upgrade
 // The constants used in the upgrade tests are defined here
 const (
 	// the defaultChainID used for testing
-	defaultChainID = "nxqd_6000-1"
+	defaultChainID = "nxqd_90009-1"
 
 	// LocalVersionTag defines the docker image ImageTag when building locally
 	//

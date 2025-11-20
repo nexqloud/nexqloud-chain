@@ -547,6 +547,7 @@ func NewEvmos(
 	app.InflationKeeper = inflationkeeper.NewKeeper(
 		keys[inflationtypes.StoreKey], appCodec, authtypes.NewModuleAddress(govtypes.ModuleName),
 		app.AccountKeeper, app.BankKeeper, app.DistrKeeper, stakingKeeper,
+		evmKeeper, // Add EVM keeper for accessing MultiSigAddress from EVM params
 		authtypes.FeeCollectorName,
 	)
 

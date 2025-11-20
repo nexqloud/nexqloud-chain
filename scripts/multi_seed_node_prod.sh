@@ -34,7 +34,7 @@ fi
 # ============================================================================
 # NODE CONFIGURATION
 # ============================================================================
-CHAINID="${CHAINID:-nxqd_6000-1}"
+CHAINID="${CHAINID:-nxqd_90009-1}"
 MONIKER="${MONIKER:-NexqloudMultiSeed}"
 KEYALGO="eth_secp256k1"
 LOGLEVEL="${LOGLEVEL:-info}"

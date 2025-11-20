@@ -46,6 +46,8 @@ message Params {
   bool enable_chain_status_check = 16 [(gogoproto.moretags) = "yaml:\"enable_chain_status_check\""];
   // enable_wallet_lock_check enables/disables wallet lock verification (false during bootstrap)
   bool enable_wallet_lock_check = 17 [(gogoproto.moretags) = "yaml:\"enable_wallet_lock_check\""];
+  // multi_sig_address is the bech32 address of the multi-sig wallet for daily emissions (empty during bootstrap)
+  string multi_sig_address = 18 [(gogoproto.moretags) = "yaml:\"multi_sig_address\""];
 }
 
 // AccessControl defines the permission policy of the EVM

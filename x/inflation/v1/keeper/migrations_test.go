@@ -47,7 +47,7 @@ func (suite *KeeperTestSuite) TestMigrations() {
 	legacySubspace.GetParamSetIfExists(ctx, &outputParams)
 
 	// Added dummy keeper in order to use the test store and store key
-	mockKeeper := inflationkeeper.NewKeeper(storeKey, encCfg.Codec, authtypes.NewModuleAddress(govtypes.ModuleName), suite.app.AccountKeeper, nil, nil, nil, "")
+	mockKeeper := inflationkeeper.NewKeeper(storeKey, encCfg.Codec, authtypes.NewModuleAddress(govtypes.ModuleName), suite.app.AccountKeeper, nil, nil, nil, nil, "")
 	mockSubspace := newMockSubspace(v2types.DefaultParams(), storeKey, tKey)
 	migrator := inflationkeeper.NewMigrator(mockKeeper, mockSubspace)
 
