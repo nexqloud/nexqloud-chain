@@ -50,12 +50,12 @@
             "access_control_list": []
           }
         },
-        "online_server_count_contract": "0x717FB98b45565Aa1f188Df1771142f323314f2fb",
-        "nft_contract_address": "0x931b5105868C917adF04845dd77CB268D1AD28CB",
-        "wallet_state_contract_address": "0xAFde6C5A35796E473889A683d9f5a12AD3B8Ba5e",
-        "validator_approval_contract_address": "0x203B1D640D179B1FDf08dB115cEc513c9dd2B27b",
+        "online_server_count_contract": "0xf65A3CBb1FB9FdaeBd2748c6e45FD762FC73a3c0",
+        "nft_contract_address": "0x418f099257E6F734Cc109fd4cfa259242009c97A",
+        "wallet_state_contract_address": "0x54C9DF018A114FA09809EdF0c11a29bDBdA61197",
+        "validator_approval_contract_address": "0xf036543dB72E584ff497cfaf32f9479bc65554dB",
         "whitelisted_addresses": [
-          "0x00BdB91ec64aDC2dAd390A245676F99Ee992Ae2D"
+          "0x4cEA0AFb6176ba7eb1796b7460ecAa38038CFFDb"
         ],
         "enable_chain_status_check": true,
         "enable_wallet_lock_check": true,
