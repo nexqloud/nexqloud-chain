@@ -53,8 +53,10 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 	}
 
 	// 🆕 HALVING: Get halving data and calculate current period
+	// Use epochNumber-1 because AfterEpochEnd is called with the NEW epoch number (the one starting)
+	// but we need to calculate based on the epoch that just ended
 	halvingData := k.GetHalvingData(ctx)
-	currentPeriod := types.CalculateHalvingPeriod(epochNumber, int64(halvingData.StartEpoch), params.HalvingIntervalEpochs)
+	currentPeriod := types.CalculateHalvingPeriod(epochNumber-1, int64(halvingData.StartEpoch), params.HalvingIntervalEpochs)
 
 	// 🆕 HALVING: Calculate daily emission with halving applied
 	dailyEmission := types.CalculateDailyEmission(params, currentPeriod)
@@ -91,16 +93,17 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 	}
 
 	// 🆕 HALVING: Update halving data if we crossed into a new period
-	if types.ShouldHalve(epochNumber, int64(halvingData.StartEpoch), halvingData.LastHalvingEpoch, params.HalvingIntervalEpochs) {
+	// Use epochNumber-1 to check the epoch that just ended
+	if types.ShouldHalve(epochNumber-1, int64(halvingData.StartEpoch), halvingData.LastHalvingEpoch, params.HalvingIntervalEpochs) {
 		halvingData.CurrentPeriod = currentPeriod
-		halvingData.LastHalvingEpoch = uint64(epochNumber)
+		halvingData.LastHalvingEpoch = uint64(epochNumber - 1) // Store the epoch that just ended
 		k.SetHalvingData(ctx, halvingData)
 
 		k.Logger(ctx).Info(
 			"HALVING EVENT: entered new period",
 			"previous-period", currentPeriod-1,
 			"new-period", currentPeriod,
-			"epoch", epochNumber,
+			"epoch-ended", epochNumber-1,
 			"new-daily-emission", dailyEmission.String(),
 		)
 	}
