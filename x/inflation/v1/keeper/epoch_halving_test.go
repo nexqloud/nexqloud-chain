@@ -439,3 +439,160 @@ func (suite *EpochHalvingTestSuite) TestShouldHalveLogic() {
 		})
 	}
 }
+
+// TestParameterChangeReconciliation tests the Certik audit scenario:
+// When governance changes halving parameters mid-chain, the stored state
+// should reconcile with the calculated state to prevent "split brain"
+func (suite *EpochHalvingTestSuite) TestParameterChangeReconciliation() {
+	// Scenario from Certik audit:
+	// - Start with 4-year halving (1461 epochs)
+	// - First halving occurs at epoch 1461
+	// - At epoch 1826, governance changes to 8-year halving (2922 epochs)
+	// - The system should reconcile the state correctly
+
+	startEpoch := int64(1)
+	originalInterval := uint64(1461) // 4 years
+
+	// Epoch 1462 ends - first natural halving (after 1461 epochs of period 0)
+	epoch1462Ending := int64(1462)
+	periodAtEpoch1462 := types.CalculateHalvingPeriod(epoch1462Ending, startEpoch, originalInterval)
+	suite.Require().Equal(uint64(1), periodAtEpoch1462, "Period should be 1 after first halving")
+
+	// Last halving was at epoch 1462
+	lastHalvingEpoch := uint64(1462)
+
+	// Epoch 1826: Governance changes interval to 8 years (2922 epochs)
+	newInterval := uint64(2922) // 8 years
+	epoch1826Ending := int64(1826)
+
+	// Calculate period with NEW parameters
+	periodAfterParamChange := types.CalculateHalvingPeriod(epoch1826Ending, startEpoch, newInterval)
+	suite.Require().Equal(uint64(0), periodAfterParamChange,
+		"Period should recalculate to 0 with new 8-year interval: (1826-1)/2922 = 0")
+
+	// Calculate what last halving epoch maps to with NEW parameters
+	lastPeriodWithNewParams := types.CalculateHalvingPeriod(int64(lastHalvingEpoch), startEpoch, newInterval)
+	suite.Require().Equal(uint64(0), lastPeriodWithNewParams,
+		"Last halving epoch 1461 should also map to period 0 with new params: (1461-1)/2922 = 0")
+
+	// ShouldHalve with new params should return false (0 > 0 = false)
+	shouldHalveAfterChange := types.ShouldHalve(epoch1826Ending, startEpoch, lastHalvingEpoch, newInterval)
+	suite.Require().False(shouldHalveAfterChange,
+		"ShouldHalve should return false since both periods are 0")
+
+	// Verify expected emission with new parameters
+	dailyEmission := math.NewInt(7200).Mul(math.NewInt(1e18)) // 7200e18
+
+	// Calculate emission for period 0: emission / (2^period) = 7200 / (2^0) = 7200
+	expectedEmission := dailyEmission.Quo(math.NewInt(1 << periodAfterParamChange))
+	suite.Require().Equal("7200000000000000000000", expectedEmission.String(),
+		"Should mint full 7200 tokens for period 0")
+
+	// THE KEY ASSERTION:
+	// Even though ShouldHalve returns false, the state reconciliation logic
+	// in hooks.go should detect that currentPeriod (0) != storedPeriod (1)
+	// and update the state accordingly.
+	//
+	// This test verifies the CALCULATION is correct. The integration test
+	// in halving_integration_test.go should verify the STATE UPDATE happens.
+
+	suite.Require().NotEqual(uint64(1), periodAfterParamChange,
+		"CRITICAL: Calculated period changed from 1 to 0, state MUST be reconciled")
+}
+
+// TestParameterExpansionScenario tests the specific scenario mentioned in Certik audit
+func (suite *EpochHalvingTestSuite) TestParameterExpansionScenario() {
+	// Detailed walkthrough of the Certik scenario:
+	// Year 1-4: Interval = 1461 epochs (4 years)
+	// Year 5: Interval changed to 2922 epochs (8 years)
+
+	testCases := []struct {
+		name             string
+		epochEnding      int64
+		startEpoch       int64
+		halvingInterval  uint64
+		lastHalvingEpoch uint64
+		expectedPeriod   uint64
+		expectedEmission string
+		description      string
+	}{
+		{
+			name:             "Year 1 (Epoch 365) - Original 4-year schedule",
+			epochEnding:      365,
+			startEpoch:       1,
+			halvingInterval:  1461,
+			lastHalvingEpoch: 0,
+			expectedPeriod:   0,
+			expectedEmission: "7200000000000000000000",
+			description:      "Period 0, full emission",
+		},
+		{
+			name:             "Year 4 (Epoch 1461) - Last full emission",
+			epochEnding:      1461,
+			startEpoch:       1,
+			halvingInterval:  1461,
+			lastHalvingEpoch: 0,
+			expectedPeriod:   0,
+			expectedEmission: "7200000000000000000000",
+			description:      "Last epoch of full emission before halving",
+		},
+		{
+			name:             "Year 4+ (Epoch 1462) - First halving",
+			epochEnding:      1462,
+			startEpoch:       1,
+			halvingInterval:  1461,
+			lastHalvingEpoch: 0,
+			expectedPeriod:   1,
+			expectedEmission: "3600000000000000000000",
+			description:      "First halving occurs, period 1",
+		},
+		{
+			name:             "Year 5 (Epoch 1826) BEFORE param change - Original schedule",
+			epochEnding:      1826,
+			startEpoch:       1,
+			halvingInterval:  1461, // Still old params
+			lastHalvingEpoch: 1462, // Halving was at 1462
+			expectedPeriod:   1,
+			expectedEmission: "3600000000000000000000",
+			description:      "Still in period 1 with old params",
+		},
+		{
+			name:             "Year 5 (Epoch 1826) AFTER param change - New 8-year schedule",
+			epochEnding:      1826,
+			startEpoch:       1,
+			halvingInterval:  2922, // New params!
+			lastHalvingEpoch: 1462, // Old last halving
+			expectedPeriod:   0,    // PERIOD CHANGES BACK TO 0!
+			expectedEmission: "7200000000000000000000",
+			description:      "Period recalculates to 0 with new 8-year interval",
+		},
+		{
+			name:             "Year 8+ (Epoch 2923) - Natural halving with new schedule",
+			epochEnding:      2923,
+			startEpoch:       1,
+			halvingInterval:  2922,
+			lastHalvingEpoch: 1462, // Old last halving
+			expectedPeriod:   1,
+			expectedEmission: "3600000000000000000000",
+			description:      "First halving under new 8-year schedule",
+		},
+	}
+
+	dailyEmission := math.NewInt(7200).Mul(math.NewInt(1e18))
+
+	for _, tc := range testCases {
+		suite.Run(tc.name, func() {
+			// Calculate period
+			period := types.CalculateHalvingPeriod(tc.epochEnding, tc.startEpoch, tc.halvingInterval)
+			suite.Require().Equal(tc.expectedPeriod, period,
+				"Period mismatch for %s", tc.description)
+
+			// Calculate emission: dailyEmission / (2^period)
+			emission := dailyEmission.Quo(math.NewInt(1 << period))
+			suite.Require().Equal(tc.expectedEmission, emission.String(),
+				"Emission mismatch for %s", tc.description)
+
+			suite.T().Logf("✅ %s: Period=%d, Emission=%s", tc.name, period, emission.String())
+		})
+	}
+}

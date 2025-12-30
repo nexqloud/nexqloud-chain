@@ -125,20 +125,50 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 		)
 	}
 
-	// 🆕 HALVING: Update halving data if we crossed into a new period
-	// Use epochNumber-1 to check the epoch that just ended
+	// 🆕 HALVING: State Reconciliation
+	// Always reconcile stored state with calculated state to prevent "split brain"
+	// This ensures consistency even if governance changes halving parameters
+	stateChanged := false
+	wasNaturalHalving := false
+
+	// Check if this is a natural halving event (time-based, not parameter-induced)
 	if types.ShouldHalve(epochNumber-1, int64(halvingData.StartEpoch), halvingData.LastHalvingEpoch, params.HalvingIntervalEpochs) {
-		halvingData.CurrentPeriod = currentPeriod
+		wasNaturalHalving = true
+		stateChanged = true
 		halvingData.LastHalvingEpoch = uint64(epochNumber - 1) // Store the epoch that just ended
+	}
+
+	// Always reconcile if calculated period differs from stored period
+	// This handles parameter changes that affect period calculation
+	if currentPeriod != halvingData.CurrentPeriod {
+		stateChanged = true
+	}
+
+	// Update state if anything changed
+	if stateChanged {
+		oldPeriod := halvingData.CurrentPeriod
+		halvingData.CurrentPeriod = currentPeriod
 		k.SetHalvingData(ctx, halvingData)
 
-		k.Logger(ctx).Info(
-			"HALVING EVENT: entered new period",
-			"previous-period", currentPeriod-1,
-			"new-period", currentPeriod,
-			"epoch-ended", epochNumber-1,
-			"new-daily-emission", dailyEmission.String(),
-		)
+		// Emit appropriate event based on the type of change
+		if wasNaturalHalving {
+			k.Logger(ctx).Info(
+				"HALVING EVENT: entered new period",
+				"previous-period", oldPeriod,
+				"new-period", currentPeriod,
+				"epoch-ended", epochNumber-1,
+				"new-daily-emission", dailyEmission.String(),
+			)
+		} else {
+			// Period changed due to parameter update, not natural halving
+			k.Logger(ctx).Info(
+				"PERIOD RECONCILIATION: state updated due to parameter change",
+				"old-stored-period", oldPeriod,
+				"new-calculated-period", currentPeriod,
+				"epoch", epochNumber-1,
+				"new-daily-emission", dailyEmission.String(),
+			)
+		}
 	}
 
 	// 🆕 HALVING: Telemetry for halving system
