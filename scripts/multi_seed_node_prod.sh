@@ -363,6 +363,12 @@ start_node() {
     print_info "Chain ID: $CHAINID"
     print_info "Moniker: $MONIKER"
     print_info "Home Dir: $HOMEDIR"
+
+    # If home directory doesn't exist, initialize first
+    if [ ! -d "$HOMEDIR" ] || [ ! -f "$GENESIS" ]; then
+        print_warning "Home directory or genesis file not found, initializing first..."
+        initialize_multi_seed
+    fi
     
     if [ -n "$KEYRING_PASSWORD" ]; then
         print_info "Using Docker secrets for keyring password"
