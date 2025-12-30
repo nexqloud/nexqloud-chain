@@ -6,6 +6,7 @@ package keeper
 import (
 	"fmt"
 
+	"cosmossdk.io/math"
 	"github.com/armon/go-metrics"
 
 	"github.com/cosmos/cosmos-sdk/telemetry"
@@ -170,6 +171,13 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 			)
 		}
 	}
+
+	// 🔄 SYNC LEGACY STATE: Update old exponential inflation state to match halving state
+	// This ensures queries like GetPeriod(), GetEpochMintProvision(), GetInflationRate()
+	// return correct values even though they're designed for the old system
+	// NOTE: We always update these, not just when stateChanged, because emission is always happening
+	k.SetPeriod(ctx, currentPeriod)                                       // Sync period with halving period
+	k.SetEpochMintProvision(ctx, math.LegacyNewDecFromInt(dailyEmission)) // Store actual emission amount
 
 	// 🆕 HALVING: Telemetry for halving system
 	defer func() {

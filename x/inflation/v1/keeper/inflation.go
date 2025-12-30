@@ -211,9 +211,18 @@ func (k Keeper) GetInflationRate(ctx sdk.Context, mintDenom string) math.LegacyD
 	return epochMintProvision.Mul(epochsPerPeriod).Quo(circulatingSupply).Mul(math.LegacyNewDec(100))
 }
 
-// GetEpochMintProvision retrieves necessary params KV storage
-// and calculate EpochMintProvision
+// GetEpochMintProvision returns the stored epoch mint provision
+// For halving system: returns the actual daily emission that was minted
+// For legacy queries: provides accurate data instead of exponential calculation
 func (k Keeper) GetEpochMintProvision(ctx sdk.Context) math.LegacyDec {
+	// Return the stored actual minted amount from halving system
+	stored := k.GetStoredEpochMintProvision(ctx)
+	if !stored.IsZero() {
+		return stored
+	}
+
+	// Fallback to old calculation if no stored value (backward compatibility)
+	// This should only happen on first run before any halving minting occurs
 	return types.CalculateEpochMintProvision(
 		k.GetParams(ctx),
 		k.GetPeriod(ctx),

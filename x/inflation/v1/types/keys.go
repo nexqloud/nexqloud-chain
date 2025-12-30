@@ -27,9 +27,10 @@ const (
 
 // KVStore key prefixes
 var (
-	KeyPrefixPeriod          = []byte{prefixPeriod}
-	KeyPrefixEpochIdentifier = []byte{prefixEpochIdentifier}
-	KeyPrefixEpochsPerPeriod = []byte{prefixEpochsPerPeriod}
-	KeyPrefixSkippedEpochs   = []byte{prefixSkippedEpochs}
-	KeyPrefixHalvingData     = []byte{prefixHalvingData} // 🆕 Added for halving data storage
+	KeyPrefixPeriod             = []byte{prefixPeriod}
+	KeyPrefixEpochMintProvision = []byte{prefixEpochMintProvision} // Added for storing actual minted amount
+	KeyPrefixEpochIdentifier    = []byte{prefixEpochIdentifier}
+	KeyPrefixEpochsPerPeriod    = []byte{prefixEpochsPerPeriod}
+	KeyPrefixSkippedEpochs      = []byte{prefixSkippedEpochs}
+	KeyPrefixHalvingData        = []byte{prefixHalvingData} // 🆕 Added for halving data storage
 )
