@@ -9,14 +9,13 @@ import (
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	evmostypes "github.com/evmos/evmos/v19/types"
-
 	utils "github.com/evmos/evmos/v19/utils"
 	"github.com/evmos/evmos/v19/x/inflation/v1/types"
 )
 
-// 200M token at year 4 allocated to the team
-var teamAlloc = math.NewInt(200_000_000).Mul(evmostypes.PowerReduction)
+// No team allocation - using Bitcoin-style halving with no pre-mint
+// Tokens are minted gradually via daily emissions to multi-sig address
+var teamAlloc = math.ZeroInt()
 
 // MintAndAllocateInflation performs inflation minting and allocation
 func (k Keeper) MintAndAllocateInflation(
