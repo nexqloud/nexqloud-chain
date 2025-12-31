@@ -159,6 +159,28 @@ func validateBool(i interface{}) error {
 	return nil
 }
 
+// 🆕 CERTIK ISSUE #7: Add validation for MultiSigAddress to prevent chain panics
+// validateMultiSigAddress validates a bech32 address, allowing empty for fallback to EVM params
+func validateMultiSigAddress(i interface{}) error {
+	addr, ok := i.(string)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+
+	// Allow empty - will use EVM params as primary source or default fallback
+	if addr == "" {
+		return nil
+	}
+
+	// Validate bech32 address format to prevent panic during minting
+	_, err := sdk.AccAddressFromBech32(addr)
+	if err != nil {
+		return fmt.Errorf("invalid bech32 address: %w", err)
+	}
+
+	return nil
+}
+
 func (p Params) Validate() error {
 	if err := validateMintDenom(p.MintDenom); err != nil {
 		return err
@@ -169,6 +191,14 @@ func (p Params) Validate() error {
 	if err := validateInflationDistribution(p.InflationDistribution); err != nil {
 		return err
 	}
+	if err := validateBool(p.EnableInflation); err != nil {
+		return err
+	}
 
-	return validateBool(p.EnableInflation)
+	// 🆕 CERTIK ISSUE #7: Validate MultiSigAddress to prevent invalid governance proposals
+	if err := validateMultiSigAddress(p.MultiSigAddress); err != nil {
+		return err
+	}
+
+	return nil
 }

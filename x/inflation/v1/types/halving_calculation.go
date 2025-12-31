@@ -109,6 +109,12 @@ func ValidateHalvingParams(params Params) error {
 			params.DailyEmission.String(), params.MaxSupply.String())
 	}
 
+	// 🆕 CERTIK ISSUE #7: Validate MultiSigAddress to prevent chain panics
+	// This validation is critical - an invalid address will cause AfterEpochEnd() to panic
+	if err := validateMultiSigAddress(params.MultiSigAddress); err != nil {
+		return fmt.Errorf("invalid multi-sig address in halving params: %w", err)
+	}
+
 	return nil
 }
 
