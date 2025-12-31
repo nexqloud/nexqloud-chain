@@ -159,7 +159,6 @@ func validateBool(i interface{}) error {
 	return nil
 }
 
-// 🆕 CERTIK ISSUE #7: Add validation for MultiSigAddress to prevent chain panics
 // validateMultiSigAddress validates a bech32 address, allowing empty for fallback to EVM params
 func validateMultiSigAddress(i interface{}) error {
 	addr, ok := i.(string)
@@ -195,8 +194,13 @@ func (p Params) Validate() error {
 		return err
 	}
 
-	// 🆕 CERTIK ISSUE #7: Validate MultiSigAddress to prevent invalid governance proposals
+	// Validate MultiSigAddress to prevent invalid governance proposals
 	if err := validateMultiSigAddress(p.MultiSigAddress); err != nil {
+		return err
+	}
+
+	// This prevents division-by-zero and other halving-related panics
+	if err := ValidateHalvingParams(p); err != nil {
 		return err
 	}
 
