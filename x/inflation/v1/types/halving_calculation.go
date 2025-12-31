@@ -26,6 +26,11 @@ func CalculateHalvingPeriod(currentEpoch, startEpoch int64, halvingInterval uint
 	return (epochsSinceStart - 1) / halvingInterval
 }
 
+// MaxHalvingPeriod is the maximum safe halving period before uint64 overflow
+// After 63 halvings, emission is negligible (< 1 token per day for 7200 initial emission)
+// Period 64 would cause 1 << 64 = 0 (overflow), leading to division by zero panic
+const MaxHalvingPeriod = 63
+
 // CalculateDailyEmission returns the daily emission amount considering the current halving period
 // The emission starts at dailyEmission and halves each period:
 // - Period 0: 7200 tokens/day
@@ -35,6 +40,13 @@ func CalculateHalvingPeriod(currentEpoch, startEpoch int64, halvingInterval uint
 // - etc.
 func CalculateDailyEmission(params Params, currentHalvingPeriod uint64) math.Int {
 	dailyEmission := params.DailyEmission
+
+	// Safety check: prevent overflow at period 64+
+	// At period 63, emission is already negligible (7200 / 2^63 ≈ 0.00000078 tokens/day)
+	// Period 64 would cause 1 << 64 to overflow to 0, resulting in division by zero panic
+	if currentHalvingPeriod >= MaxHalvingPeriod {
+		return math.ZeroInt()
+	}
 
 	// Apply halving: divide by 2^period
 	if currentHalvingPeriod > 0 {
