@@ -674,11 +674,11 @@ func (suite *KeeperTestSuite) TestMultiSigAddressPriorityOrder() {
 			description:              "Fallback to inflation params when EVM params empty",
 		},
 		{
-			name:                     "Both empty - use standard distribution",
+			name:                     "Both empty - use hardcoded default",
 			evmMultiSigAddress:       "",
 			inflationMultiSigAddress: "",
-			expectedAddress:          "", // Empty means standard distribution
-			description:              "Both empty triggers standard distribution",
+			expectedAddress:          types.DefaultMultiSigAddress, // Fallback to hardcoded default
+			description:              "Both empty triggers hardcoded default multi-sig",
 		},
 	}
 
@@ -701,8 +701,10 @@ func (suite *KeeperTestSuite) TestMultiSigAddressPriorityOrder() {
 				inflationAddr := sdk.AccAddress(fmt.Sprintf("infaddr%d123456789012", i))
 				inflationAddrStr, _ = sdk.Bech32ifyAddressBytes("nxq", inflationAddr)
 				expectedAddrStr = inflationAddrStr
+			} else if i == 2 {
+				// Third case: Both empty - use hardcoded default
+				expectedAddrStr = types.DefaultMultiSigAddress
 			}
-			// Third case: Both empty - no addresses needed
 
 			// Set up inflation params
 			inflationParams := suite.app.InflationKeeper.GetParams(suite.ctx)
