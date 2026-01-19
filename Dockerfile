@@ -11,10 +11,8 @@ RUN rm -rf go.sum && \
     make clean && \
     make build
 
-# Runtime stage
-FROM alpine:latest
+FROM alpine:3.23
 
-# Install runtime dependencies including expect for password automation
 RUN apk add --no-cache \
     bash \
     jq \
