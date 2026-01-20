@@ -1,20 +1,16 @@
 FROM golang:1.23-alpine AS builder
 
-# Install build dependencies
 RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 WORKDIR /app
 COPY . .
 
-# Match server build workflow: remove go.sum, clean, then build
 RUN rm -rf go.sum && \
     make clean && \
     make build
 
-# Runtime stage
-FROM alpine:latest
+FROM alpine:3.23
 
-# Install runtime dependencies including expect for password automation
 RUN apk add --no-cache \
     bash \
     jq \
