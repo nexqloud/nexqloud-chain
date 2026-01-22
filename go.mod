@@ -7,7 +7,7 @@ toolchain go1.23.4
 require (
 	cosmossdk.io/api v0.3.1
 	cosmossdk.io/errors v1.0.1
-	cosmossdk.io/math v1.3.0
+	cosmossdk.io/math v1.4.0
 	cosmossdk.io/simapp v0.0.0-20230608160436-666c345ad23d
 	cosmossdk.io/tools/rosetta v0.2.1
 	github.com/armon/go-metrics v0.4.1
@@ -258,8 +258,10 @@ replace (
 
 	// github.com/cosmos/cosmos-sdk => github.com/evmos/cosmos-sdk v0.47.12-evmos.2
 	// use Cosmos-SDK fork to enable Ledger functionality
-	// SECURITY PATCH: Applied fix for GHSA-8wcc-m6j2-qxvm (commit c6b1bdcd5628e3e425a3f02881d3c7db1d7af653)
-	github.com/cosmos/cosmos-sdk => github.com/nexqloud/cosmos-sdk-nexqloud v0.0.0-20260120190748-5ebd2ac800c4
+	// SECURITY PATCHES:
+	//   - GHSA-8wcc-m6j2-qxvm: DoS protection in codec (commit c6b1bdcd5628e3e425a3f02881d3c7db1d7af653)
+	//   - GHSA-7225-m954-23v7: cosmossdk.io/math v1.4.0 upgrade
+	github.com/cosmos/cosmos-sdk => github.com/nexqloud/cosmos-sdk-nexqloud v0.0.0-20260122151242-009afcc3bc50
 	// use Evmos geth fork
 	github.com/ethereum/go-ethereum => github.com/evmos/go-ethereum v1.10.26-evmos-rc4
 	// Security Advisory https://github.com/advisories/GHSA-h395-qcrw-5vmq
