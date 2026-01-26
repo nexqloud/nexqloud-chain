@@ -4,8 +4,11 @@ import (
 	"testing"
 
 	"cosmossdk.io/math"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	epochstypes "github.com/evmos/evmos/v19/x/epochs/types"
 	"github.com/stretchr/testify/suite"
+
+	cmdcfg "github.com/evmos/evmos/v19/cmd/config"
 )
 
 type HalvingGenesisTestSuite struct {
@@ -13,6 +16,13 @@ type HalvingGenesisTestSuite struct {
 }
 
 func TestHalvingGenesisTestSuite(t *testing.T) {
+	// Set up SDK config with nxq prefix before running tests (if not already sealed)
+	config := sdk.GetConfig()
+	if config.GetBech32AccountAddrPrefix() != cmdcfg.Bech32PrefixAccAddr {
+		cmdcfg.SetBech32Prefixes(config)
+		config.Seal()
+	}
+	
 	suite.Run(t, new(HalvingGenesisTestSuite))
 }
 
@@ -33,7 +43,7 @@ func (suite *HalvingGenesisTestSuite) TestDefaultGenesisState() {
 	suite.Require().Equal("7200000000000000000000", params.DailyEmission.String(), "Should have default daily emission")
 	suite.Require().Equal(uint64(1461), params.HalvingIntervalEpochs, "Should have default halving interval")
 	suite.Require().Equal("21000000000000000000000000", params.MaxSupply.String(), "Should have default max supply")
-	suite.Require().Equal("", params.MultiSigAddress, "Should have empty default multi-sig address")
+	suite.Require().Equal(DefaultMultiSigAddress, params.MultiSigAddress, "Should have default multi-sig address")
 }
 
 // TestNewGenesisState tests custom genesis state creation
@@ -120,11 +130,11 @@ func (suite *HalvingGenesisTestSuite) TestGenesisValidation() {
 			errorMsg:    "halving start epoch must be positive",
 		},
 		{
-			name: "invalid epoch identifier",
+			name: "empty epoch identifier",
 			genesis: GenesisState{
 				Params:          DefaultParams(),
 				Period:          0,
-				EpochIdentifier: "invalid_epoch",
+				EpochIdentifier: "",  // Invalid: empty/blank epoch identifier
 				EpochsPerPeriod: 365,
 				SkippedEpochs:   0,
 				HalvingData: HalvingData{

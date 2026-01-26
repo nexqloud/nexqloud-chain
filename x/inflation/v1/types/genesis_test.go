@@ -3,8 +3,11 @@ package types
 import (
 	"testing"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	epochstypes "github.com/evmos/evmos/v19/x/epochs/types"
 	"github.com/stretchr/testify/suite"
+
+	cmdcfg "github.com/evmos/evmos/v19/cmd/config"
 )
 
 type GenesisTestSuite struct {
@@ -15,6 +18,13 @@ func (suite *GenesisTestSuite) SetupTest() {
 }
 
 func TestGenesisTestSuite(t *testing.T) {
+	// Set up SDK config with nxq prefix before running tests (if not already sealed)
+	config := sdk.GetConfig()
+	if config.GetBech32AccountAddrPrefix() != cmdcfg.Bech32PrefixAccAddr {
+		cmdcfg.SetBech32Prefixes(config)
+		config.Seal()
+	}
+	
 	suite.Run(t, new(GenesisTestSuite))
 }
 

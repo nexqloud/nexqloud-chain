@@ -6,6 +6,8 @@ import (
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/suite"
+
+	cmdcfg "github.com/evmos/evmos/v19/cmd/config"
 )
 
 type ParamsTestSuite struct {
@@ -13,6 +15,13 @@ type ParamsTestSuite struct {
 }
 
 func TestParamsTestSuite(t *testing.T) {
+	// Set up SDK config with nxq prefix before running tests (if not already sealed)
+	config := sdk.GetConfig()
+	if config.GetBech32AccountAddrPrefix() != cmdcfg.Bech32PrefixAccAddr {
+		cmdcfg.SetBech32Prefixes(config)
+		config.Seal()
+	}
+	
 	suite.Run(t, new(ParamsTestSuite))
 }
 
