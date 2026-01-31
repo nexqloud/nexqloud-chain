@@ -52,7 +52,7 @@ require (
 	go.opencensus.io v0.24.0
 	golang.org/x/crypto v0.38.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	golang.org/x/net v0.35.0
+	golang.org/x/net v0.38.0
 	golang.org/x/text v0.25.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20241202173237-19429a94021a
 	google.golang.org/grpc v1.70.0
