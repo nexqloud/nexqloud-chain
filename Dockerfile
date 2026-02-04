@@ -20,7 +20,6 @@ RUN apk add --no-cache \
     ca-certificates \
     bind-tools
 
-# Copy binary from builder
 COPY --from=builder /app/build/nxqd /usr/local/bin/
 
 # Copy production scripts
@@ -34,7 +33,6 @@ RUN chmod +x /usr/local/bin/*.sh
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Expose ports
 EXPOSE 26656 26657 8545 8546 9090
 
 ENTRYPOINT ["docker-entrypoint.sh"]
