@@ -18,10 +18,10 @@ LOGLEVEL="info"
 HOMEDIR="$HOME/.nxqd"
 
 #for local testing
-# NXQD_BIN="$(pwd)/cmd/nxqd/nxqd"
+NXQD_BIN="$(pwd)/build/nxqd"
 
 #for remote testing
-NXQD_BIN="/usr/local/bin/nxqd"
+# NXQD_BIN="/usr/local/bin/nxqd"
 
 BASEFEE=1000000000
 # to trace evm
@@ -462,7 +462,7 @@ start_node() {
 		--metrics "$TRACE" \
 		--log_level $LOGLEVEL \
 		--minimum-gas-prices=0.0001nxq \
-		--json-rpc.api eth,txpool,personal,net,debug,web3 \
+		--json-rpc.api eth,txpool,net,debug,web3 \
 		--home "$HOMEDIR" \
 		--chain-id "$CHAINID"
 }
@@ -500,7 +500,7 @@ main() {
                 --metrics "$TRACE" \
                 --log_level $LOGLEVEL \
                 --minimum-gas-prices=0.0001nxq \
-                --json-rpc.api eth,txpool,personal,net,debug,web3 \
+                --json-rpc.api eth,txpool,net,debug,web3 \
                 --home "$HOMEDIR" \
                 --chain-id "$CHAINID"
             ;;
