@@ -4,6 +4,8 @@
 package keeper
 
 import (
+	"fmt"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/evmos/evmos/v19/x/inflation/v1/types"
 )
@@ -22,6 +24,17 @@ func (k Keeper) GetParams(ctx sdk.Context) (params types.Params) {
 
 // SetParams sets the inflation params in a single key
 func (k Keeper) SetParams(ctx sdk.Context, params types.Params) error {
+
+	// This prevents chain halts from invalid params like halving_interval_epochs = 0
+	if err := params.Validate(); err != nil {
+		return fmt.Errorf("invalid params: %w", err)
+	}
+
+	// Validate halving-specific params (division-by-zero protection)
+	if err := types.ValidateHalvingParams(params); err != nil {
+		return fmt.Errorf("invalid halving params: %w", err)
+	}
+
 	store := ctx.KVStore(k.storeKey)
 	bz, err := k.cdc.Marshal(&params)
 	if err != nil {

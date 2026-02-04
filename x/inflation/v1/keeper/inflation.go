@@ -9,14 +9,13 @@ import (
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	evmostypes "github.com/evmos/evmos/v19/types"
-
 	utils "github.com/evmos/evmos/v19/utils"
 	"github.com/evmos/evmos/v19/x/inflation/v1/types"
 )
 
-// 200M token at year 4 allocated to the team
-var teamAlloc = math.NewInt(200_000_000).Mul(evmostypes.PowerReduction)
+// No team allocation - using Bitcoin-style halving with no pre-mint
+// Tokens are minted gradually via daily emissions to multi-sig address
+var teamAlloc = math.ZeroInt()
 
 // MintAndAllocateInflation performs inflation minting and allocation
 func (k Keeper) MintAndAllocateInflation(
@@ -212,9 +211,18 @@ func (k Keeper) GetInflationRate(ctx sdk.Context, mintDenom string) math.LegacyD
 	return epochMintProvision.Mul(epochsPerPeriod).Quo(circulatingSupply).Mul(math.LegacyNewDec(100))
 }
 
-// GetEpochMintProvision retrieves necessary params KV storage
-// and calculate EpochMintProvision
+// GetEpochMintProvision returns the stored epoch mint provision
+// For halving system: returns the actual daily emission that was minted
+// For legacy queries: provides accurate data instead of exponential calculation
 func (k Keeper) GetEpochMintProvision(ctx sdk.Context) math.LegacyDec {
+	// Return the stored actual minted amount from halving system
+	stored := k.GetStoredEpochMintProvision(ctx)
+	if !stored.IsZero() {
+		return stored
+	}
+
+	// Fallback to old calculation if no stored value (backward compatibility)
+	// This should only happen on first run before any halving minting occurs
 	return types.CalculateEpochMintProvision(
 		k.GetParams(ctx),
 		k.GetPeriod(ctx),

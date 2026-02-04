@@ -127,13 +127,10 @@ func (suite *KeeperTestSuite) TestGetCirculatingSupplyAndInflationRate() {
 			err := suite.app.InflationKeeper.MintCoins(suite.ctx, coin)
 			suite.Require().NoError(err)
 
-			teamAlloc := sdk.NewDecCoin(
-				types.DefaultInflationDenom,
-				sdk.TokensFromConsensusPower(int64(200_000_000), evmostypes.PowerReduction),
-			)
-
-			circulatingSupply := s.app.InflationKeeper.GetCirculatingSupply(suite.ctx, types.DefaultInflationDenom)
-			suite.Require().Equal(decCoin.Add(bondedCoins).Sub(teamAlloc).Amount, circulatingSupply)
+			circulatingSupply := suite.app.InflationKeeper.GetCirculatingSupply(suite.ctx, types.DefaultInflationDenom)
+			// No team allocation - using Bitcoin-style halving with gradual minting
+			// Circulating supply = total minted + bonded (no pre-allocated team tokens)
+			suite.Require().Equal(decCoin.Add(bondedCoins).Amount, circulatingSupply)
 
 			inflationRate := s.app.InflationKeeper.GetInflationRate(suite.ctx, types.DefaultInflationDenom)
 			suite.Require().Equal(tc.expInflationRate, inflationRate)

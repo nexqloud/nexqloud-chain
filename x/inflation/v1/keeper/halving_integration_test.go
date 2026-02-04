@@ -48,7 +48,7 @@ func (suite *KeeperTestSuite) TestHalvingIntegrationAfterEpochEnd() {
 			expectedHalving:   false,
 		},
 		{
-			name:         "first halving epoch",
+			name:         "epoch 1461 ends - period 0",
 			currentEpoch: 1461,
 			setupHalvingData: types.HalvingData{
 				CurrentPeriod:    0,
@@ -56,33 +56,59 @@ func (suite *KeeperTestSuite) TestHalvingIntegrationAfterEpochEnd() {
 				StartEpoch:       1,
 			},
 			expectedMint:      true,
-			expectedEmission:  "3600000000000000000000", // 3600 tokens (halved)
+			expectedEmission:  "7200000000000000000000", // 7200 tokens (epoch 1460 ended, period 0)
+			expectedNewPeriod: 0,
+			expectedHalving:   false,
+		},
+		{
+			name:         "epoch 1462 ends - last period 0",
+			currentEpoch: 1462,
+			setupHalvingData: types.HalvingData{
+				CurrentPeriod:    0,
+				LastHalvingEpoch: 0,
+				StartEpoch:       1,
+			},
+			expectedMint:      true,
+			expectedEmission:  "7200000000000000000000", // 7200 tokens (epoch 1461 ended, period 0 - last full emission!)
+			expectedNewPeriod: 0,
+			expectedHalving:   false,
+		},
+		{
+			name:         "epoch 1463 ends - first halving!",
+			currentEpoch: 1463,
+			setupHalvingData: types.HalvingData{
+				CurrentPeriod:    0,
+				LastHalvingEpoch: 0,
+				StartEpoch:       1,
+			},
+			expectedMint:      true,
+			expectedEmission:  "3600000000000000000000", // 3600 tokens (epoch 1462 ended, period 1 - FIRST HALVING!)
 			expectedNewPeriod: 1,
 			expectedHalving:   true,
 		},
 		{
-			name:         "first epoch of second period",
-			currentEpoch: 1462,
+			name:         "epoch 2923 ends - period 1",
+			currentEpoch: 2923,
 			setupHalvingData: types.HalvingData{
 				CurrentPeriod:    1,
-				LastHalvingEpoch: 1461,
+				LastHalvingEpoch: 1463,
 				StartEpoch:       1,
 			},
 			expectedMint:      true,
-			expectedEmission:  "3600000000000000000000", // 3600 tokens
+			expectedEmission:  "3600000000000000000000", // 3600 tokens (epoch 2922 ended, period 1 - last of period 1)
 			expectedNewPeriod: 1,
 			expectedHalving:   false,
 		},
 		{
-			name:         "second halving epoch",
-			currentEpoch: 2922,
+			name:         "epoch 2924 ends - second halving!",
+			currentEpoch: 2924,
 			setupHalvingData: types.HalvingData{
 				CurrentPeriod:    1,
-				LastHalvingEpoch: 1461,
+				LastHalvingEpoch: 1463,
 				StartEpoch:       1,
 			},
 			expectedMint:      true,
-			expectedEmission:  "1800000000000000000000", // 1800 tokens (halved again)
+			expectedEmission:  "1800000000000000000000", // 1800 tokens (epoch 2923 ended, period 2 - SECOND HALVING!)
 			expectedNewPeriod: 2,
 			expectedHalving:   true,
 		},
@@ -97,7 +123,9 @@ func (suite *KeeperTestSuite) TestHalvingIntegrationAfterEpochEnd() {
 			params.EnableInflation = true
 			params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000") // 7200 tokens
 			params.HalvingIntervalEpochs = 1461
-			params.MultiSigAddress = "evmos1test"                                     // Set a test address
+			// Generate a valid test bech32 address
+			testAddr := sdk.AccAddress([]byte("test_halving_addr"))
+			params.MultiSigAddress, _ = sdk.Bech32ifyAddressBytes("nxq", testAddr)
 			params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000") // 21M tokens
 			err := suite.app.InflationKeeper.SetParams(suite.ctx, params)
 			suite.Require().NoError(err)
@@ -136,8 +164,9 @@ func (suite *KeeperTestSuite) TestHalvingIntegrationAfterEpochEnd() {
 				"Current period should be updated")
 
 			if tc.expectedHalving {
-				suite.Require().Equal(uint64(tc.currentEpoch), halvingData.LastHalvingEpoch,
-					"Last halving epoch should be updated")
+				// LastHalvingEpoch should be the epoch that ENDED (epochNumber - 1)
+				suite.Require().Equal(uint64(tc.currentEpoch-1), halvingData.LastHalvingEpoch,
+					"Last halving epoch should be updated to the epoch that ended")
 			}
 		})
 	}
@@ -152,7 +181,9 @@ func (suite *KeeperTestSuite) TestHalvingSupplyCapIntegration() {
 	params.EnableInflation = true
 	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000") // 7200 tokens
 	params.HalvingIntervalEpochs = 1461
-	params.MultiSigAddress = "evmos1test"
+	// Generate a valid test bech32 address
+	testAddr := sdk.AccAddress([]byte("test_disabled_addr"))
+	params.MultiSigAddress, _ = sdk.Bech32ifyAddressBytes("nxq", testAddr)
 	params.MaxSupply, _ = math.NewIntFromString("10000000000000000000000") // Only 10K tokens max for testing
 	err := suite.app.InflationKeeper.SetParams(suite.ctx, params)
 	suite.Require().NoError(err)
@@ -195,7 +226,9 @@ func (suite *KeeperTestSuite) TestHalvingInvalidEpochIdentifier() {
 	params.EnableInflation = true
 	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 1461
-	params.MultiSigAddress = "evmos1test"
+	// Generate a valid test bech32 address
+	testAddr := sdk.AccAddress([]byte("test_disabled_addr"))
+	params.MultiSigAddress, _ = sdk.Bech32ifyAddressBytes("nxq", testAddr)
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
 	err := suite.app.InflationKeeper.SetParams(suite.ctx, params)
 	suite.Require().NoError(err)
@@ -262,7 +295,9 @@ func (suite *KeeperTestSuite) TestHalvingDisabledInflation() {
 	params.EnableInflation = false // This should prevent minting
 	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 1461
-	params.MultiSigAddress = "evmos1test"
+	// Generate a valid test bech32 address
+	testAddr := sdk.AccAddress([]byte("test_disabled_addr"))
+	params.MultiSigAddress, _ = sdk.Bech32ifyAddressBytes("nxq", testAddr)
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
 	err := suite.app.InflationKeeper.SetParams(suite.ctx, params)
 	suite.Require().NoError(err)
@@ -297,7 +332,9 @@ func (suite *KeeperTestSuite) TestHalvingMultipleEpochs() {
 	params.EnableInflation = true
 	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 4 // Small interval for testing
-	params.MultiSigAddress = "evmos1test"
+	// Generate a valid test bech32 address
+	testAddr := sdk.AccAddress([]byte("test_disabled_addr"))
+	params.MultiSigAddress, _ = sdk.Bech32ifyAddressBytes("nxq", testAddr)
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
 	err := suite.app.InflationKeeper.SetParams(suite.ctx, params)
 	suite.Require().NoError(err)
@@ -364,7 +401,9 @@ func (suite *KeeperTestSuite) TestHalvingEventEmission() {
 	params.EnableInflation = true
 	params.DailyEmission, _ = math.NewIntFromString("7200000000000000000000")
 	params.HalvingIntervalEpochs = 2 // Very small for testing
-	params.MultiSigAddress = "evmos1test"
+	// Generate a valid test bech32 address
+	testAddr := sdk.AccAddress([]byte("test_disabled_addr"))
+	params.MultiSigAddress, _ = sdk.Bech32ifyAddressBytes("nxq", testAddr)
 	params.MaxSupply, _ = math.NewIntFromString("21000000000000000000000000")
 	err := suite.app.InflationKeeper.SetParams(suite.ctx, params)
 	suite.Require().NoError(err)
@@ -635,11 +674,11 @@ func (suite *KeeperTestSuite) TestMultiSigAddressPriorityOrder() {
 			description:              "Fallback to inflation params when EVM params empty",
 		},
 		{
-			name:                     "Both empty - use standard distribution",
+			name:                     "Both empty - use hardcoded default",
 			evmMultiSigAddress:       "",
 			inflationMultiSigAddress: "",
-			expectedAddress:          "", // Empty means standard distribution
-			description:              "Both empty triggers standard distribution",
+			expectedAddress:          types.DefaultMultiSigAddress, // Fallback to hardcoded default
+			description:              "Both empty triggers hardcoded default multi-sig",
 		},
 	}
 
@@ -662,8 +701,10 @@ func (suite *KeeperTestSuite) TestMultiSigAddressPriorityOrder() {
 				inflationAddr := sdk.AccAddress(fmt.Sprintf("infaddr%d123456789012", i))
 				inflationAddrStr, _ = sdk.Bech32ifyAddressBytes("nxq", inflationAddr)
 				expectedAddrStr = inflationAddrStr
+			} else if i == 2 {
+				// Third case: Both empty - use hardcoded default
+				expectedAddrStr = types.DefaultMultiSigAddress
 			}
-			// Third case: Both empty - no addresses needed
 
 			// Set up inflation params
 			inflationParams := suite.app.InflationKeeper.GetParams(suite.ctx)

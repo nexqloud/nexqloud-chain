@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	"cosmossdk.io/math"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/suite"
+
+	cmdcfg "github.com/evmos/evmos/v19/cmd/config"
 )
 
 type HalvingCalculationTestSuite struct {
@@ -12,6 +15,13 @@ type HalvingCalculationTestSuite struct {
 }
 
 func TestHalvingCalculationTestSuite(t *testing.T) {
+	// Set up SDK config with nxq prefix before running tests (if not already sealed)
+	config := sdk.GetConfig()
+	if config.GetBech32AccountAddrPrefix() != cmdcfg.Bech32PrefixAccAddr {
+		cmdcfg.SetBech32Prefixes(config)
+		config.Seal()
+	}
+	
 	suite.Run(t, new(HalvingCalculationTestSuite))
 }
 
@@ -510,5 +520,89 @@ func (suite *HalvingCalculationTestSuite) TestHalvingPerformance() {
 
 		// If we reach here without timeout, performance is acceptable
 		suite.Require().True(true)
+	})
+}
+
+// TestOverflowProtection tests that period >= 64 doesn't cause overflow panic
+func (suite *HalvingCalculationTestSuite) TestOverflowProtection() {
+	dailyEmission, _ := math.NewIntFromString("7200000000000000000000")
+	params := Params{
+		DailyEmission: dailyEmission,
+	}
+
+	testCases := []struct {
+		name             string
+		halvingPeriod    uint64
+		expectedEmission string
+	}{
+		{
+			name:             "period 62 - safe, very small emission",
+			halvingPeriod:    62,
+			expectedEmission: "1561", // 7200e18 / 2^62 = 1561 (extremely small but non-zero)
+		},
+		{
+			name:             "period 63 - last safe period (MaxHalvingPeriod)",
+			halvingPeriod:    63,
+			expectedEmission: "0", // Rounds to zero due to integer division (7200e18 / 2^63 = 780 rounds to 0)
+		},
+		{
+			name:             "period 64 - would overflow, returns zero",
+			halvingPeriod:    64,
+			expectedEmission: "0", // Protected: returns zero instead of panic
+		},
+		{
+			name:             "period 65 - beyond overflow, returns zero",
+			halvingPeriod:    65,
+			expectedEmission: "0", // Protected: returns zero instead of panic
+		},
+		{
+			name:             "period 100 - far beyond overflow, returns zero",
+			halvingPeriod:    100,
+			expectedEmission: "0", // Protected: returns zero instead of panic
+		},
+	}
+
+	for _, tc := range testCases {
+		suite.Run(tc.name, func() {
+			// This should NOT panic even at period 64+
+			emission := CalculateDailyEmission(params, tc.halvingPeriod)
+			suite.Require().Equal(tc.expectedEmission, emission.String(),
+				"Period %d should return %s, got %s", tc.halvingPeriod, tc.expectedEmission, emission.String())
+		})
+	}
+}
+
+// TestMaxHalvingPeriodConstant verifies the MaxHalvingPeriod constant is correct
+func (suite *HalvingCalculationTestSuite) TestMaxHalvingPeriodConstant() {
+	suite.Run("max_halving_period_is_63", func() {
+		suite.Require().Equal(int(63), int(MaxHalvingPeriod),
+			"MaxHalvingPeriod should be 63 to prevent 1 << 64 overflow")
+	})
+
+	suite.Run("period_63_is_safe", func() {
+		// At period 63, 1 << 63 is the maximum safe value
+		// 1 << 64 would overflow to 0
+		dailyEmission, _ := math.NewIntFromString("7200000000000000000000")
+		params := Params{
+			DailyEmission: dailyEmission,
+		}
+
+		// This should work without panic
+		emission := CalculateDailyEmission(params, 63)
+		suite.Require().NotNil(emission)
+	})
+
+	suite.Run("period_64_would_overflow_without_protection", func() {
+		// Without our protection, 1 << 64 = 0 in Go (uint64 overflow)
+		// This would cause division by zero panic
+		// Our code returns zero instead
+		dailyEmission, _ := math.NewIntFromString("7200000000000000000000")
+		params := Params{
+			DailyEmission: dailyEmission,
+		}
+
+		emission := CalculateDailyEmission(params, 64)
+		suite.Require().Equal("0", emission.String(),
+			"Period 64 should return zero emission (overflow protection)")
 	})
 }

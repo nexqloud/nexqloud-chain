@@ -6,6 +6,7 @@ package keeper
 import (
 	"fmt"
 
+	"cosmossdk.io/math"
 	"github.com/armon/go-metrics"
 
 	"github.com/cosmos/cosmos-sdk/telemetry"
@@ -87,59 +88,80 @@ func (k Keeper) AfterEpochEnd(ctx sdk.Context, epochIdentifier string, epochNumb
 		Amount: dailyEmission,
 	}
 
-	// 🆕 HALVING: Get MultiSigAddress from EVM params (dynamic, not hardcoded)
-	// Fallback to inflation params default if EVM params not set
+	// 🆕 HALVING: Get MultiSigAddress with fallback chain
+	// Priority: EVM params > Inflation params > Hardcoded default
 	var multiSigAddress string
 	if k.evmKeeper != nil {
 		evmParams := k.evmKeeper.GetParams(ctx)
 		multiSigAddress = evmParams.GetMultiSigAddress()
 	}
-	// Fallback to inflation params default if EVM params is empty (backward compatibility)
 	if multiSigAddress == "" {
 		multiSigAddress = params.MultiSigAddress
-		// If inflation params also empty, use the hardcoded default
-		if multiSigAddress == "" {
-			multiSigAddress = types.DefaultMultiSigAddress
-		}
+	}
+	if multiSigAddress == "" {
+		multiSigAddress = types.DefaultMultiSigAddress
 	}
 
 	// 🆕 HALVING: Mint and send directly to multi-sig (no staking/community pool distribution)
-	// Use MultiSigAddress from EVM params instead of inflation params
-	if multiSigAddress != "" {
-		// Create a temporary params struct with the MultiSigAddress from EVM params
-		tempParams := params
-		tempParams.MultiSigAddress = multiSigAddress
-		if err := k.MintAndSendToMultiSig(ctx, mintedCoin, tempParams); err != nil {
-			panic(fmt.Sprintf("failed to mint and send to multi-sig: %v", err))
-		}
-	} else {
-		// Fallback to standard distribution if multi-sig not set
-		staking, communityPool, err := k.MintAndAllocateInflation(ctx, mintedCoin, params)
-		if err != nil {
-			panic(fmt.Sprintf("failed to allocate inflation: %v", err))
-		}
-		k.Logger(ctx).Info(
-			"allocated inflation (multi-sig not set)",
-			"staking", staking.String(),
-			"community_pool", communityPool.String(),
-		)
+	// Bitcoin-style halving always mints to multi-sig address
+	tempParams := params
+	tempParams.MultiSigAddress = multiSigAddress
+	if err := k.MintAndSendToMultiSig(ctx, mintedCoin, tempParams); err != nil {
+		panic(fmt.Sprintf("failed to mint and send to multi-sig: %v", err))
 	}
 
-	// 🆕 HALVING: Update halving data if we crossed into a new period
-	// Use epochNumber-1 to check the epoch that just ended
+	// 🆕 HALVING: State Reconciliation
+	// Always reconcile stored state with calculated state to prevent "split brain"
+	// This ensures consistency even if governance changes halving parameters
+	stateChanged := false
+	wasNaturalHalving := false
+
+	// Check if this is a natural halving event (time-based, not parameter-induced)
 	if types.ShouldHalve(epochNumber-1, int64(halvingData.StartEpoch), halvingData.LastHalvingEpoch, params.HalvingIntervalEpochs) {
-		halvingData.CurrentPeriod = currentPeriod
+		wasNaturalHalving = true
+		stateChanged = true
 		halvingData.LastHalvingEpoch = uint64(epochNumber - 1) // Store the epoch that just ended
+	}
+
+	// Always reconcile if calculated period differs from stored period
+	// This handles parameter changes that affect period calculation
+	if currentPeriod != halvingData.CurrentPeriod {
+		stateChanged = true
+	}
+
+	// Update state if anything changed
+	if stateChanged {
+		oldPeriod := halvingData.CurrentPeriod
+		halvingData.CurrentPeriod = currentPeriod
 		k.SetHalvingData(ctx, halvingData)
 
-		k.Logger(ctx).Info(
-			"HALVING EVENT: entered new period",
-			"previous-period", currentPeriod-1,
-			"new-period", currentPeriod,
-			"epoch-ended", epochNumber-1,
-			"new-daily-emission", dailyEmission.String(),
-		)
+		// Emit appropriate event based on the type of change
+		if wasNaturalHalving {
+			k.Logger(ctx).Info(
+				"HALVING EVENT: entered new period",
+				"previous-period", oldPeriod,
+				"new-period", currentPeriod,
+				"epoch-ended", epochNumber-1,
+				"new-daily-emission", dailyEmission.String(),
+			)
+		} else {
+			// Period changed due to parameter update, not natural halving
+			k.Logger(ctx).Info(
+				"PERIOD RECONCILIATION: state updated due to parameter change",
+				"old-stored-period", oldPeriod,
+				"new-calculated-period", currentPeriod,
+				"epoch", epochNumber-1,
+				"new-daily-emission", dailyEmission.String(),
+			)
+		}
 	}
+
+	// 🔄 SYNC LEGACY STATE: Update old exponential inflation state to match halving state
+	// This ensures queries like GetPeriod(), GetEpochMintProvision(), GetInflationRate()
+	// return correct values even though they're designed for the old system
+	// NOTE: We always update these, not just when stateChanged, because emission is always happening
+	k.SetPeriod(ctx, currentPeriod)                                       // Sync period with halving period
+	k.SetEpochMintProvision(ctx, math.LegacyNewDecFromInt(dailyEmission)) // Store actual emission amount
 
 	// 🆕 HALVING: Telemetry for halving system
 	defer func() {
