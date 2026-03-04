@@ -26,6 +26,8 @@ WORKDIR /root
 
 COPY --from=build-env /go/src/github.com/evmos/evmos/build/nxqd /usr/bin/nxqd
 COPY --from=build-env /go/bin/toml-cli /usr/bin/toml-cli
+COPY --from=build-env /go/src/github.com/evmos/evmos/run_seed.sh /root/run_seed.sh
+
 
 RUN apk add --no-cache ca-certificates jq curl bash vim lz4 \
     && addgroup -g 1000 evmos \
