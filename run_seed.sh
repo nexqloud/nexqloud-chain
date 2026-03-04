@@ -155,11 +155,11 @@ if [[ $1 == "init" ]]; then
 
 
 	#VAULTS
-	nxqd add-genesis-account nxq1xfm8n072h6antu94tac0skh42u6vj6hrquqznt 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1ptds9mnfns4ufesjga0d0c5a392uw85dpe2hd6 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1cmys66z7m5pv3ygcpm9y5hsyr8m65at6rqnhtk 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1cylpqf2ssa8ajtaledychymmsmc5v8zw3kex26 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
-	nxqd add-genesis-account nxq1dmnc5utac6yz8tcd6r0hjzke3fgsf6t87yljme 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1jxw7dhz0puxyt9pkeeca4fpswh7hrr3kpnjqtq 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1jz0syvudn7ughh7te8z6znfkk5wkuk6vxfynhq 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq13l9f4jrxaqg2dpw4d24xlfufem8l9km9ncsc67 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq19pt22dyarc6mm8j9uvhwry6fyps8ljqgwg3nrv 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
+	nxqd add-genesis-account nxq1qryxgkd9w4uz8sf9c9lcurahhaavugnap88kz2 2100000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
 
 	#MAINTANANCE
 	nxqd add-genesis-account nxq1mm3avcg58d0ht78syf3uyv30yljmyymy3fugyp 10499000000000000000000000$TOKEN --keyring-backend $KEYRING --home $HOMEDIR
