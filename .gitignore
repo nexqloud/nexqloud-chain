@@ -89,3 +89,4 @@ contracts/@openzeppelin/*
 start_testnet.sh
 start_validator.sh
 
+.env

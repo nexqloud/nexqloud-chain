@@ -1,18 +1,22 @@
 FROM golang:1.20.5-alpine3.18 AS build-env
 
+ARG GITHUB_TOKEN
+
 WORKDIR /go/src/github.com/evmos/evmos
 
-COPY go.mod go.sum ./
+COPY go.mod ./
 
-RUN set -eux; apk add --no-cache ca-certificates=20230506-r0 build-base=0.5-r3 git=2.40.1-r0 linux-headers=6.3-r0
+RUN set -eux; apk add --no-cache ca-certificates=20230506-r0 build-base=0.5-r3 git linux-headers=6.3-r0
 
-RUN --mount=type=bind,target=. --mount=type=secret,id=GITHUB_TOKEN \
-    git config --global url."https://$(cat /run/secrets/GITHUB_TOKEN)@github.com/".insteadOf "https://github.com/"; \
+RUN git config --global url."https://romit-nexqloud:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/" && \
     go mod download
 
 COPY . .
 
-RUN make build
+RUN rm -f go.sum
+
+RUN touch go.sum
+RUN GONOSUMDB="*" GOFLAGS="-mod=mod" make build
 
 RUN go install github.com/MinseokOh/toml-cli@latest
 
@@ -23,7 +27,7 @@ WORKDIR /root
 COPY --from=build-env /go/src/github.com/evmos/evmos/build/nxqd /usr/bin/nxqd
 COPY --from=build-env /go/bin/toml-cli /usr/bin/toml-cli
 
-RUN apk add --no-cache ca-certificates=20230506-r0 jq=1.6-r3 curl=8.1.2-r0 bash=5.2.15-r5 vim=9.0.1568-r0 lz4=1.9.4-r4 \
+RUN apk add --no-cache ca-certificates jq curl bash vim lz4 \
     && addgroup -g 1000 evmos \
     && adduser -S -h /home/evmos -D evmos -u 1000 -G evmos
 

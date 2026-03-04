@@ -4,7 +4,7 @@ PACKAGES_NOSIMULATION=$(shell go list ./... | grep -v '/simulation')
 VERSION ?= $(shell echo $(shell git describe --tags --always) | sed 's/^v//')
 TMVERSION := $(shell go list -m github.com/tendermint/tendermint | sed 's:.* ::')
 COMMIT := $(shell git log -1 --format='%H')
-LEDGER_ENABLED ?= true
+LEDGER_ENABLED ?= false
 BINDIR ?= $(GOPATH)/bin
 EVMOS_BINARY = nxqd
 EVMOS_DIR = evmos

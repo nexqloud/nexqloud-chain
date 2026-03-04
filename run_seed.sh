@@ -39,10 +39,10 @@ install=false
 overwrite=""
 
 if [[ "$PATH" == *"root/go/bin"* ]]; then
-	echo "WORKING..." > /root/out.log
+	echo "WORKING..." > /tmp/out.log
 else
 	export PATH=$PATH:/usr/local/go/bin:/root/go/bin
-	echo $PATH > /root/out.log
+	echo $PATH > /tmp/out.log
 fi
 
 
@@ -68,8 +68,10 @@ if [[ $1 == "init" ]]; then
 	# used to exit on first error (any non-zero exit code)
 	set -e
 
-	# Remove the previous folder
-	rm -rf "$HOMEDIR"
+	# Remove the previous folder contents.
+	# Note: the directory itself cannot be removed when it is a Docker volume
+	# mount point (EBUSY), so we delete everything inside it instead.
+	find "$HOMEDIR" -mindepth 1 -delete 2>/dev/null || true
 
 	#make install
 
@@ -131,7 +133,8 @@ if [[ $1 == "init" ]]; then
 	else
 		sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
 		sed -i 's/prometheus-retention-time  = "0"/prometheus-retention-time  = "1000000000000"/g' "$APP_TOML"
-		sed -i 's/enabled = false/enabled = true/g' "$APP_TOML"
+		# Only enable telemetry, not every service in app.toml
+		sed -i '/^\[telemetry\]/,/^\[/{s/enabled = false/enabled = true/}' "$APP_TOML"
 	fi
 
 	# Change proposal periods to pass within a reasonable time for local testing

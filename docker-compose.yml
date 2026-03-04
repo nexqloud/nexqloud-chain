@@ -1,63 +1,80 @@
-version: '3'
-
 services:
-  node0:
-    container_name: evmosnode0
-    image: "evmos/node"
-    ports:
-      - "26656-26657:26656-26657"
-    volumes:
-      - ./build/node0/nxqd:/evmos:Z
-    command:
-      - /nxqd start --home /evmos
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: nexqloud-seed
+    hostname: seed
     networks:
-      localnet:
-        ipv4_address: 192.167.10.2
+      - nxqnet
+    user: "0"
+    env_file:
+      - .env
+    volumes:
+      - seed-data:/root/.nxqd
+      - genesis-share:/var/www/html
+      - ./run_seed.sh:/root/run_seed.sh:ro
+    command: >-
+      bash -c "
+        if [ ! -f /root/.nxqd/config/genesis.json ]; then
+          echo '==> Initialising seed node...'
+          bash /root/run_seed.sh init || { echo 'ERROR: init failed'; exit 1; }
+        else
+          echo '==> Seed data already present, skipping init.'
+        fi
+        echo '==> Starting seed node...'
+        exec bash /root/run_seed.sh
+      "
+    ports:
+      - "26656:26656"   # P2P
+      - "26657:26657"   # Tendermint RPC
+      - "8545:8545"     # Ethereum JSON-RPC (HTTP)
+      - "8546:8546"     # Ethereum JSON-RPC (WebSocket)
+      - "9090:9090"     # gRPC
+      - "1317:1317"     # REST API
+    environment:
+      - MONIKER=NexQloudSeed
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:26657/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
 
-  node1:
-    container_name: evmosnode1
-    image: "evmos/node"
-    ports:
-      - "26659-26660:26656-26657"
-    volumes:
-      - ./build/node1/nxqd:/evmos:Z
-    command:
-      - /nxqd start --home /evmos
+  # --------------------------------------------------------------------------
+  # Genesis file server (nginx)
+  # Serves genesis.json and node-id written by the seed init script.
+  # --------------------------------------------------------------------------
+  web:
+    image: nginx:alpine
+    container_name: nexqloud-web
+    hostname: web
     networks:
-      localnet:
-        ipv4_address: 192.167.10.3
-
-  node2:
-    container_name: evmosnode2
-    image: "evmos/node"
-    ports:
-      - "26661-26662:26656-26657"
+      - nxqnet
     volumes:
-      - ./build/node2/nxqd:/evmos:Z
-    command:
-      - /nxqd start --home /evmos
-    networks:
-      localnet:
-        ipv4_address: 192.167.10.4
-
-  node3:
-    container_name: evmosnode3
-    image: "evmos/node"
+      - genesis-share:/usr/share/nginx/html:ro
     ports:
-      - "26663-26664:26656-26657"
-    volumes:
-      - ./build/node3/nxqd:/evmos:Z
-    command:
-      - /nxqd start --home /evmos
-    networks:
-      localnet:
-        ipv4_address: 192.167.10.5
+      - "80:80"
+    depends_on:
+      - seed
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/node-id"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
 
 networks:
-  localnet:
+  nxqnet:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        -
-          subnet: 192.167.10.0/16
+
+volumes:
+  seed-data:
+    driver: local
+  genesis-share:
+    driver: local
+
