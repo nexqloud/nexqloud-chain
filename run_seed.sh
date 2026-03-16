@@ -203,6 +203,7 @@ if [[ $1 == "init" ]]; then
 	# Run this to ensure everything worked and that the genesis file is setup correctly
 	nxqd validate-genesis --home "$HOMEDIR"
 
+	mkdir -p /var/www/html
 	cp $GENESIS /var/www/html/
 	nxqd tendermint show-node-id  --home "$HOMEDIR" > /var/www/html/node-id
 
