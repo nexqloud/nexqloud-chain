@@ -1,14 +1,13 @@
 FROM golang:1.20.5-alpine3.18 AS build-env
 
-ARG GITHUB_TOKEN
-
 WORKDIR /go/src/github.com/evmos/evmos
 
 COPY go.mod ./
 
 RUN set -eux; apk add --no-cache ca-certificates=20230506-r0 build-base=0.5-r3 git linux-headers=6.3-r0
 
-RUN git config --global url."https://romit-nexqloud:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/" && \
+RUN --mount=type=secret,id=github_token \
+    git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/" && \
     go mod download
 
 COPY . .
