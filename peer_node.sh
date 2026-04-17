@@ -131,6 +131,14 @@ if [[ $1 == "init" ]]; then
     else
         sed -i 's/prometheus = false/prometheus = true/' "$CONFIG"
     fi
+    
+    # Allow duplicate IPs (for Docker NAT / Tailscale mesh)
+    print_info "Enabling allow_duplicate_ip for Docker/Tailscale compatibility"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    else
+        sed -i 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    fi
 
     # Configure block time (1 block every 8 seconds)
     if [[ "$OSTYPE" == "darwin"* ]]; then

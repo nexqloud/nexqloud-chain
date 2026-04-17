@@ -280,6 +280,14 @@ initialize_peer() {
         sed -i 's/enabled = false/enabled = true/' "$APP_TOML"
     fi
     
+    # Allow duplicate IPs (for Docker NAT / Tailscale mesh)
+    print_info "Enabling allow_duplicate_ip for Docker/Tailscale compatibility"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    else
+        sed -i 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    fi
+    
     # Enable gRPC
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"

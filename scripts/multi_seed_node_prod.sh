@@ -339,6 +339,14 @@ initialize_multi_seed() {
         sed -i '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     fi
     
+    # Allow duplicate IPs (for Docker NAT / Tailscale mesh)
+    print_info "Enabling allow_duplicate_ip for Docker/Tailscale compatibility"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    else
+        sed -i 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    fi
+    
     # Configure RPC access (bind to all interfaces for Docker)
     print_info "Enabling RPC services"
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -376,7 +384,7 @@ start_node() {
             --metrics "$TRACE" \
             --log_level $LOGLEVEL \
             --minimum-gas-prices=0.0001nxq \
-            --json-rpc.api eth,txpool,personal,net,debug,web3 \
+            --json-rpc.api eth,txpool,net,debug,web3 \
             --home "$HOMEDIR" \
             --chain-id "$CHAINID"
     else
@@ -385,7 +393,7 @@ start_node() {
             --metrics "$TRACE" \
             --log_level $LOGLEVEL \
             --minimum-gas-prices=0.0001nxq \
-            --json-rpc.api eth,txpool,personal,net,debug,web3 \
+            --json-rpc.api eth,txpool,net,debug,web3 \
             --home "$HOMEDIR" \
             --chain-id "$CHAINID"
     fi

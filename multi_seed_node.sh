@@ -303,6 +303,14 @@ initialize_second_seed() {
         sed -i '/^\[grpc\]/,/^\[/ s|^enable = false|enable = true|' "$APP_TOML"
     fi
     
+    # Allow duplicate IPs (for Docker NAT / Tailscale mesh)
+    print_info "Enabling allow_duplicate_ip for Docker/Tailscale compatibility"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    else
+        sed -i 's/allow_duplicate_ip = false/allow_duplicate_ip = true/' "$CONFIG"
+    fi
+    
     # Verify gRPC is enabled
     print_info "Verifying gRPC configuration:"
     grep -A2 "\[grpc\]" "$APP_TOML" | grep "enable"
