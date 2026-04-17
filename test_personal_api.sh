@@ -9,10 +9,10 @@ echo "=========================================="
 echo ""
 
 # JSON-RPC endpoint
-RPC_URL="http://localhost:8545"
+RPC_URL="http://100.108.8.123:8545"
 
 # Test account (you'll need to use a real account from your keyring)
-TEST_ADDRESS="0x1234567890123456789012345678901234567890"
+TEST_ADDRESS="0xD6aAB23888550C0d7177eB23f5811065855BAAe7"
 TEST_TO="0x0987654321098765432109876543210987654321"
 
 echo "1. Testing eth_sendTransaction (should fail - requires personal API)"
