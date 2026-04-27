@@ -35,7 +35,7 @@ KEYRING="${KEYRING:-file}"
 
 # Genesis account balance configuration (in unxq, where 1 NXQ = 10^18 unxq)
 # will change on the day of mainnet release with the actual amount of tokens in the snapshot
-GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:-2100000000000000000000000unxq}"
+GENESIS_ACCOUNT_BALANCE="${GENESIS_ACCOUNT_BALANCE:3000000000000000000000000unxq}"
 
 # Validator stake configuration (in unxq, where 1 NXQ = 10^18 unxq)
 # Default: 50 NXQ = 50000000000000000000 unxq
